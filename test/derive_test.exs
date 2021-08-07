@@ -63,13 +63,16 @@ defmodule DeriveTest do
       }
     }
 
-    Derive.Source.EventLog.append(:events, [%UserNameUpdated{id: 2, user_id: 99, name: "Johny Darko"}])
+    Derive.Source.EventLog.append(:events, [
+      %UserNameUpdated{id: 2, user_id: 99, name: "Johny Darko"},
+      %UserEmailUpdated{user_id: 99, email: "john@hotmail.com"}
+    ])
     Derive.Dispatcher.wait_for_catchup(dispatcher)
 
 
     assert Derive.Sink.InMemory.fetch(:users) == %{
       User => %{
-        99 => %User{id: 99, name: "Johny Darko"}
+        99 => %User{id: 99, name: "Johny Darko", email: "john@hotmail.com"}
       }
     }
   end
