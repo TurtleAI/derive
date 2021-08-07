@@ -1,34 +1,39 @@
 defmodule Derive.Sink.InMemory do
   use GenServer
 
-  alias Derive.Reducer.Change.{Insert, Delete, Update, Merge}
-
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, :ok, opts)
-  end
-
-  def init(:ok) do
-    {:ok, %{}}
+    {reducer_opts, genserver_opts} = Keyword.split(opts, [:reduce])
+    GenServer.start_link(__MODULE__, reducer_opts, genserver_opts)
   end
 
   def fetch(sink), do: GenServer.call(sink, :fetch)
 
-  def handle_call({:handle_changes, changes}, _from, state) do
-    new_state = handle_changes(state, changes)
-    {:reply, :ok, new_state}
+  def init(opts) do
+    reduce = Keyword.fetch!(opts, :reduce)
+    {:ok, %{reduce: reduce, acc: %{}}}
   end
 
-  def handle_call(:fetch, _from, state) do
-    {:reply, state, state}
+  def handle_call({:handle_changes, changes}, _from, %{reduce: reduce, acc: acc}=state) do
+    new_acc = Enum.reduce(changes, acc, reduce)
+    {:reply, :ok, %{state | acc: new_acc}}
   end
 
-  defp handle_changes(state, changes) do
-    Enum.reduce(changes, state, fn change, acc ->
-      reduce(acc, change)
+  def handle_call(:fetch, _from, %{acc: acc}=state) do
+    {:reply, acc, state}
+  end
+
+end
+
+defprotocol Derive.Sink.InMemory.Reduce do
+  @spec reduce(t, any()) :: any()
+  def reduce(t, acc)
+end
+
+defimpl Derive.Sink.InMemory.Reduce, for: Derive.Reducer.Change.Merge do
+  def reduce(%{selector: selector, attrs: attrs}, acc) do
+    Derive.Util.update_at(acc, selector, fn
+      nil -> attrs
+      record -> Map.merge(record, attrs)
     end)
-  end
-
-  defp reduce(map, %Merge{selector: [type, id], attrs: attrs}) do
-    Map.put(map, type, %{id => attrs})
   end
 end

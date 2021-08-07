@@ -47,18 +47,29 @@ defmodule DeriveTest do
     end
   end
 
+
+
   test "processes events" do
     {:ok, _event_log} = Derive.Source.EventLog.start_link(name: :events)
-    {:ok, _sink} = Derive.Sink.InMemory.start_link(name: :users)
+    {:ok, _sink} = Derive.Sink.InMemory.start_link(name: :users, reduce: &Derive.Sink.InMemory.Reduce.reduce/2)
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer, mode: :catchup)
 
     Derive.Source.EventLog.append(:events, [%UserCreated{id: 1, user_id: 99, name: "John"}])
-
     Derive.Dispatcher.wait_for_catchup(dispatcher)
 
     assert Derive.Sink.InMemory.fetch(:users) == %{
       User => %{
         99 => %User{id: 99, name: "John"}
+      }
+    }
+
+    Derive.Source.EventLog.append(:events, [%UserNameUpdated{id: 2, user_id: 99, name: "Johny Darko"}])
+    Derive.Dispatcher.wait_for_catchup(dispatcher)
+
+
+    assert Derive.Sink.InMemory.fetch(:users) == %{
+      User => %{
+        99 => %User{id: 99, name: "Johny Darko"}
       }
     }
   end
