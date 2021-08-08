@@ -1,7 +1,7 @@
 defmodule Derive.Source.EventLog do
   use GenServer
 
-  defstruct [events: [], subscribers: []]
+  defstruct events: [], subscribers: []
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, :ok, opts)
@@ -17,7 +17,11 @@ defmodule Derive.Source.EventLog do
   end
 
   @impl true
-  def handle_call({:append, new_events}, _from, %{subscribers: subscribers, events: events} = state) do
+  def handle_call(
+        {:append, new_events},
+        _from,
+        %{subscribers: subscribers, events: events} = state
+      ) do
     for sub <- subscribers do
       GenServer.cast(sub, {:new_events, new_events})
     end
@@ -37,5 +41,4 @@ defmodule Derive.Source.EventLog do
   def handle_info({:EXIT, _, :normal}, state) do
     {:stop, :shutdown, state}
   end
-
 end

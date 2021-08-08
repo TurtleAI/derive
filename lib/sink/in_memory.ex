@@ -13,15 +13,14 @@ defmodule Derive.Sink.InMemory do
     {:ok, %{reduce: reduce, acc: %{}}}
   end
 
-  def handle_call({:handle_changes, changes}, _from, %{reduce: reduce, acc: acc}=state) do
+  def handle_call({:handle_changes, changes}, _from, %{reduce: reduce, acc: acc} = state) do
     new_acc = Enum.reduce(changes, acc, reduce)
     {:reply, :ok, %{state | acc: new_acc}}
   end
 
-  def handle_call(:fetch, _from, %{acc: acc}=state) do
+  def handle_call(:fetch, _from, %{acc: acc} = state) do
     {:reply, acc, state}
   end
-
 end
 
 defprotocol Derive.Sink.InMemory.Reduce do

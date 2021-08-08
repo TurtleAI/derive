@@ -3,8 +3,10 @@ defmodule Derive.Util do
     case map do
       %{^type => %{^id => record} = record_map} ->
         Map.put(map, type, Map.put(record_map, id, update.(record)))
+
       %{^type => record_map} ->
         Map.put(map, type, Map.put(record_map, id, update.(nil)))
+
       map ->
         Map.put(map, type, %{id => update.(nil)})
     end

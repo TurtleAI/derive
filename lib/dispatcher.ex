@@ -27,6 +27,7 @@ defmodule Derive.Dispatcher do
   def handle_call(:wait_for_catchup, _sender, %{unprocessed_events: []} = state) do
     {:reply, :ok, state}
   end
+
   def handle_call(:wait_for_catchup, sender, %{waiters: waiters} = state) do
     {:noreply, %{state | waiters: [sender | waiters]}}
   end
@@ -36,7 +37,10 @@ defmodule Derive.Dispatcher do
     {:noreply, %{state | unprocessed_events: unprocessed_events ++ new_events}}
   end
 
-  def handle_cast(:process_events, %{mod: mod, unprocessed_events: unprocessed_events, waiters: waiters} = state) do
+  def handle_cast(
+        :process_events,
+        %{mod: mod, unprocessed_events: unprocessed_events, waiters: waiters} = state
+      ) do
     changes = Enum.map(unprocessed_events, &mod.handle/1)
     Derive.Sink.handle_changes(mod.sink(), changes)
 
@@ -46,5 +50,4 @@ defmodule Derive.Dispatcher do
 
     {:noreply, %{state | unprocessed_events: [], waiters: []}}
   end
-
 end

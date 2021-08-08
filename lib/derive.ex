@@ -36,5 +36,4 @@ defmodule Derive do
   end
   ```
   """
-
 end
