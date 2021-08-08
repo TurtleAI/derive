@@ -17,8 +17,11 @@ defmodule Derive.Source.EventLog do
   end
 
   @impl true
-  def handle_call({:append, new_events}, _from, %{events: events} = state) do
-    Process.send_after(self(), {:new_events, new_events}, 0)
+  def handle_call({:append, new_events}, _from, %{subscribers: subscribers, events: events} = state) do
+    for sub <- subscribers do
+      GenServer.cast(sub, {:new_events, new_events})
+    end
+
     {:reply, :ok, %{state | events: events ++ new_events}}
   end
 
@@ -27,14 +30,6 @@ defmodule Derive.Source.EventLog do
   end
 
   @impl true
-  def handle_info({:new_events, new_events}, %{subscribers: subscribers}=state) do
-    for sub <- subscribers do
-      GenServer.cast(sub, {:new_events, new_events})
-    end
-
-    {:noreply, state}
-  end
-
   def handle_info(:timeout, state) do
     {:stop, :normal, state}
   end

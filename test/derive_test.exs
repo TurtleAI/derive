@@ -55,6 +55,7 @@ defmodule DeriveTest do
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer, mode: :catchup)
 
     Derive.Source.EventLog.append(:events, [%UserCreated{id: 1, user_id: 99, name: "John"}])
+
     Derive.Dispatcher.wait_for_catchup(dispatcher)
 
     assert Derive.Sink.InMemory.fetch(:users) == %{
