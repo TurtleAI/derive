@@ -1,6 +1,11 @@
 # Derive
 
-**TODO: Add description**
+Derive provides the infrastructure for efficiently keeping derived views up to date based on a data source.
+This is commonly used for event sourcing or redux patterns.
+
+Views are eventually consistent because processing is done asynchronously.
+On a first run, the reducer will catch up to the latest state.
+When new events are added to the source, they are incrementally processed and sent to the sink for persistence.
 
 ## Installation
 
@@ -20,9 +25,6 @@ and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/derive](https://hexdocs.pm/derive).
 
 ## Basic usage
-
-You must setup the following: source, reducer, and sink
-
 ```elixir
 defmodule User do
   use Ecto.Schema
@@ -79,10 +81,6 @@ defmodule UserReducer do
   end
   def handle(%UserDeactivated{user_id: user_id, email: email}) do
     delete([User, user_id])
-  end
-
-  def handle_error(%Derive.ReducerError{} = error) do
-    {:retry, Derive.ReducerError.events_without_failed_events(error)}
   end
 end
 

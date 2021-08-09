@@ -8,7 +8,10 @@ defmodule Derive.Source.EventLog do
   end
 
   def append(log, events) do
-    GenServer.call(log, {:append, events})
+    IO.inspect({DateTime.utc_now(), :append})
+    :ok = GenServer.call(log, {:append, events})
+    IO.inspect({DateTime.utc_now(), :append_done})
+    :ok
   end
 
   @impl true

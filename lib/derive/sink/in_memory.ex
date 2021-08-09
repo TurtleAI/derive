@@ -36,3 +36,9 @@ defimpl Derive.Sink.InMemory.Reduce, for: Derive.Reducer.Change.Merge do
     end)
   end
 end
+
+defimpl Derive.Sink.InMemory.Reduce, for: Derive.Reducer.Change.Reset do
+  def reduce(_, _acc) do
+    %{}
+  end
+end

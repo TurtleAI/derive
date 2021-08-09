@@ -14,6 +14,10 @@ defmodule Derive.Reducer.Change.Merge do
   defstruct [:selector, :attrs]
 end
 
+defmodule Derive.Reducer.Change.Reset do
+  defstruct []
+end
+
 defmodule Derive.Reducer.Change do
   def put(selector, record),
     do: %Derive.Reducer.Change.Put{selector: selector, record: record}
