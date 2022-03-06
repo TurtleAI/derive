@@ -71,7 +71,7 @@ defmodule Derive.Dispatcher do
         } = state
       ) do
     operations = Enum.map(unprocessed_events, &mod.handle_event/1)
-    mod.handle_operations(operations)
+    mod.commit_operations(operations)
 
     for e <- unprocessed_events do
       case processed_awaiters do

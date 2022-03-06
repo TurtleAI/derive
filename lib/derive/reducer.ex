@@ -31,7 +31,7 @@ defmodule Derive.Reducer do
   Execute the operations that come from handle_event.
   These events will be processed in batches.
   """
-  @callback handle_operations([operation()]) :: :ok
+  @callback commit_operations([operation()]) :: :ok
 
   defmacro __using__(_options) do
     quote do

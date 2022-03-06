@@ -9,7 +9,7 @@ defmodule Derive.State.InMemory do
   def get_state(pid), do: GenServer.call(pid, :get_state)
 
   def commit(pid, operations) do
-    GenServer.call(pid, {:handle_operations, operations})
+    GenServer.call(pid, {:commit, operations})
   end
 
   def init(opts) do
@@ -17,7 +17,7 @@ defmodule Derive.State.InMemory do
     {:ok, %{reduce: reduce, acc: %{}}}
   end
 
-  def handle_call({:commmit, operations}, _from, %{reduce: reduce, acc: acc} = state) do
+  def handle_call({:commit, operations}, _from, %{reduce: reduce, acc: acc} = state) do
     new_acc = Enum.reduce(operations, acc, reduce)
     {:reply, :ok, %{state | acc: new_acc}}
   end

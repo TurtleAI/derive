@@ -47,7 +47,7 @@ defmodule DeriveTest do
       delete([User, user_id])
     end
 
-    def handle_operations(operations) do
+    def commit_operations(operations) do
       Derive.State.InMemory.commit(:users, operations)
     end
   end
