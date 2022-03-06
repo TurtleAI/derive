@@ -25,6 +25,7 @@ and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/derive](https://hexdocs.pm/derive).
 
 ## Basic usage
+
 ```elixir
 defmodule User do
   use Ecto.Schema
@@ -70,16 +71,16 @@ defmodule UserReducer do
     {Derive.Ecto.Sink, repo: Repo, tables: [User]}
   end
 
-  def handle(%UserCreated{user_id: user_id, name: name, email: email}) do
+  def handle_event(%UserCreated{user_id: user_id, name: name, email: email}) do
     merge([User, user_id], %{name: name, email: email})
   end
-  def handle(%UserNameUpdated{user_id: user_id, name: name}) do
+  def handle_event(%UserNameUpdated{user_id: user_id, name: name}) do
     merge([User, user_id], %{name: name})
   end
-  def handle(%UserEmailUpdated{user_id: user_id, email: email}) do
+  def handle_event(%UserEmailUpdated{user_id: user_id, email: email}) do
     merge([User, user_id], %{email: email})
   end
-  def handle(%UserDeactivated{user_id: user_id, email: email}) do
+  def handle_event(%UserDeactivated{user_id: user_id, email: email}) do
     delete([User, user_id])
   end
 end

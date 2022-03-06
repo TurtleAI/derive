@@ -4,11 +4,10 @@ defmodule Derive.Dispatcher do
   alias Derive.Util.MapOfSets
 
   @moduledoc """
-  Responsible for keeping a derived view up to date based on the configuration as specified by a `Derive.Reducer`
+  Responsible for keeping derived state up to date based on implementation `Derive.Reducer`
 
   Events are processed async but in order based on `Derive.Reducer.partition`.
   """
-
   def start_link(mod, opts) do
     {_dispatcher_opts, genserver_opts} =
       opts
@@ -39,7 +38,6 @@ defmodule Derive.Dispatcher do
 
   @impl true
   def handle_call({:await_processed, _}, _sender, %{unprocessed_events: []} = state) do
-    IO.inspect({DateTime.utc_now(), :await_processed})
     {:reply, :ok, state}
   end
 
@@ -50,12 +48,9 @@ defmodule Derive.Dispatcher do
       ) do
     case Enum.member?(unprocessed_events, event) do
       false ->
-        # IO.inspect(:await_processed_not_member)
         {:reply, :ok, state}
 
       true ->
-        # IO.inspect(:await_processed_member)
-
         {:noreply,
          %{state | processed_awaiters: MapOfSets.put(processed_awaiters, event, caller)}}
     end
@@ -63,7 +58,6 @@ defmodule Derive.Dispatcher do
 
   @impl true
   def handle_cast({:new_events, new_events}, %{unprocessed_events: unprocessed_events} = state) do
-    # IO.puts("new_events")
     GenServer.cast(self(), :process_events)
     {:noreply, %{state | unprocessed_events: unprocessed_events ++ new_events}}
   end
@@ -76,19 +70,13 @@ defmodule Derive.Dispatcher do
           processed_awaiters: processed_awaiters
         } = state
       ) do
-    IO.inspect({DateTime.utc_now(), :process_events, unprocessed_events})
-    # IO.inspect({:process_events, state})
-
-    changes = Enum.map(unprocessed_events, &mod.handle/1)
-    Derive.Sink.handle_changes(mod.sink(), changes)
-
-    IO.inspect({DateTime.utc_now(), :process_events_done, unprocessed_events})
+    operations = Enum.map(unprocessed_events, &mod.handle_event/1)
+    mod.handle_operations(operations)
 
     for e <- unprocessed_events do
       case processed_awaiters do
         %{^e => callers} ->
           for c <- callers do
-            IO.inspect({:reply, c, :ok})
             GenServer.reply(c, :ok)
           end
 

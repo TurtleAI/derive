@@ -8,10 +8,7 @@ defmodule Derive.Source.EventLog do
   end
 
   def append(log, events) do
-    IO.inspect({DateTime.utc_now(), :append})
     :ok = GenServer.call(log, {:append, events})
-    IO.inspect({DateTime.utc_now(), :append_done})
-    :ok
   end
 
   @impl true
@@ -25,10 +22,7 @@ defmodule Derive.Source.EventLog do
         _from,
         %{subscribers: subscribers, events: events} = state
       ) do
-    for sub <- subscribers do
-      GenServer.cast(sub, {:new_events, new_events})
-    end
-
+    notify_subscribers(subscribers, new_events)
     {:reply, :ok, %{state | events: events ++ new_events}}
   end
 
@@ -43,5 +37,12 @@ defmodule Derive.Source.EventLog do
 
   def handle_info({:EXIT, _, :normal}, state) do
     {:stop, :shutdown, state}
+  end
+
+  defp notify_subscribers([], _events), do: :ok
+
+  defp notify_subscribers([subscriber | rest], events) do
+    GenServer.cast(subscriber, {:new_events, events})
+    notify_subscribers(rest, events)
   end
 end

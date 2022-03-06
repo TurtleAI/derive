@@ -1,24 +1,41 @@
 defmodule Derive.Reducer do
-  @type failure_mode() :: :skip | :halt
-
   @type partition() :: binary() | {module(), binary()}
 
-  @type operation() :: any()
+  @typedoc """
+  A generic struct that represents an event.
+  """
   @type event() :: any()
+
+  @type operation() :: any()
+
+  @doc """
+  The process where events come for processing
+  """
+  @callback source() :: pid()
 
   @doc """
   For a given event, return a value by which to serialize the event processing.
-  This is useful to ensure events get processed in order.
-  It's usually recommended to return a value as granular as possible to max out the concurrency.
+  This lets the reducer process events with as much concurrency as possible.
   """
   @callback partition(event()) :: partition() | nil
-  @callback handle(event()) :: operation()
+
+  @doc """
+  For a given event, return a operation that should be run as a result.
+  This is usually for keeping state up to date.
+
+  How the operation is processed depends on the sink.
+  """
+  @callback handle_event(event()) :: operation()
+
+  @doc """
+  Execute the operations that come from handle_event.
+  These events will be processed in batches.
+  """
+  @callback handle_operations([operation()]) :: :ok
 
   defmacro __using__(_options) do
     quote do
       @behaviour Derive.Reducer
-
-      import Derive.Reducer.Change
     end
   end
 end
