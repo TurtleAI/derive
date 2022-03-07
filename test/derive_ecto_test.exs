@@ -25,6 +25,10 @@ defmodule DeriveEctoTest do
     defstruct [:id, :user_id, :name, :email]
   end
 
+  defmodule UserNameUpdated do
+    defstruct [:id, :user_id, :name]
+  end
+
   defmodule UserReducer do
     use Derive.Reducer
 
@@ -35,6 +39,10 @@ defmodule DeriveEctoTest do
 
     def handle_event(%UserCreated{user_id: user_id, name: name, email: email}) do
       insert(%User{id: user_id, name: name, email: email})
+    end
+
+    def handle_event(%UserNameUpdated{user_id: user_id, name: name}) do
+      update([User, user_id], %{name: name})
     end
 
     def commit_operations(operations) do
@@ -57,13 +65,6 @@ defmodule DeriveEctoTest do
 
   test "insert a user" do
     {:ok, _event_log} = Derive.Source.EventLog.start_link(name: :events)
-
-    {:ok, _sink} =
-      Derive.State.InMemory.start_link(
-        name: :users,
-        reduce: &Derive.State.InMemory.Reduce.reduce/2
-      )
-
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
     Derive.Source.EventLog.append(:events, [%UserCreated{id: "1", user_id: "99", name: "John"}])
@@ -73,7 +74,17 @@ defmodule DeriveEctoTest do
     ])
 
     user = Derive.Repo.get(User, "99")
-
     assert user.name == "John"
+
+    Derive.Source.EventLog.append(:events, [
+      %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
+    ])
+
+    Derive.Dispatcher.await_processed(dispatcher, [
+      %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
+    ])
+
+    user = Derive.Repo.get(User, "99")
+    assert user.name == "John Wayne"
   end
 end
