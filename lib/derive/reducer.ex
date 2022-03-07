@@ -1,6 +1,11 @@
 defmodule Derive.Reducer do
   @type partition() :: binary() | {module(), binary()}
 
+  @moduledoc """
+  Specifies how some state can be kept up to date based on
+  an event source c:source/1
+  """
+
   @typedoc """
   A generic struct that represents an event.
   """

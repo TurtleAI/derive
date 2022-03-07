@@ -6,9 +6,11 @@ defmodule Derive.Dispatcher do
   @moduledoc """
   Responsible for keeping derived state up to date based on implementation `Derive.Reducer`
 
-  Events are processed async but in order based on `Derive.Reducer.partition`.
+  Events are processed async, meaning whatever state they update is eventually consistent.
+  Events are processed in order based on Derive.Reducer.partition/1
   """
-  def start_link(mod, opts) do
+
+  def start_link(mod, opts \\ []) do
     {_dispatcher_opts, genserver_opts} =
       opts
       |> Keyword.split([])

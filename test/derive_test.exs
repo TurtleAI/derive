@@ -61,7 +61,7 @@ defmodule DeriveTest do
         reduce: &Derive.State.InMemory.Reduce.reduce/2
       )
 
-    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer, mode: :catchup)
+    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
     Derive.Source.EventLog.append(:events, [%UserCreated{id: 1, user_id: 99, name: "John"}])
 
