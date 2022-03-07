@@ -1,4 +1,4 @@
-defmodule DeriveTest do
+defmodule DeriveInMemoryTest do
   use ExUnit.Case
   doctest Derive
 

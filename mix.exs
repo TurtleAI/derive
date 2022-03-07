@@ -13,12 +13,15 @@ defmodule Derive.MixProject do
 
   def application do
     [
+      mod: {Derive, []},
       extra_applications: [:logger]
     ]
   end
 
   defp deps do
     [
+      {:ecto_sql, "~> 3.7.0"},
+      {:postgrex, "~> 0.16.2"}
     ]
   end
 end
