@@ -2,8 +2,14 @@ defmodule Derive.Reducer do
   @type partition() :: binary() | {module(), binary()}
 
   @moduledoc """
-  Specifies how some state can be kept up to date based on
-  an event source c:source/1
+  Defines how a given state is kept up to date based on an event source by a `Derive.Dispatcher`
+
+  It happens as follows:
+  - Events come from a source process defined by `&Derive.Reducer.source/0`
+  - These are partitioned by `&Derive.Reducer.partition/1` for maximum concurrency
+  - These events are processed by `&Derive.Reducer.handle_event/1`
+    which produces 0+ operations that are meant to update some state
+  - These operations are committed by &Derive.Reducer.commit_operations/1
   """
 
   @typedoc """
@@ -11,16 +17,21 @@ defmodule Derive.Reducer do
   """
   @type event() :: any()
 
+  @typedoc """
+  A struct that represents a side-effect to be committed.
+
+  `Derive.Reducer.commit_operations/1` will define how a batch of operations should be committed.
+  """
   @type operation() :: any()
 
   @doc """
-  The process where events come for processing
+  The source where events from
   """
   @callback source() :: pid()
 
   @doc """
-  For a given event, return a value by which to serialize the event processing.
-  This lets the reducer process events with as much concurrency as possible.
+  Partition events across processes. Events within the same partition are processed in order.
+  For example, returning event.user_id would guarantee that all events for a given user are processed in order.
   """
   @callback partition(event()) :: partition() | nil
 
