@@ -69,8 +69,8 @@ defmodule DeriveEctoTest do
 
     Derive.Source.EventLog.append(:events, [%UserCreated{id: "1", user_id: "99", name: "John"}])
 
-    Derive.Dispatcher.await_processed(dispatcher, [
-      %UserCreated{id: 12, user_id: 99, name: "John"}
+    Derive.Dispatcher.await(dispatcher, [
+      %UserCreated{id: "1", user_id: "99", name: "John"}
     ])
 
     user = Derive.Repo.get(User, "99")
@@ -80,7 +80,7 @@ defmodule DeriveEctoTest do
       %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
     ])
 
-    Derive.Dispatcher.await_processed(dispatcher, [
+    Derive.Dispatcher.await(dispatcher, [
       %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
     ])
 

@@ -1,4 +1,6 @@
 defmodule Derive.Util.MapOfSets do
+  def new, do: %{}
+
   def put(map, key, value) do
     Map.update(map, key, MapSet.new([value]), fn set ->
       MapSet.put(set, value)

@@ -35,7 +35,6 @@ defmodule DeriveInMemoryTest do
     end
 
     def handle_event(%UserNameUpdated{user_id: user_id, name: name}) do
-      Process.sleep(500)
       merge([User, user_id], %{name: name})
     end
 
@@ -65,8 +64,8 @@ defmodule DeriveInMemoryTest do
 
     Derive.Source.EventLog.append(:events, [%UserCreated{id: 1, user_id: 99, name: "John"}])
 
-    Derive.Dispatcher.await_processed(dispatcher, [
-      %UserCreated{id: 12, user_id: 99, name: "John"}
+    Derive.Dispatcher.await(dispatcher, [
+      %UserCreated{id: 1, user_id: 99, name: "John"}
     ])
 
     assert Derive.State.InMemory.get_state(:users) == %{
@@ -81,7 +80,7 @@ defmodule DeriveInMemoryTest do
       %UserNameUpdated{id: 4, user_id: 99, name: "Donny Darko"}
     ])
 
-    Derive.Dispatcher.await_processed(dispatcher, [
+    Derive.Dispatcher.await(dispatcher, [
       %UserNameUpdated{id: 4, user_id: 99, name: "Donny Darko"}
     ])
 

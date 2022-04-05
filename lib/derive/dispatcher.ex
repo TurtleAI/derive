@@ -1,102 +1,70 @@
 defmodule Derive.Dispatcher do
   use GenServer
 
-  alias Derive.Util.MapOfSets
-
   @moduledoc """
   Responsible for keeping derived state up to date based on implementation `Derive.Reducer`
 
   Events are processed async, meaning whatever state they update is eventually consistent.
-  Events are processed in order based on Derive.Reducer.partition/1
+  Events are processed concurrently, but in order based on Derive.Reducer.partition/1
   """
 
-  def start_link(mod, opts \\ []) do
+  def start_link(reducer, opts \\ []) do
     {_dispatcher_opts, genserver_opts} =
       opts
       |> Keyword.split([])
 
-    GenServer.start_link(__MODULE__, %{mod: mod}, genserver_opts)
+    GenServer.start_link(__MODULE__, %{reducer: reducer}, genserver_opts)
   end
+
+  ### Client
 
   @doc """
-  Wait for all of the events to be processed.
-  Must be called after an event has been persisted to a source.
+  Wait for all of the events to be processed by all of the matching partitions as defined by
+  `Derive.Reducer.partition/1`
+
+  If the event has already been processed, this will complete immediately
+  If the event has not yet been processed, this will block until it completes processing
+
+  Events are not considered processed until *all* operations produced by `Derive.Reducer.handle_event/1`
+  have been committed by `Derive.Reducer.commit_operations/1`
   """
-  def await_processed(dispatcher, events) when is_list(events) do
-    for e <- events do
-      await_processed(dispatcher, e)
-    end
+  def await(dispatcher, events),
+    do: GenServer.call(dispatcher, {:await, List.wrap(events)})
+
+  def init(%{reducer: reducer}) do
+    GenServer.call(reducer.source(), {:subscribe, self()})
+
+    {:ok, %{reducer: reducer}}
   end
 
-  def await_processed(dispatcher, event) do
-    GenServer.call(dispatcher, {:await_processed, event})
-  end
+  ### Server
 
-  @impl true
-  def init(%{mod: mod}) do
-    Derive.Source.subscribe(mod.source(), self())
-    {:ok, %{mod: mod, unprocessed_events: [], processed_awaiters: %{}}}
-  end
+  def handle_call({:await, events}, _from, %{reducer: reducer} = state) do
+    events
+    |> events_by_partition_dispatcher(reducer)
+    |> Enum.each(fn {partition_dispatcher, events} ->
+      Derive.PartitionDispatcher.await(partition_dispatcher, events)
+    end)
 
-  @impl true
-  def handle_call({:await_processed, _}, _sender, %{unprocessed_events: []} = state) do
     {:reply, :ok, state}
   end
 
-  def handle_call(
-        {:await_processed, event},
-        caller,
-        %{unprocessed_events: unprocessed_events, processed_awaiters: processed_awaiters} = state
-      ) do
-    case Enum.member?(unprocessed_events, event) do
-      false ->
-        {:reply, :ok, state}
+  def handle_cast({:new_events, events}, %{reducer: reducer} = state) do
+    events
+    |> events_by_partition_dispatcher(reducer)
+    |> Enum.each(fn {partition_dispatcher, events} ->
+      Derive.PartitionDispatcher.dispatch_events(partition_dispatcher, events)
+    end)
 
-      true ->
-        {:noreply,
-         %{state | processed_awaiters: MapOfSets.put(processed_awaiters, event, caller)}}
-    end
+    {:noreply, state}
   end
 
-  @impl true
-  def handle_cast({:new_events, new_events}, %{unprocessed_events: unprocessed_events} = state) do
-    GenServer.cast(self(), :process_events)
-    {:noreply, %{state | unprocessed_events: unprocessed_events ++ new_events}}
-  end
+  defp events_by_partition_dispatcher(events, reducer) do
+    events_by_partition = Enum.group_by(events, &reducer.partition/1)
 
-  def handle_cast(
-        :process_events,
-        %{
-          mod: mod,
-          unprocessed_events: unprocessed_events,
-          processed_awaiters: processed_awaiters
-        } = state
-      ) do
-    operations = Enum.map(unprocessed_events, &mod.handle_event/1)
-    mod.commit_operations(operations)
-
-    for e <- unprocessed_events do
-      case processed_awaiters do
-        %{^e => callers} ->
-          for c <- callers do
-            GenServer.reply(c, :ok)
-          end
-
-        %{} ->
-          :ok
-      end
+    for {partition, events} <- events_by_partition, into: %{} do
+      partition_dispatcher = Derive.PartitionSupervisor.lookup_or_start({reducer, partition})
+      {partition_dispatcher, events}
     end
-
-    new_processed_awaiters =
-      Enum.reduce(unprocessed_events, processed_awaiters, fn e, acc ->
-        Map.delete(acc, e)
-      end)
-
-    {:noreply,
-     %{
-       state
-       | unprocessed_events: [],
-         processed_awaiters: new_processed_awaiters
-     }}
   end
 end

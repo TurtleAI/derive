@@ -30,8 +30,11 @@ defmodule Derive.Reducer do
   @callback source() :: pid()
 
   @doc """
-  Partition events across processes. Events within the same partition are processed in order.
+  Events within the same partition are processed in order.
   For example, returning event.user_id would guarantee that all events for a given user are processed in order.
+
+  A partition is also used to maximize concurrency so events are processed as fast as possible.
+  Events in different partitions can be processed simultaneously since they have no dependencies on one another.
   """
   @callback partition(event()) :: partition() | nil
 
