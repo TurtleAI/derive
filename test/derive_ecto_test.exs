@@ -171,8 +171,9 @@ defmodule DeriveEctoTest do
     assert time.name == "Time"
   end
 
+  @tag :focus
   test "resuming a dispatcher after a server is restarted" do
-    {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
+    {:ok, event_log} = InMemoryEventLog.start_link(name: :events)
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
     events = [
@@ -182,15 +183,20 @@ defmodule DeriveEctoTest do
     InMemoryEventLog.append(:events, events)
     Derive.Dispatcher.await(dispatcher, events)
 
+    Process.exit(event_log, :normal)
     Process.exit(dispatcher, :normal)
 
-    InMemoryEventLog.append(:events, events)
-
-    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
-
+    # Append some events while the dispatcher is dead
     events = [
       %UserNameUpdated{id: "2", user_id: "j", name: "John Smith", sleep: 100}
     ]
+
+    InMemoryEventLog.append(:events, events)
+
+    Process.sleep(500)
+
+    # Dispatcher should pick up where it left off and process the remaining events
+    # {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
     Derive.Dispatcher.await(dispatcher, events)
 
