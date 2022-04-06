@@ -1,7 +1,8 @@
 defmodule DeriveEctoTest do
   use ExUnit.Case
 
-  alias Derive.EventLog.InMemoryEventLog, as: EventLog
+  alias Derive.EventLog
+  alias Derive.EventLog.InMemoryEventLog
 
   @same_time_threshold 10
 
@@ -120,7 +121,7 @@ defmodule DeriveEctoTest do
   end
 
   test "insert a user" do
-    {:ok, _event_log} = EventLog.start_link(name: :events)
+    {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
     EventLog.append(:events, [
@@ -147,7 +148,7 @@ defmodule DeriveEctoTest do
   end
 
   test "events are processed in parallel according to the partition" do
-    {:ok, _event_log} = EventLog.start_link(name: :events)
+    {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
     events = [
@@ -171,30 +172,30 @@ defmodule DeriveEctoTest do
     assert time.name == "Time"
   end
 
-  # test "resuming a dispatcher after a server is restarted" do
-  #   {:ok, _event_log} = EventLog.start_link(name: :events)
-  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+  test "resuming a dispatcher after a server is restarted" do
+    {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
+    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-  #   events = [
-  #     %UserCreated{id: "1", user_id: "j", name: "John", sleep: 100}
-  #   ]
+    events = [
+      %UserCreated{id: "1", user_id: "j", name: "John", sleep: 100}
+    ]
 
-  #   EventLog.append(:events, events)
-  #   Derive.Dispatcher.await(dispatcher, events)
+    EventLog.append(:events, events)
+    Derive.Dispatcher.await(dispatcher, events)
 
-  #   Process.exit(dispatcher, :normal)
+    Process.exit(dispatcher, :normal)
 
-  #   EventLog.append(:events, events)
+    EventLog.append(:events, events)
 
-  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-  #   events = [
-  #     %UserNameUpdated{id: "2", user_id: "j", name: "John Smith", sleep: 100}
-  #   ]
+    events = [
+      %UserNameUpdated{id: "2", user_id: "j", name: "John Smith", sleep: 100}
+    ]
 
-  #   Derive.Dispatcher.await(dispatcher, events)
+    Derive.Dispatcher.await(dispatcher, events)
 
-  #   john = Derive.Repo.get(User, "j")
-  #   assert john.name == "John Smith"
-  # end
+    john = Derive.Repo.get(User, "j")
+    assert john.name == "John Smith"
+  end
 end

@@ -7,12 +7,8 @@ defmodule Derive.EventLog.InMemoryEventLog do
   An ephemeral in-memory event log used just for testing purposes.
   """
 
-  def start_link(opts) do
+  def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, opts)
-  end
-
-  def append(log, events) do
-    :ok = GenServer.call(log, {:append, events})
   end
 
   @impl true
@@ -34,6 +30,15 @@ defmodule Derive.EventLog.InMemoryEventLog do
     {:reply, :ok, %{state | subscribers: subscribers ++ [new_subscriber]}}
   end
 
+  def handle_call({:fetch, {cursor, limit}}, _from, %{events: events} = state) do
+    cursor = normalize_cursor(cursor)
+
+    case Enum.slice(events, cursor, limit) do
+      [] -> {:reply, {[], cursor}, state}
+      events_slice -> {:reply, {events_slice, cursor + Enum.count(events_slice)}, state}
+    end
+  end
+
   @impl true
   def handle_info(:timeout, state) do
     {:stop, :normal, state}
@@ -42,6 +47,9 @@ defmodule Derive.EventLog.InMemoryEventLog do
   def handle_info({:EXIT, _, :normal}, state) do
     {:stop, :shutdown, state}
   end
+
+  defp normalize_cursor(:start), do: 0
+  defp normalize_cursor(index), do: index
 
   defp notify_subscribers([], _events), do: :ok
 

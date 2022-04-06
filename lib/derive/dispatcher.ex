@@ -32,7 +32,7 @@ defmodule Derive.Dispatcher do
     do: GenServer.call(dispatcher, {:await, events})
 
   def init(%{reducer: reducer}) do
-    GenServer.call(reducer.source(), {:subscribe, self()})
+    Derive.EventLog.subscribe(reducer.source(), self())
 
     {:ok, %{reducer: reducer}}
   end
