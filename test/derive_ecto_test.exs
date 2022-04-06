@@ -1,6 +1,8 @@
 defmodule DeriveEctoTest do
   use ExUnit.Case
 
+  alias Derive.EventLog.InMemoryEventLog, as: EventLog
+
   @same_time_threshold 10
 
   defmodule User do
@@ -89,10 +91,14 @@ defmodule DeriveEctoTest do
     def commit_operations(operations) do
       Derive.State.Ecto.commit(Derive.Repo, operations)
     end
+
+    def reset_state do
+      Derive.State.Ecto.reset_state(Derive.Repo, [User, LogEntry])
+    end
   end
 
   setup_all do
-    Derive.State.Ecto.reset_state(Derive.Repo, [User, LogEntry])
+    UserReducer.reset_state()
 
     :ok
   end
@@ -114,10 +120,10 @@ defmodule DeriveEctoTest do
   end
 
   test "insert a user" do
-    {:ok, _event_log} = Derive.Source.EventLog.start_link(name: :events)
+    {:ok, _event_log} = EventLog.start_link(name: :events)
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-    Derive.Source.EventLog.append(:events, [
+    EventLog.append(:events, [
       %UserCreated{id: "1", user_id: "99", name: "John"}
     ])
 
@@ -128,7 +134,7 @@ defmodule DeriveEctoTest do
     user = Derive.Repo.get(User, "99")
     assert user.name == "John"
 
-    Derive.Source.EventLog.append(:events, [
+    EventLog.append(:events, [
       %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
     ])
 
@@ -141,7 +147,7 @@ defmodule DeriveEctoTest do
   end
 
   test "events are processed in parallel according to the partition" do
-    {:ok, _event_log} = Derive.Source.EventLog.start_link(name: :events)
+    {:ok, _event_log} = EventLog.start_link(name: :events)
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
     events = [
@@ -150,7 +156,7 @@ defmodule DeriveEctoTest do
       %UserCreated{id: "3", user_id: "t", name: "Time", sleep: 100}
     ]
 
-    Derive.Source.EventLog.append(:events, events)
+    EventLog.append(:events, events)
     Derive.Dispatcher.await(dispatcher, events)
 
     assert [{"created-s", t1}, {"created-t", t2}, {"updated-s", t3}] = get_logs()
@@ -164,4 +170,31 @@ defmodule DeriveEctoTest do
     assert same.name == "Similar"
     assert time.name == "Time"
   end
+
+  # test "resuming a dispatcher after a server is restarted" do
+  #   {:ok, _event_log} = EventLog.start_link(name: :events)
+  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+
+  #   events = [
+  #     %UserCreated{id: "1", user_id: "j", name: "John", sleep: 100}
+  #   ]
+
+  #   EventLog.append(:events, events)
+  #   Derive.Dispatcher.await(dispatcher, events)
+
+  #   Process.exit(dispatcher, :normal)
+
+  #   EventLog.append(:events, events)
+
+  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+
+  #   events = [
+  #     %UserNameUpdated{id: "2", user_id: "j", name: "John Smith", sleep: 100}
+  #   ]
+
+  #   Derive.Dispatcher.await(dispatcher, events)
+
+  #   john = Derive.Repo.get(User, "j")
+  #   assert john.name == "John Smith"
+  # end
 end

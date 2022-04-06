@@ -2,6 +2,8 @@ defmodule DeriveInMemoryTest do
   use ExUnit.Case
   doctest Derive
 
+  alias Derive.EventLog.InMemoryEventLog, as: EventLog
+
   defmodule User do
     defstruct [:id, :name, :email]
   end
@@ -52,7 +54,7 @@ defmodule DeriveInMemoryTest do
   end
 
   test "processes events from an empty event log" do
-    {:ok, _event_log} = Derive.Source.EventLog.start_link(name: :events)
+    {:ok, _event_log} = EventLog.start_link(name: :events)
 
     {:ok, _sink} =
       Derive.State.InMemory.start_link(
@@ -62,7 +64,7 @@ defmodule DeriveInMemoryTest do
 
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-    Derive.Source.EventLog.append(:events, [%UserCreated{id: 1, user_id: 99, name: "John"}])
+    EventLog.append(:events, [%UserCreated{id: 1, user_id: 99, name: "John"}])
 
     Derive.Dispatcher.await(dispatcher, [
       %UserCreated{id: 1, user_id: 99, name: "John"}
@@ -74,7 +76,7 @@ defmodule DeriveInMemoryTest do
              }
            }
 
-    Derive.Source.EventLog.append(:events, [
+    EventLog.append(:events, [
       %UserNameUpdated{id: 2, user_id: 99, name: "Johny Darko"},
       %UserEmailUpdated{id: 3, user_id: 99, email: "john@hotmail.com"},
       %UserNameUpdated{id: 4, user_id: 99, name: "Donny Darko"}

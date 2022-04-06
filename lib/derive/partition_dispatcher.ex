@@ -8,6 +8,13 @@ defmodule Derive.PartitionDispatcher do
 
   @moduledoc """
   A process for a given {reducer, partition} to keep the state of its partition up to date
+
+  processed_events:
+    a set of event ids that have been processed so far
+  pending_awaiters:
+     a map of sets
+     key: event id
+     value: a set of processes that have called await to wait until the event has been processed
   """
 
   def start_link(opts) do
@@ -90,28 +97,14 @@ defmodule Derive.PartitionDispatcher do
     |> List.flatten()
     |> reducer.commit_operations()
 
-    # for the given events that were just dispatched
-    # - build a list of awaiters that should be notified
-    # - build a new map of awaiters with the ones we're going to notify removed
-    {matching_awaiters, new_pending_awaiters} =
-      Enum.reduce(events, {[], pending_awaiters}, fn e, {matching_awaiters_acc, awaiters_acc} ->
-        case pending_awaiters do
-          %{^e => awaiters} ->
-            {matching_awaiters_acc ++ awaiters, Map.delete(awaiters_acc, e)}
+    {matching_awaiters, pending_awaiters_left} = pop_matching_awaiters(events, pending_awaiters)
 
-          %{} ->
-            {matching_awaiters_acc, awaiters_acc}
-        end
-      end)
-
-    Enum.each(matching_awaiters, fn awaiter ->
-      GenServer.reply(awaiter, :ok)
-    end)
+    Enum.each(matching_awaiters, &GenServer.reply(&1, :ok))
 
     new_state = %{
       state
       | processed_events: MapSet.union(processed_events, MapSet.new(events)),
-        pending_awaiters: new_pending_awaiters
+        pending_awaiters: pending_awaiters_left
     }
 
     {:noreply, new_state}
@@ -124,5 +117,20 @@ defmodule Derive.PartitionDispatcher do
 
   defp debug(message) do
     Logger.debug(inspect(self()) <> ": " <> message.())
+  end
+
+  # For a given set of events and the current processes that are still waiting on events to be processed
+  # Give {matching_awaiters, remaining_pending_awaiters}
+  defp pop_matching_awaiters(events, pending_awaiters) do
+    Enum.reduce(events, {[], pending_awaiters}, fn e, {matching_awaiters_acc, awaiters_acc} ->
+      case pending_awaiters do
+        # There are processes waiting for this event go get processed
+        %{^e => awaiters} ->
+          {matching_awaiters_acc ++ awaiters, Map.delete(awaiters_acc, e)}
+
+        %{} ->
+          {matching_awaiters_acc, awaiters_acc}
+      end
+    end)
   end
 end

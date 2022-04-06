@@ -1,7 +1,11 @@
-defmodule Derive.Source.EventLog do
+defmodule Derive.EventLog.InMemoryEventLog do
   use GenServer
 
   defstruct events: [], subscribers: []
+
+  @moduledoc """
+  An ephemeral in-memory event log used just for testing purposes.
+  """
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, :ok, opts)
@@ -13,7 +17,7 @@ defmodule Derive.Source.EventLog do
 
   @impl true
   def init(:ok) do
-    {:ok, %Derive.Source.EventLog{}}
+    {:ok, %__MODULE__{}}
   end
 
   @impl true

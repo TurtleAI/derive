@@ -29,7 +29,7 @@ defmodule Derive.Dispatcher do
   have been committed by `Derive.Reducer.commit_operations/1`
   """
   def await(dispatcher, events),
-    do: GenServer.call(dispatcher, {:await, List.wrap(events)})
+    do: GenServer.call(dispatcher, {:await, events})
 
   def init(%{reducer: reducer}) do
     GenServer.call(reducer.source(), {:subscribe, self()})
@@ -40,7 +40,7 @@ defmodule Derive.Dispatcher do
   ### Server
 
   def handle_call({:await, events}, _from, %{reducer: reducer} = state) do
-    events
+    List.wrap(events)
     |> events_by_partition_dispatcher(reducer)
     |> Enum.each(fn {partition_dispatcher, events} ->
       Derive.PartitionDispatcher.await(partition_dispatcher, events)

@@ -52,6 +52,12 @@ defmodule Derive.Reducer do
   """
   @callback commit_operations([operation()]) :: :ok
 
+  @doc """
+  Reset the state so we can start processing from the first event
+  This operation should reset the state in *all* partitions
+  """
+  @callback reset_state() :: :ok
+
   defmacro __using__(_options) do
     quote do
       @behaviour Derive.Reducer
