@@ -87,6 +87,7 @@ defmodule Derive.PartitionDispatcher do
       ) do
     events
     |> Enum.map(&reducer.handle_event/1)
+    |> List.flatten()
     |> reducer.commit_operations()
 
     # for the given events that were just dispatched
