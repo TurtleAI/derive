@@ -11,6 +11,17 @@ defmodule Derive.EventLog.InMemoryEventLog do
     GenServer.start_link(__MODULE__, :ok, opts)
   end
 
+  ### Client
+
+  @doc """
+  Append a list of events to the event log
+  """
+  def append(server, events) do
+    GenServer.call(server, {:append, events})
+  end
+
+  ### Server
+
   @impl true
   def init(:ok) do
     {:ok, %__MODULE__{}}

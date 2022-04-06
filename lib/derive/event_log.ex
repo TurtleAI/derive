@@ -22,13 +22,6 @@ defmodule Derive.EventLog do
   end
 
   @doc """
-  Append a list of events to the event log
-  """
-  def append(server, events) do
-    GenServer.call(server, {:append, events})
-  end
-
-  @doc """
   Fetch a list of events that have been persisted to the event log
   The events can be paginated through {cursor, limit}
 

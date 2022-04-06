@@ -1,7 +1,6 @@
 defmodule DeriveEctoTest do
   use ExUnit.Case
 
-  alias Derive.EventLog
   alias Derive.EventLog.InMemoryEventLog
 
   @same_time_threshold 10
@@ -124,7 +123,7 @@ defmodule DeriveEctoTest do
     {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-    EventLog.append(:events, [
+    InMemoryEventLog.append(:events, [
       %UserCreated{id: "1", user_id: "99", name: "John"}
     ])
 
@@ -135,7 +134,7 @@ defmodule DeriveEctoTest do
     user = Derive.Repo.get(User, "99")
     assert user.name == "John"
 
-    EventLog.append(:events, [
+    InMemoryEventLog.append(:events, [
       %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
     ])
 
@@ -157,7 +156,7 @@ defmodule DeriveEctoTest do
       %UserCreated{id: "3", user_id: "t", name: "Time", sleep: 100}
     ]
 
-    EventLog.append(:events, events)
+    InMemoryEventLog.append(:events, events)
     Derive.Dispatcher.await(dispatcher, events)
 
     assert [{"created-s", t1}, {"created-t", t2}, {"updated-s", t3}] = get_logs()
@@ -180,12 +179,12 @@ defmodule DeriveEctoTest do
       %UserCreated{id: "1", user_id: "j", name: "John", sleep: 100}
     ]
 
-    EventLog.append(:events, events)
+    InMemoryEventLog.append(:events, events)
     Derive.Dispatcher.await(dispatcher, events)
 
     Process.exit(dispatcher, :normal)
 
-    EventLog.append(:events, events)
+    InMemoryEventLog.append(:events, events)
 
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
