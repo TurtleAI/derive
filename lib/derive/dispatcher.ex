@@ -6,8 +6,9 @@ defmodule Derive.Dispatcher do
   @moduledoc """
   Responsible for keeping derived state up to date based on implementation `Derive.Reducer`
 
-  Events are processed async, meaning whatever state they update is eventually consistent.
-  Events are processed concurrently, but in order based on Derive.Reducer.partition/1
+  Events are processed concurrently, but in order is guaranteed based on the result of Derive.Reducer.partition/1
+  State is eventually consistent
+  You can call `&Derive.Dispatcher.await/2` lets you wait for events to be finished processing.
   """
 
   def start_link(reducer, opts \\ []) do
@@ -56,9 +57,16 @@ defmodule Derive.Dispatcher do
   def handle_cast({:new_events, events}, %{reducer: reducer} = state) do
     events
     |> events_by_partition_dispatcher(reducer)
-    |> Enum.each(fn {partition_dispatcher, events} ->
+    |> Enum.map(fn {partition_dispatcher, events} ->
       PartitionDispatcher.dispatch_events(partition_dispatcher, events)
+      {partition_dispatcher, events}
     end)
+    |> Enum.each(fn {partition_dispatcher, events} ->
+      PartitionDispatcher.await(partition_dispatcher, events)
+    end)
+
+    version = events |> Enum.map(fn %{id: id} -> id end) |> Enum.max()
+    reducer.set_version(version)
 
     {:noreply, state}
   end

@@ -50,10 +50,11 @@ defmodule Derive.EventLog do
   Interally makes use of `Derive.EventLog.fetch/2` to lazily fetch the events in batches
   """
   def stream(server, opts \\ []) do
+    cursor = Keyword.get(opts, :cursor, :start)
     batch_size = Keyword.get(opts, :batch_size, 100)
 
     Stream.resource(
-      fn -> :start end,
+      fn -> cursor end,
       fn cursor ->
         case fetch(server, {cursor, batch_size}) do
           {[], _cursor} -> {:halt, nil}

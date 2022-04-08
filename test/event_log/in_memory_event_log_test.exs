@@ -38,4 +38,14 @@ defmodule DeriveInMemoryEventLogTest do
 
     assert events == [:a, :b, :c, :d, :e, :f]
   end
+
+  test "streaming events in the middle" do
+    {:ok, event_log} = InMemoryEventLog.start_link()
+
+    InMemoryEventLog.append(event_log, [:a, :b, :c, :d, :e, :f])
+
+    events = EventLog.stream(event_log, cursor: 3, batch_size: 2) |> Enum.to_list()
+
+    assert events == [:d, :e, :f]
+  end
 end

@@ -53,6 +53,9 @@ defmodule DeriveInMemoryTest do
     def commit_operations(%MultiOp{} = op) do
       Derive.State.InMemory.commit(:users, MultiOp.operations(op))
     end
+
+    def get_version(), do: "0"
+    def set_version(_), do: :ok
   end
 
   test "processes events from an empty event log" do

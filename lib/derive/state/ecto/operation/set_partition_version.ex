@@ -1,6 +1,6 @@
 defmodule Derive.State.Ecto.Operation.SetPartitionVersion do
   @moduledoc """
-  In state backed by Ecto, we want to update the latest version of a parition
+  In state backed by Ecto, we want to update the latest version of a partition
   within a transaction to guarantee consistency.
 
   This way, the state is update and its partition version is updated within the same transaction.

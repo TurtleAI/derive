@@ -123,6 +123,19 @@ defmodule DeriveEctoTest do
       Derive.State.Ecto.commit(Derive.Repo, operations)
     end
 
+    def get_version() do
+    end
+
+    def set_version(version) do
+      Derive.State.Ecto.commit(Derive.Repo, [
+        %Derive.State.Ecto.Operation.SetPartitionVersion{
+          table: UserReducerPartitions,
+          partition: "$",
+          version: version
+        }
+      ])
+    end
+
     def reset_state do
       Derive.State.Ecto.reset_state(Derive.Repo, [UserReducerPartitions, User, LogEntry])
     end

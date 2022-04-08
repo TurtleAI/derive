@@ -24,6 +24,11 @@ defmodule Derive.Reducer do
   """
   @type operation() :: any()
 
+  @typedoc """
+  The cursor pointing to a last event processed
+  """
+  @type version() :: String.t()
+
   @doc """
   The source where events from
   """
@@ -51,6 +56,16 @@ defmodule Derive.Reducer do
   These events will be processed in batches.
   """
   @callback commit_operations([operation()]) :: :ok
+
+  @doc """
+  Get the current overall version of the reducer
+  """
+  @callback get_version() :: version()
+
+  @doc """
+  Update the overall version of the dispatcher
+  """
+  @callback update_version(version()) :: :ok
 
   @doc """
   Reset the state so we can start processing from the first event
