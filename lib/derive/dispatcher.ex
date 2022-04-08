@@ -1,6 +1,8 @@
 defmodule Derive.Dispatcher do
   use GenServer
 
+  alias Derive.PartitionDispatcher
+
   @moduledoc """
   Responsible for keeping derived state up to date based on implementation `Derive.Reducer`
 
@@ -32,6 +34,8 @@ defmodule Derive.Dispatcher do
     do: GenServer.call(dispatcher, {:await, events})
 
   def init(%{reducer: reducer}) do
+    Process.flag(:trap_exit, true)
+
     Derive.EventLog.subscribe(reducer.source(), self())
 
     {:ok, %{reducer: reducer}}
@@ -43,7 +47,7 @@ defmodule Derive.Dispatcher do
     List.wrap(events)
     |> events_by_partition_dispatcher(reducer)
     |> Enum.each(fn {partition_dispatcher, events} ->
-      Derive.PartitionDispatcher.await(partition_dispatcher, events)
+      PartitionDispatcher.await(partition_dispatcher, events)
     end)
 
     {:reply, :ok, state}
@@ -53,10 +57,14 @@ defmodule Derive.Dispatcher do
     events
     |> events_by_partition_dispatcher(reducer)
     |> Enum.each(fn {partition_dispatcher, events} ->
-      Derive.PartitionDispatcher.dispatch_events(partition_dispatcher, events)
+      PartitionDispatcher.dispatch_events(partition_dispatcher, events)
     end)
 
     {:noreply, state}
+  end
+
+  def handle_info({:EXIT, _, :normal}, state) do
+    {:stop, :shutdown, state}
   end
 
   defp events_by_partition_dispatcher(events, reducer) do

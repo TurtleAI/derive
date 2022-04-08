@@ -1,4 +1,8 @@
 defmodule Derive.State.Ecto do
+  @moduledoc """
+  Operations to update derived state in Ecto
+  """
+
   def commit(repo, operations) do
     multi = operations_to_multi(Ecto.Multi.new(), 1, operations)
     repo.transaction(multi)

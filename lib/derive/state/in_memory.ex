@@ -6,11 +6,14 @@ defmodule Derive.State.InMemory do
     GenServer.start_link(__MODULE__, reducer_opts, genserver_opts)
   end
 
-  def get_state(pid), do: GenServer.call(pid, :get_state)
+  def get_state(server),
+    do: GenServer.call(server, :get_state)
 
-  def commit(pid, operations) do
-    GenServer.call(pid, {:commit, operations})
-  end
+  def reset_state(server),
+    do: GenServer.call(server, :reset_state)
+
+  def commit(server, operations),
+    do: GenServer.call(server, {:commit, operations})
 
   def init(opts) do
     reduce = Keyword.fetch!(opts, :reduce)
@@ -20,6 +23,10 @@ defmodule Derive.State.InMemory do
   def handle_call({:commit, operations}, _from, %{reduce: reduce, acc: acc} = state) do
     new_acc = Enum.reduce(operations, acc, reduce)
     {:reply, :ok, %{state | acc: new_acc}}
+  end
+
+  def handle_call(:reset_state, _from, state) do
+    {:reply, :ok, %{state | acc: %{}}}
   end
 
   def handle_call(:get_state, _from, %{acc: acc} = state) do

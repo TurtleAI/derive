@@ -29,6 +29,8 @@ defmodule DeriveInMemoryTest do
 
     import Derive.State.InMemory.Operation
 
+    alias Derive.State.MultiOp
+
     def source, do: :events
     def partition(%{user_id: user_id}), do: user_id
 
@@ -48,8 +50,8 @@ defmodule DeriveInMemoryTest do
       delete([User, user_id])
     end
 
-    def commit_operations(operations) do
-      Derive.State.InMemory.commit(:users, operations)
+    def commit_operations(%MultiOp{} = op) do
+      Derive.State.InMemory.commit(:users, MultiOp.operations(op))
     end
   end
 

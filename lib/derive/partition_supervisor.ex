@@ -37,7 +37,8 @@ defmodule Derive.PartitionSupervisor do
       [] ->
         case DynamicSupervisor.start_child(
                @supervisor,
-               {Derive.PartitionDispatcher, [reducer: reducer, name: Derive.Registry.via(key)]}
+               {Derive.PartitionDispatcher,
+                [reducer: reducer, partition: partition, name: Derive.Registry.via(key)]}
              ) do
           {:ok, pid} -> pid
           {:error, {:already_started, pid}} -> pid

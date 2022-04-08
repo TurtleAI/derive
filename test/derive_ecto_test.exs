@@ -25,6 +25,25 @@ defmodule DeriveEctoTest do
     def down, do: drop_if_exists(table(:users))
   end
 
+  defmodule UserReducerPartitions do
+    use Derive.State.Ecto.Model
+
+    @primary_key {:id, :string, []}
+    schema "user_reducer_partitions" do
+      field(:partition, :string)
+      field(:email, :string)
+    end
+
+    def up do
+      create table(:user_reducer_partitions, primary_key: false) do
+        add(:id, :string, size: 32, primary_key: true)
+        add(:version, :string, size: 32)
+      end
+    end
+
+    def down, do: drop_if_exists(table(:user_reducer_partitions))
+  end
+
   defmodule LogEntry do
     use Derive.State.Ecto.Model
 
@@ -55,6 +74,8 @@ defmodule DeriveEctoTest do
     use Derive.Reducer
 
     import Derive.State.Ecto.Operation
+
+    alias Derive.State.MultiOp
 
     def source, do: :events
     def partition(%{user_id: user_id}), do: user_id
@@ -88,12 +109,22 @@ defmodule DeriveEctoTest do
       ]
     end
 
-    def commit_operations(operations) do
+    def commit_operations(%MultiOp{} = op) do
+      operations =
+        MultiOp.operations(op) ++
+          [
+            %Derive.State.Ecto.Operation.SetPartitionVersion{
+              table: UserReducerPartitions,
+              partition: op.partition,
+              version: MultiOp.partition_version(op)
+            }
+          ]
+
       Derive.State.Ecto.commit(Derive.Repo, operations)
     end
 
     def reset_state do
-      Derive.State.Ecto.reset_state(Derive.Repo, [User, LogEntry])
+      Derive.State.Ecto.reset_state(Derive.Repo, [UserReducerPartitions, User, LogEntry])
     end
   end
 
@@ -171,36 +202,36 @@ defmodule DeriveEctoTest do
     assert time.name == "Time"
   end
 
-  @tag :focus
-  test "resuming a dispatcher after a server is restarted" do
-    {:ok, event_log} = InMemoryEventLog.start_link(name: :events)
-    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+  # @tag :focus
+  # test "resuming a dispatcher after a server is restarted" do
+  #   {:ok, event_log} = InMemoryEventLog.start_link(name: :events)
+  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-    events = [
-      %UserCreated{id: "1", user_id: "j", name: "John", sleep: 100}
-    ]
+  #   events = [
+  #     %UserCreated{id: "1", user_id: "j", name: "John", sleep: 100}
+  #   ]
 
-    InMemoryEventLog.append(:events, events)
-    Derive.Dispatcher.await(dispatcher, events)
+  #   InMemoryEventLog.append(:events, events)
+  #   Derive.Dispatcher.await(dispatcher, events)
 
-    Process.exit(event_log, :normal)
-    Process.exit(dispatcher, :normal)
+  #   Process.exit(dispatcher, :normal)
+  #   # wait for the process to exit
+  #   Process.sleep(1)
+  #   assert Process.alive?(dispatcher) == false
 
-    # Append some events while the dispatcher is dead
-    events = [
-      %UserNameUpdated{id: "2", user_id: "j", name: "John Smith", sleep: 100}
-    ]
+  #   # Append some events while the dispatcher is dead
+  #   events = [
+  #     %UserNameUpdated{id: "2", user_id: "j", name: "John Smith", sleep: 100}
+  #   ]
 
-    InMemoryEventLog.append(:events, events)
+  #   InMemoryEventLog.append(:events, events)
 
-    Process.sleep(500)
+  #   # Dispatcher should pick up where it left off and process the remaining events
+  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-    # Dispatcher should pick up where it left off and process the remaining events
-    # {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+  #   Derive.Dispatcher.await(dispatcher, events)
 
-    Derive.Dispatcher.await(dispatcher, events)
-
-    john = Derive.Repo.get(User, "j")
-    assert john.name == "John Smith"
-  end
+  #   john = Derive.Repo.get(User, "j")
+  #   assert john.name == "John Smith"
+  # end
 end

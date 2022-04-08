@@ -4,7 +4,7 @@ defmodule Derive.PartitionDispatcher do
 
   alias Derive.Util.MapOfSets
 
-  defstruct [:reducer, :processed_events, :pending_awaiters]
+  defstruct [:reducer, :partition, :processed_events, :pending_awaiters]
 
   @moduledoc """
   A process for a given {reducer, partition} to keep the state of its partition up to date
@@ -19,11 +19,13 @@ defmodule Derive.PartitionDispatcher do
 
   def start_link(opts) do
     reducer = Keyword.fetch!(opts, :reducer)
+    partition = Keyword.fetch!(opts, :partition)
 
     GenServer.start_link(
       __MODULE__,
       %__MODULE__{
         reducer: reducer,
+        partition: partition,
         processed_events: MapSet.new(),
         pending_awaiters: MapOfSets.new()
       },
@@ -68,7 +70,10 @@ defmodule Derive.PartitionDispatcher do
   def handle_call(
         {:await, event},
         from,
-        %{processed_events: processed_events, pending_awaiters: pending_awaiters} = state
+        %__MODULE__{
+          processed_events: processed_events,
+          pending_awaiters: pending_awaiters
+        } = state
       ) do
     case MapSet.member?(processed_events, event) do
       true ->
@@ -86,16 +91,23 @@ defmodule Derive.PartitionDispatcher do
 
   def handle_cast(
         {:dispatch_events, events},
-        %{
+        %__MODULE__{
           reducer: reducer,
+          partition: partition,
           processed_events: processed_events,
           pending_awaiters: pending_awaiters
         } = state
       ) do
-    events
-    |> Enum.map(&reducer.handle_event/1)
-    |> List.flatten()
-    |> reducer.commit_operations()
+    event_operations =
+      events
+      |> Enum.map(fn e ->
+        {e, List.wrap(reducer.handle_event(e))}
+      end)
+      |> Enum.reject(fn {_e, ops} -> ops == [] end)
+
+    multi_op = Derive.State.MultiOp.new(partition, event_operations)
+
+    reducer.commit_operations(multi_op)
 
     {matching_awaiters, pending_awaiters_left} = pop_matching_awaiters(events, pending_awaiters)
 
