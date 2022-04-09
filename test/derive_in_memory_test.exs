@@ -34,6 +34,8 @@ defmodule DeriveInMemoryTest do
     def source, do: :events
     def partition(%{user_id: user_id}), do: user_id
 
+    defp state, do: :users
+
     def handle_event(%UserCreated{user_id: user_id, name: name, email: email}) do
       merge([User, user_id], %User{id: user_id, name: name, email: email})
     end
@@ -51,11 +53,15 @@ defmodule DeriveInMemoryTest do
     end
 
     def commit_operations(%MultiOp{} = op) do
-      Derive.State.InMemory.commit(:users, MultiOp.operations(op))
+      Derive.State.InMemory.commit(state(), MultiOp.operations(op))
     end
 
-    def get_version(), do: "0"
+    def get_version(), do: 0
     def set_version(_), do: :ok
+
+    def reset_state do
+      Derive.State.InMemory.reset_state(state())
+    end
   end
 
   test "processes events from an empty event log" do

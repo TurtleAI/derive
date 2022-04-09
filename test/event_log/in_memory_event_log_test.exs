@@ -26,7 +26,7 @@ defmodule DeriveInMemoryEventLogTest do
 
     assert {[:a, :b], cursor} = EventLog.fetch(event_log, {:start, 2})
     assert {[:c], cursor} = EventLog.fetch(event_log, {cursor, 2})
-    assert {[], cursor} = EventLog.fetch(event_log, {cursor, 2})
+    assert {[], _cursor} = EventLog.fetch(event_log, {cursor, 2})
   end
 
   test "streaming events" do

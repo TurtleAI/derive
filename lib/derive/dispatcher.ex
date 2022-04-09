@@ -2,6 +2,9 @@ defmodule Derive.Dispatcher do
   use GenServer
 
   alias Derive.PartitionDispatcher
+  alias __MODULE__, as: D
+
+  defstruct [:reducer, :version]
 
   @moduledoc """
   Responsible for keeping derived state up to date based on implementation `Derive.Reducer`
@@ -16,7 +19,7 @@ defmodule Derive.Dispatcher do
       opts
       |> Keyword.split([])
 
-    GenServer.start_link(__MODULE__, %{reducer: reducer}, genserver_opts)
+    GenServer.start_link(__MODULE__, %D{reducer: reducer}, genserver_opts)
   end
 
   ### Client
@@ -39,12 +42,17 @@ defmodule Derive.Dispatcher do
 
     Derive.EventLog.subscribe(reducer.source(), self())
 
-    {:ok, %{reducer: reducer}}
+    {:ok, %D{reducer: reducer}, {:continue, :ok}}
   end
 
   ### Server
 
-  def handle_call({:await, events}, _from, %{reducer: reducer} = state) do
+  def handle_continue(:ok, %D{reducer: reducer} = state) do
+    version = reducer.get_version()
+    {:noreply, %{state | version: version}}
+  end
+
+  def handle_call({:await, events}, _from, %D{reducer: reducer} = state) do
     List.wrap(events)
     |> events_by_partition_dispatcher(reducer)
     |> Enum.each(fn {partition_dispatcher, events} ->
@@ -54,7 +62,7 @@ defmodule Derive.Dispatcher do
     {:reply, :ok, state}
   end
 
-  def handle_cast({:new_events, events}, %{reducer: reducer} = state) do
+  def handle_cast({:new_events, events}, %D{reducer: reducer} = state) do
     events
     |> events_by_partition_dispatcher(reducer)
     |> Enum.map(fn {partition_dispatcher, events} ->
@@ -68,7 +76,7 @@ defmodule Derive.Dispatcher do
     version = events |> Enum.map(fn %{id: id} -> id end) |> Enum.max()
     reducer.set_version(version)
 
-    {:noreply, state}
+    {:noreply, %{state | version: version}}
   end
 
   def handle_info({:EXIT, _, :normal}, state) do

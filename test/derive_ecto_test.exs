@@ -30,8 +30,7 @@ defmodule DeriveEctoTest do
 
     @primary_key {:id, :string, []}
     schema "user_reducer_partitions" do
-      field(:partition, :string)
-      field(:email, :string)
+      field(:version, :string)
     end
 
     def up do
@@ -124,6 +123,10 @@ defmodule DeriveEctoTest do
     end
 
     def get_version() do
+      case Derive.Repo.get(UserReducerPartitions, "$") do
+        nil -> "0"
+        %{version: version} -> version
+      end
     end
 
     def set_version(version) do

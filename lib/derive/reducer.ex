@@ -65,7 +65,7 @@ defmodule Derive.Reducer do
   @doc """
   Update the overall version of the dispatcher
   """
-  @callback update_version(version()) :: :ok
+  @callback set_version(version()) :: :ok
 
   @doc """
   Reset the state so we can start processing from the first event
