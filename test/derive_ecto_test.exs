@@ -122,18 +122,18 @@ defmodule DeriveEctoTest do
       Derive.State.Ecto.commit(Derive.Repo, operations)
     end
 
-    def get_version() do
-      case Derive.Repo.get(UserReducerPartitions, "$") do
-        nil -> "0"
+    def get_version(partition) do
+      case Derive.Repo.get(UserReducerPartitions, partition) do
+        nil -> :start
         %{version: version} -> version
       end
     end
 
-    def set_version(version) do
+    def set_version(partition, version) do
       Derive.State.Ecto.commit(Derive.Repo, [
         %Derive.State.Ecto.Operation.SetPartitionVersion{
           table: UserReducerPartitions,
-          partition: "$",
+          partition: partition,
           version: version
         }
       ])
@@ -218,36 +218,37 @@ defmodule DeriveEctoTest do
     assert time.name == "Time"
   end
 
-  # @tag :focus
-  # test "resuming a dispatcher after a server is restarted" do
-  #   {:ok, event_log} = InMemoryEventLog.start_link(name: :events)
-  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+  test "resuming a dispatcher after a server is restarted" do
+    {:ok, event_log} = InMemoryEventLog.start_link(name: :events)
+    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-  #   events = [
-  #     %UserCreated{id: "1", user_id: "j", name: "John", sleep: 100}
-  #   ]
+    events = [
+      %UserCreated{id: "1", user_id: "j", name: "John", sleep: 100}
+    ]
 
-  #   InMemoryEventLog.append(:events, events)
-  #   Derive.Dispatcher.await(dispatcher, events)
+    InMemoryEventLog.append(:events, events)
+    Derive.Dispatcher.await(dispatcher, events)
 
-  #   Process.exit(dispatcher, :normal)
-  #   # wait for the process to exit
-  #   Process.sleep(1)
-  #   assert Process.alive?(dispatcher) == false
+    IO.puts("awaited events")
 
-  #   # Append some events while the dispatcher is dead
-  #   events = [
-  #     %UserNameUpdated{id: "2", user_id: "j", name: "John Smith", sleep: 100}
-  #   ]
+    Process.exit(dispatcher, :normal)
+    # wait for the process to exit
+    Process.sleep(1)
+    assert Process.alive?(dispatcher) == false
 
-  #   InMemoryEventLog.append(:events, events)
+    # Append some events while the dispatcher is dead
+    events = [
+      %UserNameUpdated{id: "2", user_id: "j", name: "John Smith", sleep: 100}
+    ]
 
-  #   # Dispatcher should pick up where it left off and process the remaining events
-  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+    InMemoryEventLog.append(:events, events)
 
-  #   Derive.Dispatcher.await(dispatcher, events)
+    # Dispatcher should pick up where it left off and process the remaining events
+    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-  #   john = Derive.Repo.get(User, "j")
-  #   assert john.name == "John Smith"
-  # end
+    Derive.Dispatcher.await(dispatcher, events)
+
+    # john = Derive.Repo.get(User, "j")
+    # assert john.name == "John Smith"
+  end
 end

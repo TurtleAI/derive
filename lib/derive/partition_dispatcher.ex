@@ -3,8 +3,9 @@ defmodule Derive.PartitionDispatcher do
   require Logger
 
   alias Derive.Util.MapOfSets
+  alias __MODULE__, as: D
 
-  defstruct [:reducer, :partition, :processed_events, :pending_awaiters]
+  defstruct [:reducer, :partition, :version, :pending_awaiters]
 
   @moduledoc """
   A process for a given {reducer, partition} to keep the state of its partition up to date
@@ -12,9 +13,7 @@ defmodule Derive.PartitionDispatcher do
   processed_events:
     a set of event ids that have been processed so far
   pending_awaiters:
-     a map of sets
-     key: event id
-     value: a set of processes that have called await to wait until the event has been processed
+     [{awaiter, event_id}, {awaiter, event_id}, ...]
   """
 
   def start_link(opts) do
@@ -22,11 +21,10 @@ defmodule Derive.PartitionDispatcher do
     partition = Keyword.fetch!(opts, :partition)
 
     GenServer.start_link(
-      __MODULE__,
-      %__MODULE__{
+      D,
+      %D{
         reducer: reducer,
         partition: partition,
-        processed_events: MapSet.new(),
         pending_awaiters: MapOfSets.new()
       },
       opts
@@ -54,7 +52,12 @@ defmodule Derive.PartitionDispatcher do
 
   def init(state) do
     Process.flag(:trap_exit, true)
-    {:ok, state}
+    {:ok, state, {:continue, :ok}}
+  end
+
+  def handle_continue(:ok, %D{reducer: reducer, partition: partition} = state) do
+    version = reducer.get_version(partition)
+    {:noreply, %{state | version: version}}
   end
 
   def handle_info(:timeout, state) do
@@ -70,12 +73,11 @@ defmodule Derive.PartitionDispatcher do
   def handle_call(
         {:await, event},
         from,
-        %__MODULE__{
-          processed_events: processed_events,
-          pending_awaiters: pending_awaiters
-        } = state
+        %D{pending_awaiters: pending_awaiters} = state
       ) do
-    case MapSet.member?(processed_events, event) do
+    IO.inspect({:processed_event, state, event, processed_event?(state, event)})
+
+    case processed_event?(state, event) do
       true ->
         # The event was already processed, so we can immediately reply :ok
         {:reply, :ok, state}
@@ -83,7 +85,12 @@ defmodule Derive.PartitionDispatcher do
       false ->
         # The event hasn't yet been processed, so we hold onto a reference to the caller
         # At a later time, we will reply to these callers after we process the events
-        new_state = %{state | pending_awaiters: MapOfSets.put(pending_awaiters, event, from)}
+        new_state =
+          %{
+            state
+            | pending_awaiters: [{from, event.id} | pending_awaiters]
+          }
+          |> IO.inspect(label: :add_awaiter)
 
         {:noreply, new_state}
     end
@@ -91,10 +98,9 @@ defmodule Derive.PartitionDispatcher do
 
   def handle_cast(
         {:dispatch_events, events},
-        %__MODULE__{
+        %D{
           reducer: reducer,
           partition: partition,
-          processed_events: processed_events,
           pending_awaiters: pending_awaiters
         } = state
       ) do
@@ -109,14 +115,22 @@ defmodule Derive.PartitionDispatcher do
 
     reducer.commit_operations(multi_op)
 
-    {matching_awaiters, pending_awaiters_left} = pop_matching_awaiters(events, pending_awaiters)
+    new_version = events |> Enum.map(fn %{id: id} -> id end) |> Enum.max()
 
-    Enum.each(matching_awaiters, &GenServer.reply(&1, :ok))
+    {matching_awaiters, pending_awaiters_left} =
+      Enum.split_with(pending_awaiters, fn {_awaiter, event_id} ->
+        new_version >= event_id
+      end)
+      |> IO.inspect(label: :matching_pending)
+
+    Enum.each(matching_awaiters, fn {awaiter, _event_id} ->
+      GenServer.reply(awaiter, :ok)
+    end)
 
     new_state = %{
       state
-      | processed_events: MapSet.union(processed_events, MapSet.new(events)),
-        pending_awaiters: pending_awaiters_left
+      | pending_awaiters: pending_awaiters_left,
+        version: new_version
     }
 
     {:noreply, new_state}
@@ -131,18 +145,9 @@ defmodule Derive.PartitionDispatcher do
     Logger.debug(inspect(self()) <> ": " <> message.())
   end
 
-  # For a given set of events and the current processes that are still waiting on events to be processed
-  # Give {matching_awaiters, remaining_pending_awaiters}
-  defp pop_matching_awaiters(events, pending_awaiters) do
-    Enum.reduce(events, {[], pending_awaiters}, fn e, {matching_awaiters_acc, awaiters_acc} ->
-      case pending_awaiters do
-        # There are processes waiting for this event go get processed
-        %{^e => awaiters} ->
-          {matching_awaiters_acc ++ awaiters, Map.delete(awaiters_acc, e)}
+  defp processed_event?(%D{version: version}, id) when is_binary(id),
+    do: version >= id
 
-        %{} ->
-          {matching_awaiters_acc, awaiters_acc}
-      end
-    end)
-  end
+  defp processed_event?(%D{version: version}, %{id: id}),
+    do: version >= id
 end

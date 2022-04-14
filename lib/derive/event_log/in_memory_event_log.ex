@@ -42,11 +42,12 @@ defmodule Derive.EventLog.InMemoryEventLog do
   end
 
   def handle_call({:fetch, {cursor, limit}}, _from, %{events: events} = state) do
-    cursor = normalize_cursor(cursor)
+    case Enum.slice(events, index, limit) do
+      [] ->
+        {:reply, {[], cursor}, state}
 
-    case Enum.slice(events, cursor, limit) do
-      [] -> {:reply, {[], cursor}, state}
-      events_slice -> {:reply, {events_slice, cursor + Enum.count(events_slice)}, state}
+      events_slice ->
+        {:reply, {events_slice, Enum.at(events_slice, -1)[:id]}, state}
     end
   end
 
@@ -58,9 +59,6 @@ defmodule Derive.EventLog.InMemoryEventLog do
   def handle_info({:EXIT, _, :normal}, state) do
     {:stop, :shutdown, state}
   end
-
-  defp normalize_cursor(:start), do: 0
-  defp normalize_cursor(index), do: index
 
   defp notify_subscribers([], _events), do: :ok
 

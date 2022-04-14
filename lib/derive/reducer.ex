@@ -1,5 +1,5 @@
 defmodule Derive.Reducer do
-  @type partition() :: binary() | {module(), binary()}
+  @type partition() :: binary()
 
   @moduledoc """
   Defines how a given state is kept up to date based on an event source by a `Derive.Dispatcher`
@@ -11,11 +11,6 @@ defmodule Derive.Reducer do
     which produces 0+ operations that are meant to update some state
   - These operations are committed by &Derive.Reducer.commit_operations/1
   """
-
-  @typedoc """
-  A generic struct that represents an event.
-  """
-  @type event() :: any()
 
   @typedoc """
   A struct that represents a side-effect to be committed.
@@ -41,7 +36,7 @@ defmodule Derive.Reducer do
   A partition is also used to maximize concurrency so events are processed as fast as possible.
   Events in different partitions can be processed simultaneously since they have no dependencies on one another.
   """
-  @callback partition(event()) :: partition() | nil
+  @callback partition(Derive.EventLog.event()) :: partition() | nil
 
   @doc """
   For a given event, return a operation that should be run as a result.
@@ -49,7 +44,7 @@ defmodule Derive.Reducer do
 
   How the operation is processed depends on the sink.
   """
-  @callback handle_event(event()) :: operation()
+  @callback handle_event(Derive.EventLog.event()) :: operation()
 
   @doc """
   Execute the operations that come from handle_event.
@@ -60,12 +55,12 @@ defmodule Derive.Reducer do
   @doc """
   Get the current overall version of the reducer
   """
-  @callback get_version() :: version()
+  @callback get_version(partition()) :: version()
 
   @doc """
   Update the overall version of the dispatcher
   """
-  @callback set_version(version()) :: :ok
+  @callback set_version(partition(), version()) :: :ok
 
   @doc """
   Reset the state so we can start processing from the first event

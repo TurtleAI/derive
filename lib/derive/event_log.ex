@@ -1,4 +1,11 @@
 defmodule Derive.EventLog do
+  @typedoc """
+  A generic struct that represents an event.
+  """
+  @type event() :: any()
+
+  @type cursor() :: any()
+
   @moduledoc """
   The interface for a persistent, ordered log of events.
   They can be stored anywhere such as in-memory, in a postgres table, or on disk.
@@ -36,6 +43,7 @@ defmodule Derive.EventLog do
 
   If there are no more events, an empty list will be returned
   """
+  @spec fetch(pid(), {cursor(), integer()}) :: {[event()], cursor()}
   def fetch(server, {cursor, limit}) do
     GenServer.call(server, {:fetch, {cursor, limit}})
   end

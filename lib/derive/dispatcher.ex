@@ -6,6 +6,9 @@ defmodule Derive.Dispatcher do
 
   defstruct [:reducer, :version]
 
+  # We maintain the version of a special partition with this name
+  @global_partition "$"
+
   @moduledoc """
   Responsible for keeping derived state up to date based on implementation `Derive.Reducer`
 
@@ -37,18 +40,21 @@ defmodule Derive.Dispatcher do
   def await(dispatcher, events),
     do: GenServer.call(dispatcher, {:await, events})
 
-  def init(%{reducer: reducer}) do
+  def init(%D{reducer: reducer} = state) do
     Process.flag(:trap_exit, true)
 
     Derive.EventLog.subscribe(reducer.source(), self())
 
-    {:ok, %D{reducer: reducer}, {:continue, :ok}}
+    {:ok, state, {:continue, :ok}}
   end
 
   ### Server
 
   def handle_continue(:ok, %D{reducer: reducer} = state) do
-    version = reducer.get_version()
+    version = reducer.get_version(@global_partition)
+
+    GenServer.cast(self(), {:new_events, :ok})
+
     {:noreply, %{state | version: version}}
   end
 
@@ -62,21 +68,29 @@ defmodule Derive.Dispatcher do
     {:reply, :ok, state}
   end
 
-  def handle_cast({:new_events, events}, %D{reducer: reducer} = state) do
-    events
-    |> events_by_partition_dispatcher(reducer)
-    |> Enum.map(fn {partition_dispatcher, events} ->
-      PartitionDispatcher.dispatch_events(partition_dispatcher, events)
-      {partition_dispatcher, events}
-    end)
-    |> Enum.each(fn {partition_dispatcher, events} ->
-      PartitionDispatcher.await(partition_dispatcher, events)
-    end)
+  def handle_cast({:new_events, new_events}, %D{reducer: reducer, version: version} = state) do
+    IO.inspect({:new_events, new_events})
 
-    version = events |> Enum.map(fn %{id: id} -> id end) |> Enum.max()
-    reducer.set_version(version)
+    # todo: handle batch sizes larger than 100
+    case Derive.EventLog.fetch(reducer.source(), {version, 100}) do
+      {[], _} ->
+        {:noreply, state}
 
-    {:noreply, %{state | version: version}}
+      {events, new_version} ->
+        events
+        |> events_by_partition_dispatcher(reducer)
+        |> Enum.map(fn {partition_dispatcher, events} ->
+          PartitionDispatcher.dispatch_events(partition_dispatcher, events)
+          {partition_dispatcher, events}
+        end)
+        |> Enum.each(fn {partition_dispatcher, events} ->
+          PartitionDispatcher.await(partition_dispatcher, events)
+        end)
+
+        reducer.set_version(@global_partition, new_version)
+
+        {:noreply, %{state | version: new_version}}
+    end
   end
 
   def handle_info({:EXIT, _, :normal}, state) do

@@ -56,8 +56,8 @@ defmodule DeriveInMemoryTest do
       Derive.State.InMemory.commit(state(), MultiOp.operations(op))
     end
 
-    def get_version(), do: 0
-    def set_version(_), do: :ok
+    def get_version(_), do: 0
+    def set_version(_, _), do: :ok
 
     def reset_state do
       Derive.State.InMemory.reset_state(state())
