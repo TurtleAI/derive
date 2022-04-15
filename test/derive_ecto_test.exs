@@ -219,7 +219,7 @@ defmodule DeriveEctoTest do
   end
 
   test "resuming a dispatcher after a server is restarted" do
-    {:ok, event_log} = InMemoryEventLog.start_link(name: :events)
+    {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
     events = [
@@ -228,8 +228,6 @@ defmodule DeriveEctoTest do
 
     InMemoryEventLog.append(:events, events)
     Derive.Dispatcher.await(dispatcher, events)
-
-    IO.puts("awaited events")
 
     Process.exit(dispatcher, :normal)
     # wait for the process to exit

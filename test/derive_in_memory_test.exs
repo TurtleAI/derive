@@ -75,10 +75,10 @@ defmodule DeriveInMemoryTest do
 
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-    EventLog.append(:events, [%UserCreated{id: 1, user_id: 99, name: "John"}])
+    EventLog.append(:events, [%UserCreated{id: "1", user_id: 99, name: "John"}])
 
     Derive.Dispatcher.await(dispatcher, [
-      %UserCreated{id: 1, user_id: 99, name: "John"}
+      %UserCreated{id: "1", user_id: 99, name: "John"}
     ])
 
     assert Derive.State.InMemory.get_state(:users) == %{
@@ -88,13 +88,13 @@ defmodule DeriveInMemoryTest do
            }
 
     EventLog.append(:events, [
-      %UserNameUpdated{id: 2, user_id: 99, name: "Johny Darko"},
-      %UserEmailUpdated{id: 3, user_id: 99, email: "john@hotmail.com"},
-      %UserNameUpdated{id: 4, user_id: 99, name: "Donny Darko"}
+      %UserNameUpdated{id: "2", user_id: 99, name: "Johny Darko"},
+      %UserEmailUpdated{id: "3", user_id: 99, email: "john@hotmail.com"},
+      %UserNameUpdated{id: "4", user_id: 99, name: "Donny Darko"}
     ])
 
     Derive.Dispatcher.await(dispatcher, [
-      %UserNameUpdated{id: 4, user_id: 99, name: "Donny Darko"}
+      %UserNameUpdated{id: "4", user_id: 99, name: "Donny Darko"}
     ])
 
     assert Derive.State.InMemory.get_state(:users) == %{

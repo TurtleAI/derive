@@ -75,8 +75,6 @@ defmodule Derive.PartitionDispatcher do
         from,
         %D{pending_awaiters: pending_awaiters} = state
       ) do
-    IO.inspect({:processed_event, state, event, processed_event?(state, event)})
-
     case processed_event?(state, event) do
       true ->
         # The event was already processed, so we can immediately reply :ok
@@ -85,12 +83,10 @@ defmodule Derive.PartitionDispatcher do
       false ->
         # The event hasn't yet been processed, so we hold onto a reference to the caller
         # At a later time, we will reply to these callers after we process the events
-        new_state =
-          %{
-            state
-            | pending_awaiters: [{from, event.id} | pending_awaiters]
-          }
-          |> IO.inspect(label: :add_awaiter)
+        new_state = %{
+          state
+          | pending_awaiters: [{from, event.id} | pending_awaiters]
+        }
 
         {:noreply, new_state}
     end
@@ -121,7 +117,6 @@ defmodule Derive.PartitionDispatcher do
       Enum.split_with(pending_awaiters, fn {_awaiter, event_id} ->
         new_version >= event_id
       end)
-      |> IO.inspect(label: :matching_pending)
 
     Enum.each(matching_awaiters, fn {awaiter, _event_id} ->
       GenServer.reply(awaiter, :ok)

@@ -42,12 +42,14 @@ defmodule Derive.EventLog.InMemoryEventLog do
   end
 
   def handle_call({:fetch, {cursor, limit}}, _from, %{events: events} = state) do
+    index = index_of_cursor(cursor, 0, events)
+
     case Enum.slice(events, index, limit) do
       [] ->
         {:reply, {[], cursor}, state}
 
       events_slice ->
-        {:reply, {events_slice, Enum.at(events_slice, -1)[:id]}, state}
+        {:reply, {events_slice, Enum.at(events_slice, -1) |> Map.get(:id)}, state}
     end
   end
 
@@ -66,4 +68,22 @@ defmodule Derive.EventLog.InMemoryEventLog do
     GenServer.cast(subscriber, {:new_events, events})
     notify_subscribers(rest, events)
   end
+
+  defp index_of_cursor(:start, _idx, _events), do: 0
+
+  defp index_of_cursor(_, index, []),
+    do: index
+
+  # we want to exclude this element because it matches the id
+  # so we have to skip to the next index
+  defp index_of_cursor(cursor, index, [%{id: cursor} | _rest]),
+    do: index + 1
+
+  # the id is already greater than the cursor
+  # so we start exactly at this index
+  defp index_of_cursor(cursor, index, [%{id: id} | _rest]) when id > cursor,
+    do: index
+
+  defp index_of_cursor(cursor, index, [%{id: id} | rest]) when id < cursor,
+    do: index_of_cursor(cursor, index + 1, rest)
 end

@@ -68,9 +68,7 @@ defmodule Derive.Dispatcher do
     {:reply, :ok, state}
   end
 
-  def handle_cast({:new_events, new_events}, %D{reducer: reducer, version: version} = state) do
-    IO.inspect({:new_events, new_events})
-
+  def handle_cast({:new_events, _new_events}, %D{reducer: reducer, version: version} = state) do
     # todo: handle batch sizes larger than 100
     case Derive.EventLog.fetch(reducer.source(), {version, 100}) do
       {[], _} ->

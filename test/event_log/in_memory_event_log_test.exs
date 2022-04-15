@@ -52,7 +52,7 @@ defmodule DeriveInMemoryEventLogTest do
 
     InMemoryEventLog.append(event_log, events(["a", "b", "c", "d", "e", "f"]))
 
-    events = EventLog.stream(event_log, cursor: "3", batch_size: 2) |> Enum.to_list()
+    events = EventLog.stream(event_log, cursor: "c", batch_size: 2) |> Enum.to_list()
 
     assert events == events(["d", "e", "f"])
   end
