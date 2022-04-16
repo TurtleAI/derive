@@ -113,12 +113,13 @@ defmodule Derive.PartitionDispatcher do
 
     new_version = events |> Enum.map(fn %{id: id} -> id end) |> Enum.max()
 
-    {matching_awaiters, pending_awaiters_left} =
+    # The awaiters that can be notified after these events get processed
+    {awaiters_to_notify, pending_awaiters_left} =
       Enum.split_with(pending_awaiters, fn {_awaiter, event_id} ->
         new_version >= event_id
       end)
 
-    Enum.each(matching_awaiters, fn {awaiter, _event_id} ->
+    Enum.each(awaiters_to_notify, fn {awaiter, _event_id} ->
       GenServer.reply(awaiter, :ok)
     end)
 

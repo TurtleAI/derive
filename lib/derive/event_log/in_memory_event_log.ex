@@ -7,25 +7,22 @@ defmodule Derive.EventLog.InMemoryEventLog do
   An ephemeral in-memory event log used just for testing purposes.
   """
 
-  def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, :ok, opts)
-  end
+  def start_link(opts \\ []),
+    do: GenServer.start_link(__MODULE__, :ok, opts)
 
   ### Client
 
   @doc """
   Append a list of events to the event log
   """
-  def append(server, events) do
-    GenServer.call(server, {:append, events})
-  end
+  def append(server, events),
+    do: GenServer.call(server, {:append, events})
 
   ### Server
 
   @impl true
-  def init(:ok) do
-    {:ok, %__MODULE__{}}
-  end
+  def init(:ok),
+    do: {:ok, %__MODULE__{}}
 
   @impl true
   def handle_call(
@@ -54,22 +51,22 @@ defmodule Derive.EventLog.InMemoryEventLog do
   end
 
   @impl true
-  def handle_info(:timeout, state) do
-    {:stop, :normal, state}
-  end
+  def handle_info(:timeout, state),
+    do: {:stop, :normal, state}
 
-  def handle_info({:EXIT, _, :normal}, state) do
-    {:stop, :shutdown, state}
-  end
+  def handle_info({:EXIT, _, :normal}, state),
+    do: {:stop, :shutdown, state}
 
-  defp notify_subscribers([], _events), do: :ok
+  defp notify_subscribers([], _events),
+    do: :ok
 
   defp notify_subscribers([subscriber | rest], events) do
     GenServer.cast(subscriber, {:new_events, events})
     notify_subscribers(rest, events)
   end
 
-  defp index_of_cursor(:start, _idx, _events), do: 0
+  defp index_of_cursor(:start, _idx, _events),
+    do: 0
 
   defp index_of_cursor(_, index, []),
     do: index

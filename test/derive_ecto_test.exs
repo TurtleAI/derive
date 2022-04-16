@@ -246,7 +246,7 @@ defmodule DeriveEctoTest do
 
     Derive.Dispatcher.await(dispatcher, events)
 
-    # john = Derive.Repo.get(User, "j")
-    # assert john.name == "John Smith"
+    john = Derive.Repo.get(User, "j")
+    assert john.name == "John Smith"
   end
 end

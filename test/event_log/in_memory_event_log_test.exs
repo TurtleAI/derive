@@ -27,6 +27,16 @@ defmodule DeriveInMemoryEventLogTest do
     assert_received {:"$gen_cast", {:new_events, ["b"]}}
   end
 
+  test "appending events" do
+    {:ok, event_log} = InMemoryEventLog.start_link()
+
+    InMemoryEventLog.append(event_log, events(["a", "b", "c"]))
+    InMemoryEventLog.append(event_log, events(["d", "e", "f"]))
+
+    events = EventLog.stream(event_log) |> Enum.to_list()
+    assert events == events(["a", "b", "c", "d", "e", "f"])
+  end
+
   test "it allows fetching the first N records with a limit" do
     {:ok, event_log} = InMemoryEventLog.start_link()
 

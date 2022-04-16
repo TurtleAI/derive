@@ -15,6 +15,9 @@ defmodule Derive.Dispatcher do
   Events are processed concurrently, but in order is guaranteed based on the result of Derive.Reducer.partition/1
   State is eventually consistent
   You can call `&Derive.Dispatcher.await/2` lets you wait for events to be finished processing.
+
+  `Derive.Dispatcher` doesn't do the actual processing itself, it forwards events
+  to processes defined by `Derive.PartitionDispatcher`
   """
 
   def start_link(reducer, opts \\ []) do
@@ -44,6 +47,8 @@ defmodule Derive.Dispatcher do
     Process.flag(:trap_exit, true)
 
     Derive.EventLog.subscribe(reducer.source(), self())
+    # handle_continue will first boot with the version
+    GenServer.cast(self(), :catchup_on_boot)
 
     {:ok, state, {:continue, :ok}}
   end
@@ -52,9 +57,6 @@ defmodule Derive.Dispatcher do
 
   def handle_continue(:ok, %D{reducer: reducer} = state) do
     version = reducer.get_version(@global_partition)
-
-    GenServer.cast(self(), {:new_events, :ok})
-
     {:noreply, %{state | version: version}}
   end
 
@@ -68,11 +70,20 @@ defmodule Derive.Dispatcher do
     {:reply, :ok, state}
   end
 
-  def handle_cast({:new_events, _new_events}, %D{reducer: reducer, version: version} = state) do
-    # todo: handle batch sizes larger than 100
+  def handle_cast({:new_events, _new_events}, state) do
+    {:noreply, catchup(state)}
+  end
+
+  def handle_cast(:catchup_on_boot, state),
+    do: {:noreply, catchup(state)}
+
+  def handle_info({:EXIT, _, :normal}, state),
+    do: {:stop, :shutdown, state}
+
+  defp catchup(%D{reducer: reducer, version: version} = state) do
     case Derive.EventLog.fetch(reducer.source(), {version, 100}) do
       {[], _} ->
-        {:noreply, state}
+        state
 
       {events, new_version} ->
         events
@@ -87,12 +98,8 @@ defmodule Derive.Dispatcher do
 
         reducer.set_version(@global_partition, new_version)
 
-        {:noreply, %{state | version: new_version}}
+        %{state | version: new_version}
     end
-  end
-
-  def handle_info({:EXIT, _, :normal}, state) do
-    {:stop, :shutdown, state}
   end
 
   defp events_by_partition_dispatcher(events, reducer) do
