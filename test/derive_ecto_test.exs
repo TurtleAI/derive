@@ -229,9 +229,14 @@ defmodule DeriveEctoTest do
     InMemoryEventLog.append(:events, events)
     Derive.Dispatcher.await(dispatcher, events)
 
+    Process.monitor(dispatcher)
     Process.exit(dispatcher, :normal)
-    # wait for the process to exit
-    Process.sleep(1)
+
+    receive do
+      {:DOWN, _ref, :process, ^dispatcher, _} ->
+        :ok
+    end
+
     assert Process.alive?(dispatcher) == false
 
     # Append some events while the dispatcher is dead
