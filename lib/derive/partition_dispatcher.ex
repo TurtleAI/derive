@@ -2,8 +2,7 @@ defmodule Derive.PartitionDispatcher do
   use GenServer, restart: :temporary
   require Logger
 
-  alias Derive.Util.MapOfSets
-  alias __MODULE__, as: D
+  alias __MODULE__, as: S
 
   defstruct [:reducer, :partition, :version, :pending_awaiters]
 
@@ -21,11 +20,11 @@ defmodule Derive.PartitionDispatcher do
     partition = Keyword.fetch!(opts, :partition)
 
     GenServer.start_link(
-      D,
-      %D{
+      __MODULE__,
+      %S{
         reducer: reducer,
         partition: partition,
-        pending_awaiters: MapOfSets.new()
+        pending_awaiters: []
       },
       opts
     )
@@ -41,7 +40,11 @@ defmodule Derive.PartitionDispatcher do
   def dispatch_events(server, events),
     do: GenServer.cast(server, {:dispatch_events, events})
 
-  def await(_server, []), do: :ok
+  @doc """
+  Wait until all of the events are processed
+  """
+  def await(_server, []),
+    do: :ok
 
   def await(server, [event | rest]) do
     GenServer.call(server, {:await, event})
@@ -52,28 +55,24 @@ defmodule Derive.PartitionDispatcher do
 
   def init(state) do
     Process.flag(:trap_exit, true)
-    {:ok, state, {:continue, :ok}}
+    {:ok, state, {:continue, :load_version}}
   end
 
-  def handle_continue(:ok, %D{reducer: reducer, partition: partition} = state) do
+  def handle_continue(:load_version, %S{reducer: reducer, partition: partition} = state) do
     version = reducer.get_version(partition)
     {:noreply, %{state | version: version}}
   end
 
-  def handle_info(:timeout, state) do
-    debug(fn -> "Terminating due to inactivity" end)
-    {:stop, :normal, state}
-  end
+  def handle_info(:timeout, state),
+    do: {:stop, :normal, state}
 
-  def handle_info({:EXIT, _, :normal}, state) do
-    debug(fn -> ":EXIT" end)
-    {:stop, :shutdown, state}
-  end
+  def handle_info({:EXIT, _, :normal}, state),
+    do: {:stop, :shutdown, state}
 
   def handle_call(
         {:await, event},
         from,
-        %D{pending_awaiters: pending_awaiters} = state
+        %S{pending_awaiters: pending_awaiters} = state
       ) do
     case processed_event?(state, event) do
       true ->
@@ -94,9 +93,10 @@ defmodule Derive.PartitionDispatcher do
 
   def handle_cast(
         {:dispatch_events, events},
-        %D{
+        %S{
           reducer: reducer,
           partition: partition,
+          version: version,
           pending_awaiters: pending_awaiters
         } = state
       ) do
@@ -111,7 +111,7 @@ defmodule Derive.PartitionDispatcher do
 
     reducer.commit_operations(multi_op)
 
-    new_version = events |> Enum.map(fn %{id: id} -> id end) |> Enum.max()
+    new_version = compute_new_version(version, events)
 
     # The awaiters that can be notified after these events get processed
     {awaiters_to_notify, pending_awaiters_left} =
@@ -132,18 +132,19 @@ defmodule Derive.PartitionDispatcher do
     {:noreply, new_state}
   end
 
-  def terminate(_, _state) do
-    debug(fn -> "terminate" end)
-    :ok
+  def terminate(_, _state),
+    do: :ok
+
+  defp compute_new_version(version, []),
+    do: version
+
+  defp compute_new_version(_version, events) do
+    events |> Enum.map(fn %{id: id} -> id end) |> Enum.max()
   end
 
-  defp debug(message) do
-    Logger.debug(inspect(self()) <> ": " <> message.())
-  end
-
-  defp processed_event?(%D{version: version}, id) when is_binary(id),
+  defp processed_event?(%S{version: version}, id) when is_binary(id),
     do: version >= id
 
-  defp processed_event?(%D{version: version}, %{id: id}),
+  defp processed_event?(%S{version: version}, %{id: id}),
     do: version >= id
 end

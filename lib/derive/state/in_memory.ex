@@ -1,6 +1,10 @@
 defmodule Derive.State.InMemory do
   use GenServer
 
+  @moduledoc """
+  An in-memory implementation of state
+  """
+
   def start_link(opts) do
     {reducer_opts, genserver_opts} = Keyword.split(opts, [:reduce])
     GenServer.start_link(__MODULE__, reducer_opts, genserver_opts)

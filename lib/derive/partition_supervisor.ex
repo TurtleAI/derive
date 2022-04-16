@@ -9,9 +9,8 @@ defmodule Derive.PartitionSupervisor do
   @supervisor Derive.PartitionSupervisor
   @registry Derive.Registry
 
-  def start_link(mod, opts \\ []) do
-    Supervisor.start_link(__MODULE__, mod, opts)
-  end
+  def start_link(mod, opts \\ []),
+    do: Supervisor.start_link(__MODULE__, mod, opts)
 
   def init(_) do
     children = [
@@ -44,11 +43,5 @@ defmodule Derive.PartitionSupervisor do
           {:error, {:already_started, pid}} -> pid
         end
     end
-  end
-
-  def workers do
-    @supervisor
-    |> DynamicSupervisor.which_children()
-    |> Enum.map(fn {_, pid, :worker, _} -> pid end)
   end
 end

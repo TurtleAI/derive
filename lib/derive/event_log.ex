@@ -24,9 +24,16 @@ defmodule Derive.EventLog do
 
   Currently, the only notification sent to the subscriber is of the format {:new_events, events}
   """
-  def subscribe(server, subscriber) do
-    GenServer.call(server, {:subscribe, subscriber})
-  end
+  @spec subscribe(pid(), pid()) :: :ok
+  def subscribe(server, subscriber),
+    do: GenServer.call(server, {:subscribe, subscriber})
+
+  @doc """
+  Remove a subscriber that was previously subscribed
+  """
+  @spec unsubscribe(pid(), pid()) :: :ok
+  def unsubscribe(server, subscriber),
+    do: GenServer.call(server, {:unsubscribe, subscriber})
 
   @doc """
   Fetch a list of events that have been persisted to the event log

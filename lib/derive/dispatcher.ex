@@ -2,7 +2,7 @@ defmodule Derive.Dispatcher do
   use GenServer
 
   alias Derive.PartitionDispatcher
-  alias __MODULE__, as: D
+  alias __MODULE__, as: S
 
   defstruct [:reducer, :version]
 
@@ -25,7 +25,7 @@ defmodule Derive.Dispatcher do
       opts
       |> Keyword.split([])
 
-    GenServer.start_link(__MODULE__, %D{reducer: reducer}, genserver_opts)
+    GenServer.start_link(__MODULE__, %S{reducer: reducer}, genserver_opts)
   end
 
   ### Client
@@ -43,24 +43,28 @@ defmodule Derive.Dispatcher do
   def await(dispatcher, events),
     do: GenServer.call(dispatcher, {:await, events})
 
-  def init(%D{reducer: reducer} = state) do
+  @impl true
+  def init(%S{reducer: reducer} = state) do
     Process.flag(:trap_exit, true)
 
     Derive.EventLog.subscribe(reducer.source(), self())
-    # handle_continue will first boot with the version
+
+    # handle_continue(:load_version...) will first boot with the version
     GenServer.cast(self(), :catchup_on_boot)
 
-    {:ok, state, {:continue, :ok}}
+    {:ok, state, {:continue, :load_version}}
   end
 
   ### Server
 
-  def handle_continue(:ok, %D{reducer: reducer} = state) do
+  @impl true
+  def handle_continue(:load_version, %S{reducer: reducer} = state) do
     version = reducer.get_version(@global_partition)
     {:noreply, %{state | version: version}}
   end
 
-  def handle_call({:await, events}, _from, %D{reducer: reducer} = state) do
+  @impl true
+  def handle_call({:await, events}, _from, %S{reducer: reducer} = state) do
     List.wrap(events)
     |> events_by_partition_dispatcher(reducer)
     |> Enum.each(fn {partition_dispatcher, events} ->
@@ -70,17 +74,22 @@ defmodule Derive.Dispatcher do
     {:reply, :ok, state}
   end
 
-  def handle_cast({:new_events, _new_events}, state) do
-    {:noreply, catchup(state)}
-  end
+  @impl true
+  def handle_cast({:new_events, _new_events}, state),
+    do: {:noreply, catchup(state)}
 
   def handle_cast(:catchup_on_boot, state),
     do: {:noreply, catchup(state)}
 
+  @impl true
   def handle_info({:EXIT, _, :normal}, state),
     do: {:stop, :shutdown, state}
 
-  defp catchup(%D{reducer: reducer, version: version} = state) do
+  @impl true
+  def terminate(_reason, _state),
+    do: :ok
+
+  defp catchup(%S{reducer: reducer, version: version} = state) do
     case Derive.EventLog.fetch(reducer.source(), {version, 100}) do
       {[], _} ->
         state

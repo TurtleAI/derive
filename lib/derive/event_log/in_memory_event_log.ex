@@ -3,6 +3,8 @@ defmodule Derive.EventLog.InMemoryEventLog do
 
   defstruct events: [], subscribers: []
 
+  alias __MODULE__, as: S
+
   @moduledoc """
   An ephemeral in-memory event log used just for testing purposes.
   """
@@ -22,23 +24,30 @@ defmodule Derive.EventLog.InMemoryEventLog do
 
   @impl true
   def init(:ok),
-    do: {:ok, %__MODULE__{}}
+    do: {:ok, %S{}}
 
   @impl true
   def handle_call(
         {:append, new_events},
         _from,
-        %{subscribers: subscribers, events: events} = state
+        %S{subscribers: subscribers, events: events} = state
       ) do
-    notify_subscribers(subscribers, new_events)
+    notify_subscribers(subscribers, {:new_events, new_events})
     {:reply, :ok, %{state | events: events ++ new_events}}
   end
 
-  def handle_call({:subscribe, new_subscriber}, _from, %{subscribers: subscribers} = state) do
-    {:reply, :ok, %{state | subscribers: subscribers ++ [new_subscriber]}}
+  def handle_call({:subscribe, subscriber}, {pid, _}, state) do
+    # If this subscriber process terminates, we want to monitor it and remove it
+    # from the list of subscribers so we aren't sending messages to dead processes
+    Process.monitor(pid)
+    {:reply, :ok, add_subscriber(state, subscriber)}
   end
 
-  def handle_call({:fetch, {cursor, limit}}, _from, %{events: events} = state) do
+  def handle_call({:unsubscribe, subscriber}, _from, state) do
+    {:reply, :ok, remove_subscriber(state, subscriber)}
+  end
+
+  def handle_call({:fetch, {cursor, limit}}, _from, %S{events: events} = state) do
     index = index_of_cursor(cursor, 0, events)
 
     case Enum.slice(events, index, limit) do
@@ -57,12 +66,23 @@ defmodule Derive.EventLog.InMemoryEventLog do
   def handle_info({:EXIT, _, :normal}, state),
     do: {:stop, :shutdown, state}
 
+  def handle_info({:DOWN, _ref, :process, pid, _}, state),
+    do: {:noreply, remove_subscriber(state, pid)}
+
   defp notify_subscribers([], _events),
     do: :ok
 
-  defp notify_subscribers([subscriber | rest], events) do
-    GenServer.cast(subscriber, {:new_events, events})
-    notify_subscribers(rest, events)
+  defp notify_subscribers([subscriber | rest], message) do
+    GenServer.cast(subscriber, message)
+    notify_subscribers(rest, message)
+  end
+
+  defp add_subscriber(%S{subscribers: subscribers} = state, subscriber) do
+    %{state | subscribers: subscribers ++ [subscriber]}
+  end
+
+  defp remove_subscriber(%S{subscribers: subscribers} = state, subscriber) do
+    %{state | subscribers: Enum.reject(subscribers, &(&1 == subscriber))}
   end
 
   defp index_of_cursor(:start, _idx, _events),
