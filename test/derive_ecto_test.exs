@@ -69,6 +69,14 @@ defmodule DeriveEctoTest do
     defstruct [:id, :user_id, :name, sleep: 0]
   end
 
+  defmodule UserRaiseError do
+    defstruct [:id, :user_id, :message]
+  end
+
+  defmodule UserError do
+    defexception [:message]
+  end
+
   defmodule UserReducer do
     use Derive.Reducer
 
@@ -106,6 +114,10 @@ defmodule DeriveEctoTest do
         log("updated-#{user_id}"),
         update([User, user_id], %{name: name})
       ]
+    end
+
+    def handle_event(%UserRaiseError{message: message}) do
+      raise UserError, message
     end
 
     def commit_operations(%MultiOp{} = op) do
@@ -236,6 +248,23 @@ defmodule DeriveEctoTest do
     user = Derive.Repo.get(User, "99")
     assert user.name == "Mango"
   end
+
+  # test "events are skipped when there is an exception" do
+  #   {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
+  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+
+  #   events = [
+  #     %UserCreated{id: "1", user_id: "99", name: "Pear"},
+  #     %UserRaiseError{id: "2", message: "bad stuff happened"},
+  #     %UserNameUpdated{id: "2", user_id: "99", name: "Blueberry"}
+  #   ]
+
+  #   InMemoryEventLog.append(:events, events)
+  #   Derive.Dispatcher.await(dispatcher, events)
+
+  #   user = Derive.Repo.get(User, "99")
+  #   assert user.name == "Blueberry"
+  # end
 
   test "resuming a dispatcher after a server is restarted" do
     {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)

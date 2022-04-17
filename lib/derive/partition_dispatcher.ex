@@ -3,6 +3,7 @@ defmodule Derive.PartitionDispatcher do
   require Logger
 
   alias __MODULE__, as: S
+  alias Derive.State.MultiOp
 
   defstruct [:reducer, :partition, :version, :pending_awaiters]
 
@@ -33,8 +34,7 @@ defmodule Derive.PartitionDispatcher do
   ### Client
 
   @doc """
-  Asynchronously dispatch to get processed and committed
-  Completes immediately
+  Asynchronously dispatch events to get processed and committed
   To wait for the events to get processed, use `&Derive.PartitionDispatcher.await/2`
   """
   def dispatch_events(server, events),
@@ -91,6 +91,9 @@ defmodule Derive.PartitionDispatcher do
     end
   end
 
+  def handle_cast({:dispatch_events, []}, state),
+    do: {:noreply, state}
+
   def handle_cast(
         {:dispatch_events, events},
         %S{
@@ -100,12 +103,16 @@ defmodule Derive.PartitionDispatcher do
           pending_awaiters: pending_awaiters
         } = state
       ) do
-    {:ok, new_version} =
-      Derive.Util.process_events(events,
-        reducer: reducer,
-        partition: partition,
-        version: version
+    multi_op =
+      Derive.Util.handle_events(
+        events,
+        reducer,
+        partition
       )
+
+    reducer.commit_operations(multi_op)
+
+    new_version = max(MultiOp.partition_version(multi_op), version)
 
     # The awaiters that can be notified after these events get processed
     {awaiters_to_notify, pending_awaiters_left} =
