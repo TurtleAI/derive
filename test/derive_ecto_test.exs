@@ -218,6 +218,25 @@ defmodule DeriveEctoTest do
     assert time.name == "Time"
   end
 
+  test "events are processed when there are more events than the batch size allows" do
+    {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
+    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer, batch_size: 2)
+
+    events = [
+      %UserCreated{id: "1", user_id: "99", name: "Pear"},
+      %UserNameUpdated{id: "2", user_id: "99", name: "Blueberry"},
+      %UserNameUpdated{id: "3", user_id: "99", name: "Apple"},
+      %UserNameUpdated{id: "4", user_id: "99", name: "Orange"},
+      %UserNameUpdated{id: "5", user_id: "99", name: "Mango"}
+    ]
+
+    InMemoryEventLog.append(:events, events)
+    Derive.Dispatcher.await(dispatcher, events)
+
+    user = Derive.Repo.get(User, "99")
+    assert user.name == "Mango"
+  end
+
   test "resuming a dispatcher after a server is restarted" do
     {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
     {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)

@@ -6,7 +6,7 @@ defmodule Derive.Dispatcher do
 
   alias __MODULE__, as: S
 
-  defstruct [:reducer, :version]
+  defstruct [:reducer, :version, :batch_size]
 
   # We maintain the version of a special partition with this name
   @global_partition "$"
@@ -23,11 +23,13 @@ defmodule Derive.Dispatcher do
   """
 
   def start_link(reducer, opts \\ []) do
-    {_dispatcher_opts, genserver_opts} =
+    {dispatcher_opts, genserver_opts} =
       opts
-      |> Keyword.split([])
+      |> Keyword.split([:batch_size])
 
-    GenServer.start_link(__MODULE__, %S{reducer: reducer}, genserver_opts)
+    batch_size = Keyword.get(dispatcher_opts, :batch_size, 100)
+
+    GenServer.start_link(__MODULE__, %S{reducer: reducer, batch_size: batch_size}, genserver_opts)
   end
 
   @doc """
@@ -115,9 +117,10 @@ defmodule Derive.Dispatcher do
   def terminate(_reason, _state),
     do: :ok
 
-  defp catchup(%S{reducer: reducer, version: version} = state) do
-    case Derive.EventLog.fetch(reducer.source(), {version, 100}) do
+  defp catchup(%S{reducer: reducer, version: version, batch_size: batch_size} = state) do
+    case Derive.EventLog.fetch(reducer.source(), {version, batch_size}) do
       {[], _} ->
+        # done processing so return the state as is
         state
 
       {events, new_version} ->
@@ -133,7 +136,9 @@ defmodule Derive.Dispatcher do
 
         reducer.set_version(@global_partition, new_version)
 
+        # we have more events left to process, so we recursively call catchup
         %{state | version: new_version}
+        |> catchup()
     end
   end
 
