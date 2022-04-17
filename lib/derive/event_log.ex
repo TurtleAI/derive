@@ -76,7 +76,7 @@ defmodule Derive.EventLog do
           {events, new_cursor} -> {events, new_cursor}
         end
       end,
-      fn nil -> :ok end
+      fn _ -> :ok end
     )
   end
 end

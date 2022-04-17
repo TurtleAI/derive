@@ -254,4 +254,35 @@ defmodule DeriveEctoTest do
     john = Derive.Repo.get(User, "j")
     assert john.name == "John Smith"
   end
+
+  test "rebuilding the state for a reducer" do
+    {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
+    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+
+    events = [
+      %UserCreated{id: "1", user_id: "99", name: "John"},
+      %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
+    ]
+
+    InMemoryEventLog.append(:events, events)
+    Derive.Dispatcher.await(dispatcher, events)
+
+    user = Derive.Repo.get(User, "99")
+    assert user.name == "John Wayne"
+
+    Derive.Repo.delete_all(User)
+
+    Process.monitor(dispatcher)
+    Process.exit(dispatcher, :normal)
+
+    receive do
+      {:DOWN, _ref, :process, ^dispatcher, _} ->
+        :ok
+    end
+
+    Derive.Dispatcher.rebuild(UserReducer)
+
+    user = Derive.Repo.get(User, "99")
+    assert user.name == "John Wayne"
+  end
 end

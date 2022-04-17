@@ -6,9 +6,13 @@ defmodule Derive.State.MultiOp do
   event_operations: a list of tuples {event, operations_for_event}
   """
 
-  defstruct [:partition, :event_operations]
+  defstruct [:partition, event_operations: []]
 
-  def new(partition, event_operations) do
+  def empty?(%__MODULE__{event_operations: []}), do: true
+  def empty?(_), do: false
+
+  def new(partition \\ nil, event_operations \\ []) do
+    event_operations = for {e, ops} <- event_operations, do: {e, List.wrap(ops)}
     %__MODULE__{partition: partition, event_operations: event_operations}
   end
 

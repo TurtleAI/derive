@@ -100,18 +100,12 @@ defmodule Derive.PartitionDispatcher do
           pending_awaiters: pending_awaiters
         } = state
       ) do
-    event_operations =
-      events
-      |> Enum.map(fn e ->
-        {e, List.wrap(reducer.handle_event(e))}
-      end)
-      |> Enum.reject(fn {_e, ops} -> ops == [] end)
-
-    multi_op = Derive.State.MultiOp.new(partition, event_operations)
-
-    reducer.commit_operations(multi_op)
-
-    new_version = compute_new_version(version, events)
+    {:ok, new_version} =
+      Derive.Util.process_events(events,
+        reducer: reducer,
+        partition: partition,
+        version: version
+      )
 
     # The awaiters that can be notified after these events get processed
     {awaiters_to_notify, pending_awaiters_left} =
@@ -134,13 +128,6 @@ defmodule Derive.PartitionDispatcher do
 
   def terminate(_, _state),
     do: :ok
-
-  defp compute_new_version(version, []),
-    do: version
-
-  defp compute_new_version(_version, events) do
-    events |> Enum.map(fn %{id: id} -> id end) |> Enum.max()
-  end
 
   defp processed_event?(%S{version: version}, id) when is_binary(id),
     do: version >= id

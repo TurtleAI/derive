@@ -2,6 +2,8 @@ defmodule Derive.Dispatcher do
   use GenServer
 
   alias Derive.PartitionDispatcher
+  alias Derive.State.MultiOp
+
   alias __MODULE__, as: S
 
   defstruct [:reducer, :version]
@@ -26,6 +28,30 @@ defmodule Derive.Dispatcher do
       |> Keyword.split([])
 
     GenServer.start_link(__MODULE__, %S{reducer: reducer}, genserver_opts)
+  end
+
+  @doc """
+  Rebuilds the state of a reducer.
+  This means the state will be reset and all of the events processed to get to the final state.
+  """
+  def rebuild(reducer) do
+    reducer.reset_state()
+
+    Derive.EventLog.stream(reducer.source())
+    |> Stream.map(fn e ->
+      case reducer.partition(e) do
+        nil ->
+          MultiOp.new()
+
+        partition ->
+          ops = [{e, reducer.handle_event(e)}]
+          MultiOp.new(partition, ops)
+      end
+    end)
+    |> Stream.reject(&MultiOp.empty?/1)
+    |> Enum.each(fn op ->
+      reducer.commit_operations(op)
+    end)
   end
 
   ### Client
