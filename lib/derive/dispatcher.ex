@@ -22,6 +22,7 @@ defmodule Derive.Dispatcher do
   to processes defined by `Derive.PartitionDispatcher`
   """
 
+  @spec start_link(Derive.Reducer.t(), any()) :: {:ok, pid()} | {:error, any()}
   def start_link(reducer, opts \\ []) do
     {dispatcher_opts, genserver_opts} =
       opts
@@ -36,6 +37,7 @@ defmodule Derive.Dispatcher do
   Rebuilds the state of a reducer.
   This means the state will be reset and all of the events processed to get to the final state.
   """
+  @spec rebuild(Derive.Reducer.t()) :: :ok
   def rebuild(reducer) do
     reducer.reset_state()
 
@@ -144,7 +146,7 @@ defmodule Derive.Dispatcher do
   defp events_by_partition_dispatcher(events, reducer) do
     events_by_partition = Enum.group_by(events, &reducer.partition/1)
 
-    for {partition, events} <- events_by_partition, into: %{} do
+    for {partition, events} <- events_by_partition, partition != nil, into: %{} do
       partition_dispatcher = Derive.PartitionSupervisor.lookup_or_start({reducer, partition})
       {partition_dispatcher, events}
     end

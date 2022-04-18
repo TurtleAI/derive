@@ -7,6 +7,13 @@ defmodule Derive.PartitionDispatcher do
 
   defstruct [:reducer, :partition, :version, :pending_awaiters]
 
+  @type t :: %Derive.PartitionDispatcher{
+          reducer: Derive.Reducer.t(),
+          partition: Derive.Reducer.partition(),
+          version: Derive.EventLog.cursor(),
+          pending_awaiters: any()
+        }
+
   @moduledoc """
   A process for a given {reducer, partition} to keep the state of its partition up to date
 

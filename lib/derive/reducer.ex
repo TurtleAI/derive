@@ -1,4 +1,6 @@
 defmodule Derive.Reducer do
+  @type t :: module()
+
   @type partition() :: binary()
 
   @moduledoc """

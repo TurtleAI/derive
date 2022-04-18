@@ -3,8 +3,16 @@ defmodule Derive.State.MultiOp do
   Represents a collection of operations produced by events
 
   partition: the partition the operations must be run on
-  event_operations: a list of tuples {event, operations_for_event}
   """
+
+  @type event_operation ::
+          {Derive.EventLog.event(), {:ok, Derive.Reducer.operation()}}
+          | {Derive.EventLog.event(), {:error, any()}}
+
+  @type t :: %Derive.State.MultiOp{
+          partition: Derive.Reducer.partition(),
+          event_operations: event_operation
+        }
 
   defstruct [:partition, event_operations: []]
 
@@ -12,7 +20,6 @@ defmodule Derive.State.MultiOp do
   def empty?(_), do: false
 
   def new(partition \\ nil, event_operations \\ []) do
-    event_operations = for {e, ops} <- event_operations, do: {e, List.wrap(ops)}
     %__MODULE__{partition: partition, event_operations: event_operations}
   end
 
@@ -20,13 +27,19 @@ defmodule Derive.State.MultiOp do
   A flat list of the operations that can be committed
   """
   def operations(%__MODULE__{event_operations: event_operations}) do
-    Enum.flat_map(event_operations, fn {_e, ops} -> ops end)
+    Enum.flat_map(event_operations, fn
+      {_e, {:ok, ops}} -> ops
+      {_e, {:error, _}} -> []
+    end)
   end
 
   @doc """
   The new version of the state once a commit has succeeded
   """
   def partition_version(%__MODULE__{event_operations: event_operations}) do
-    Enum.map(event_operations, fn {%{id: id}, _} -> id end) |> Enum.max()
+    Enum.map(event_operations, fn
+      {%{id: id}, _} -> id
+    end)
+    |> Enum.max()
   end
 end

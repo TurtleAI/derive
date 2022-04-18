@@ -249,22 +249,22 @@ defmodule DeriveEctoTest do
     assert user.name == "Mango"
   end
 
-  # test "events are skipped when there is an exception" do
-  #   {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
-  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+  test "events are skipped when there is an exception" do
+    {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
+    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-  #   events = [
-  #     %UserCreated{id: "1", user_id: "99", name: "Pear"},
-  #     %UserRaiseError{id: "2", message: "bad stuff happened"},
-  #     %UserNameUpdated{id: "2", user_id: "99", name: "Blueberry"}
-  #   ]
+    events = [
+      %UserCreated{id: "1", user_id: "99", name: "Pear"},
+      %UserRaiseError{id: "2", message: "bad stuff happened"},
+      %UserNameUpdated{id: "3", user_id: "99", name: "Blueberry"}
+    ]
 
-  #   InMemoryEventLog.append(:events, events)
-  #   Derive.Dispatcher.await(dispatcher, events)
+    InMemoryEventLog.append(:events, events)
+    Derive.Dispatcher.await(dispatcher, events)
 
-  #   user = Derive.Repo.get(User, "99")
-  #   assert user.name == "Blueberry"
-  # end
+    user = Derive.Repo.get(User, "99")
+    assert user.name == "Blueberry"
+  end
 
   test "resuming a dispatcher after a server is restarted" do
     {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
