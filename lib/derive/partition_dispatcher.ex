@@ -111,7 +111,7 @@ defmodule Derive.PartitionDispatcher do
         } = state
       ) do
     multi_op =
-      Derive.Util.handle_events(
+      Derive.Util.process_events(
         events,
         reducer,
         partition

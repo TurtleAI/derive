@@ -48,7 +48,7 @@ defmodule Derive.Dispatcher do
           MultiOp.new()
 
         partition ->
-          Derive.Util.handle_events([e], reducer, partition)
+          Derive.Util.process_events([e], reducer, partition)
       end
     end)
     |> Stream.reject(&MultiOp.empty?/1)
