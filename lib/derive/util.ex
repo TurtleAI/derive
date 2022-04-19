@@ -13,14 +13,17 @@ defmodule Derive.Util do
           Derive.Partition.t()
         ) ::
           Derive.State.MultiOp.t()
-  def process_events(events, reducer, partition) do
+  def process_events(events, reducer, partition, opts \\ []) do
+    on_error = Keyword.get(opts, :on_error, :skip)
+
     MultiOp.new(partition)
-    |> do_process(events, reducer)
+    |> do_process(events, reducer, on_error)
   end
 
-  defp do_process(multi, [], _reducer), do: multi
+  defp do_process(multi, [], _reducer, _),
+    do: MultiOp.processed(multi)
 
-  defp do_process(multi, [event | rest], reducer) do
+  defp do_process(multi, [event | rest], reducer, :skip) do
     # current overall behavior is to skip failed events
     # @TODO: replace with more explicit error handling which may vary per use case
     # For example:
@@ -38,11 +41,11 @@ defmodule Derive.Util do
     case resp do
       {:ok, ops} ->
         MultiOp.add(multi, event, ops)
-        |> do_process(rest, reducer)
+        |> do_process(rest, reducer, :skip)
 
       {:error, error} ->
-        MultiOp.error(multi, event, error)
-        |> do_process(rest, reducer)
+        MultiOp.add_error(multi, event, error)
+        |> do_process(rest, reducer, :skip)
     end
   end
 end

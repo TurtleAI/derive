@@ -3,7 +3,6 @@ defmodule Derive.PartitionDispatcher do
   require Logger
 
   alias __MODULE__, as: S
-  alias Derive.State.MultiOp
   alias Derive.{Partition, Reducer}
 
   defstruct [:reducer, :partition, :pending_awaiters]
@@ -115,8 +114,7 @@ defmodule Derive.PartitionDispatcher do
         reducer,
         partition
       )
-
-    reducer.commit_operations(multi_op)
+      |> reducer.commit_operations()
 
     new_partition = multi_op.partition
 

@@ -133,6 +133,8 @@ defmodule DeriveEctoTest do
           ]
 
       Derive.State.Ecto.commit(Derive.Repo, operations)
+
+      MultiOp.committed(op)
     end
 
     def get_partition(id) do

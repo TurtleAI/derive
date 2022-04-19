@@ -13,15 +13,26 @@ defmodule Derive.State.MultiOp do
 
   @type t :: %Derive.State.MultiOp{
           partition: Derive.Partition.t(),
+          error: any(),
+          status: status(),
           event_operations: event_operation
         }
 
-  defstruct [:partition, event_operations: []]
+  @typedoc """
+  When processing events, there are 3 stages
+  - processing: not all events have been processed
+  - processed: the events have been processed (handle_event has been called)
+  - committed: the operations from handle_event have been committed
+  - error: the processing or committing has failed (an exception has been raised)
+  """
+  @type status :: :processing | :processed | :committed | :error
+
+  defstruct [:partition, :error, status: :processing, event_operations: []]
 
   def empty?(%Op{event_operations: []}), do: true
   def empty?(_), do: false
 
-  def new(partition \\ nil, event_operations \\ []) do
+  def new(partition, event_operations \\ []) do
     %Op{partition: partition, event_operations: Enum.reverse(event_operations)}
   end
 
@@ -31,8 +42,14 @@ defmodule Derive.State.MultiOp do
   def add(%Op{} = multi, event, operation),
     do: add_operation(multi, event, {:ok, List.wrap(operation)})
 
-  def error(%Op{} = multi, event, error),
+  def add_error(%Op{} = multi, event, error),
     do: add_operation(multi, event, {:error, error})
+
+  def processed(%Op{status: :processing} = multi),
+    do: %{multi | status: :processed}
+
+  def committed(%Op{status: :processed} = multi),
+    do: %{multi | status: :committed}
 
   defp add_operation(
          %Op{partition: partition, event_operations: event_operations} = multi,

@@ -54,6 +54,7 @@ defmodule DeriveInMemoryTest do
 
     def commit_operations(%MultiOp{} = op) do
       Derive.State.InMemory.commit(state(), MultiOp.operations(op))
+      MultiOp.committed(op)
     end
 
     def get_partition(id) do
