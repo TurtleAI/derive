@@ -4,13 +4,13 @@ defmodule Derive.PartitionDispatcher do
 
   alias __MODULE__, as: S
   alias Derive.State.MultiOp
+  alias Derive.{Partition, Reducer}
 
-  defstruct [:reducer, :partition, :version, :pending_awaiters]
+  defstruct [:reducer, :partition, :pending_awaiters]
 
-  @type t :: %Derive.PartitionDispatcher{
-          reducer: Derive.Reducer.t(),
-          partition: Derive.Reducer.partition(),
-          version: Derive.EventLog.cursor(),
+  @type t :: %__MODULE__{
+          reducer: Reducer.t(),
+          partition: Partition.t(),
           pending_awaiters: any()
         }
 
@@ -25,13 +25,13 @@ defmodule Derive.PartitionDispatcher do
 
   def start_link(opts) do
     reducer = Keyword.fetch!(opts, :reducer)
-    partition = Keyword.fetch!(opts, :partition)
+    partition_id = Keyword.fetch!(opts, :partition)
 
     GenServer.start_link(
       __MODULE__,
       %S{
         reducer: reducer,
-        partition: partition,
+        partition: %Partition{id: partition_id},
         pending_awaiters: []
       },
       opts
@@ -62,12 +62,12 @@ defmodule Derive.PartitionDispatcher do
 
   def init(state) do
     Process.flag(:trap_exit, true)
-    {:ok, state, {:continue, :load_version}}
+    {:ok, state, {:continue, :load_partition}}
   end
 
-  def handle_continue(:load_version, %S{reducer: reducer, partition: partition} = state) do
-    version = reducer.get_version(partition)
-    {:noreply, %{state | version: version}}
+  def handle_continue(:load_partition, %S{reducer: reducer, partition: %{id: id}} = state) do
+    partition = reducer.get_partition(id)
+    {:noreply, %{state | partition: partition}}
   end
 
   def handle_info(:timeout, state),
@@ -105,8 +105,7 @@ defmodule Derive.PartitionDispatcher do
         {:dispatch_events, events},
         %S{
           reducer: reducer,
-          partition: partition,
-          version: version,
+          partition: %Partition{} = partition,
           pending_awaiters: pending_awaiters
         } = state
       ) do
@@ -119,12 +118,12 @@ defmodule Derive.PartitionDispatcher do
 
     reducer.commit_operations(multi_op)
 
-    new_version = max(MultiOp.partition_version(multi_op), version)
+    new_partition = MultiOp.next_partition(multi_op)
 
     # The awaiters that can be notified after these events get processed
     {awaiters_to_notify, pending_awaiters_left} =
       Enum.split_with(pending_awaiters, fn {_awaiter, event_id} ->
-        new_version >= event_id
+        new_partition.version >= event_id
       end)
 
     Enum.each(awaiters_to_notify, fn {awaiter, _event_id} ->
@@ -134,7 +133,7 @@ defmodule Derive.PartitionDispatcher do
     new_state = %{
       state
       | pending_awaiters: pending_awaiters_left,
-        version: new_version
+        partition: new_partition
     }
 
     {:noreply, new_state}
@@ -143,9 +142,9 @@ defmodule Derive.PartitionDispatcher do
   def terminate(_, _state),
     do: :ok
 
-  defp processed_event?(%S{version: version}, id) when is_binary(id),
+  defp processed_event?(%S{partition: %{version: version}}, id) when is_binary(id),
     do: version >= id
 
-  defp processed_event?(%S{version: version}, %{id: id}),
+  defp processed_event?(%S{partition: %{version: version}}, %{id: id}),
     do: version >= id
 end

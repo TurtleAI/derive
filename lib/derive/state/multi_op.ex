@@ -12,7 +12,7 @@ defmodule Derive.State.MultiOp do
           | {Derive.EventLog.event(), {:error, any()}}
 
   @type t :: %Derive.State.MultiOp{
-          partition: Derive.Reducer.partition(),
+          partition: Derive.Partition.t(),
           event_operations: event_operation
         }
 
@@ -51,10 +51,13 @@ defmodule Derive.State.MultiOp do
   @doc """
   The new version of the state once a commit has succeeded
   """
-  def partition_version(%Op{event_operations: event_operations}) do
-    Enum.map(event_operations, fn
-      {%{id: id}, _} -> id
-    end)
-    |> Enum.max()
+  def next_partition(%Op{partition: partition, event_operations: event_operations}) do
+    next_version =
+      Enum.map(event_operations, fn
+        {%{id: id}, _} -> id
+      end)
+      |> Enum.max()
+
+    %{partition | version: next_version}
   end
 end

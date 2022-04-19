@@ -1,8 +1,6 @@
 defmodule Derive.Reducer do
   @type t :: module()
 
-  @type partition() :: binary()
-
   @moduledoc """
   Defines how a given state is kept up to date based on an event source by a `Derive.Dispatcher`
 
@@ -27,7 +25,7 @@ defmodule Derive.Reducer do
   @type version() :: String.t()
 
   @doc """
-  The source where events from
+  The source process where events from
   """
   @callback source() :: pid()
 
@@ -38,7 +36,7 @@ defmodule Derive.Reducer do
   A partition is also used to maximize concurrency so events are processed as fast as possible.
   Events in different partitions can be processed simultaneously since they have no dependencies on one another.
   """
-  @callback partition(Derive.EventLog.event()) :: partition() | nil
+  @callback partition(Derive.EventLog.event()) :: Derive.Partition.id() | nil
 
   @doc """
   For a given event, return a operation that should be run as a result.
@@ -55,14 +53,14 @@ defmodule Derive.Reducer do
   @callback commit_operations([operation()]) :: :ok
 
   @doc """
-  Get the current overall version of the reducer
+  Get the current overall partition record
   """
-  @callback get_version(partition()) :: version()
+  @callback get_partition(Derive.Partition.id()) :: Derive.Partition.t()
 
   @doc """
-  Update the overall version of the dispatcher
+  Persist the partition record
   """
-  @callback set_version(partition(), version()) :: :ok
+  @callback set_partition(Derive.Partition.t()) :: :ok
 
   @doc """
   Reset the state so we can start processing from the first event

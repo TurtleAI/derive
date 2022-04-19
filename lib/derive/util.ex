@@ -10,7 +10,7 @@ defmodule Derive.Util do
   @spec process_events(
           [Derive.EventLog.event()],
           Derive.Reducer.t(),
-          Derive.Reducer.partition()
+          Derive.Partition.t()
         ) ::
           Derive.State.MultiOp.t()
   def process_events(events, reducer, partition) do

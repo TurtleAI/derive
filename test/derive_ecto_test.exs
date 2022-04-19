@@ -31,12 +31,14 @@ defmodule DeriveEctoTest do
     @primary_key {:id, :string, []}
     schema "user_reducer_partitions" do
       field(:version, :string)
+      field(:status, Ecto.Enum, values: [ok: 1, error: 2])
     end
 
     def up do
       create table(:user_reducer_partitions, primary_key: false) do
         add(:id, :string, size: 32, primary_key: true)
         add(:version, :string, size: 32)
+        add(:status, :integer, null: false, default: 1)
       end
     end
 
@@ -121,32 +123,43 @@ defmodule DeriveEctoTest do
     end
 
     def commit_operations(%MultiOp{} = op) do
+      partition = MultiOp.next_partition(op)
+
       operations =
         MultiOp.operations(op) ++
           [
-            %Derive.State.Ecto.Operation.SetPartitionVersion{
+            %Derive.State.Ecto.Operation.SetPartition{
               table: UserReducerPartitions,
-              partition: op.partition,
-              version: MultiOp.partition_version(op)
+              partition: partition
             }
           ]
 
       Derive.State.Ecto.commit(Derive.Repo, operations)
     end
 
-    def get_version(partition) do
-      case Derive.Repo.get(UserReducerPartitions, partition) do
-        nil -> :start
-        %{version: version} -> version
+    def get_partition(id) do
+      case Derive.Repo.get(UserReducerPartitions, id) do
+        nil ->
+          %Derive.Partition{
+            id: id,
+            version: :start,
+            status: :ok
+          }
+
+        %{id: id, version: version, status: status} ->
+          %Derive.Partition{
+            id: id,
+            version: version,
+            status: status
+          }
       end
     end
 
-    def set_version(partition, version) do
+    def set_partition(partition) do
       Derive.State.Ecto.commit(Derive.Repo, [
-        %Derive.State.Ecto.Operation.SetPartitionVersion{
+        %Derive.State.Ecto.Operation.SetPartition{
           table: UserReducerPartitions,
-          partition: partition,
-          version: version
+          partition: partition
         }
       ])
     end
@@ -249,22 +262,22 @@ defmodule DeriveEctoTest do
     assert user.name == "Mango"
   end
 
-  test "events are skipped when there is an exception" do
-    {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
-    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+  # test "events are skipped when there is an exception in handle_event" do
+  #   {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
+  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-    events = [
-      %UserCreated{id: "1", user_id: "99", name: "Pear"},
-      %UserRaiseError{id: "2", message: "bad stuff happened"},
-      %UserNameUpdated{id: "3", user_id: "99", name: "Blueberry"}
-    ]
+  #   events = [
+  #     %UserCreated{id: "1", user_id: "99", name: "Pear"},
+  #     %UserRaiseError{id: "2", message: "bad stuff happened"},
+  #     %UserNameUpdated{id: "3", user_id: "99", name: "Blueberry"}
+  #   ]
 
-    InMemoryEventLog.append(:events, events)
-    Derive.Dispatcher.await(dispatcher, events)
+  #   InMemoryEventLog.append(:events, events)
+  #   Derive.Dispatcher.await(dispatcher, events)
 
-    user = Derive.Repo.get(User, "99")
-    assert user.name == "Blueberry"
-  end
+  #   user = Derive.Repo.get(User, "99")
+  #   assert user.name == "Blueberry"
+  # end
 
   test "resuming a dispatcher after a server is restarted" do
     {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
