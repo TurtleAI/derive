@@ -24,6 +24,8 @@ defmodule Derive.Reducer do
   """
   @type version() :: String.t()
 
+  @type error_mode() :: :skip | :halt
+
   @doc """
   The source process where events from
   """
@@ -68,9 +70,15 @@ defmodule Derive.Reducer do
   """
   @callback reset_state() :: :ok
 
+  @callback on_error() :: error_mode()
+
   defmacro __using__(_options) do
     quote do
       @behaviour Derive.Reducer
+
+      def on_error, do: :halt
+
+      defoverridable on_error: 0
     end
   end
 end

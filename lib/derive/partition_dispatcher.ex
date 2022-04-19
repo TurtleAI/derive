@@ -4,6 +4,7 @@ defmodule Derive.PartitionDispatcher do
 
   alias __MODULE__, as: S
   alias Derive.{Partition, Reducer}
+  alias Derive.State.MultiOp
 
   defstruct [:reducer, :partition, :pending_awaiters]
 
@@ -103,20 +104,51 @@ defmodule Derive.PartitionDispatcher do
   def handle_cast(
         {:dispatch_events, events},
         %S{
+          partition: %Partition{status: :error},
+          pending_awaiters: pending_awaiters
+        } = state
+      ) do
+    version = Enum.max_by(events, fn %{id: id} -> id end)
+    # The awaiters that can be notified after these events get processed
+    {awaiters_to_notify, pending_awaiters_left} =
+      Enum.split_with(pending_awaiters, fn {_awaiter, event_id} ->
+        version.version >= event_id
+      end)
+
+    Enum.each(awaiters_to_notify, fn {awaiter, _event_id} ->
+      GenServer.reply(awaiter, :ok)
+    end)
+
+    new_state = %{
+      state
+      | pending_awaiters: pending_awaiters_left
+    }
+
+    {:noreply, new_state}
+  end
+
+  def handle_cast(
+        {:dispatch_events, events},
+        %S{
           reducer: reducer,
           partition: %Partition{} = partition,
           pending_awaiters: pending_awaiters
         } = state
       ) do
-    multi_op =
+    multi =
       Derive.Util.process_events(
         events,
         reducer,
         partition
       )
-      |> reducer.commit_operations()
 
-    new_partition = multi_op.partition
+    multi =
+      case multi do
+        %MultiOp{status: :processed} -> reducer.commit_operations(multi)
+        multi -> multi
+      end
+
+    new_partition = multi.partition
 
     # The awaiters that can be notified after these events get processed
     {awaiters_to_notify, pending_awaiters_left} =

@@ -51,6 +51,15 @@ defmodule Derive.State.MultiOp do
   def committed(%Op{status: :processed} = multi),
     do: %{multi | status: :committed}
 
+  def failed_on_event(%Op{partition: partition} = multi, event, error) do
+    %{
+      multi
+      | status: :error,
+        partition: %{partition | status: :error},
+        error: {:failed_on_event, event, error}
+    }
+  end
+
   defp add_operation(
          %Op{partition: partition, event_operations: event_operations} = multi,
          event,

@@ -96,6 +96,8 @@ defmodule DeriveEctoTest do
       insert(%LogEntry{message: message, timestamp: :os.system_time(:millisecond)})
     end
 
+    def on_error, do: :halt
+
     def handle_event(%UserCreated{user_id: user_id, name: name, email: email, sleep: sleep}) do
       maybe_sleep(sleep)
 
@@ -262,22 +264,40 @@ defmodule DeriveEctoTest do
     assert user.name == "Mango"
   end
 
-  # test "events are skipped when there is an exception in handle_event" do
-  #   {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
-  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+  test "events are skipped when there is an exception in handle_event" do
+    {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
+    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
 
-  #   events = [
-  #     %UserCreated{id: "1", user_id: "99", name: "Pear"},
-  #     %UserRaiseError{id: "2", message: "bad stuff happened"},
-  #     %UserNameUpdated{id: "3", user_id: "99", name: "Blueberry"}
-  #   ]
+    InMemoryEventLog.append(:events, [
+      %UserCreated{id: "1", user_id: "99", name: "Pikachu"}
+    ])
 
-  #   InMemoryEventLog.append(:events, events)
-  #   Derive.Dispatcher.await(dispatcher, events)
+    Process.sleep(100)
 
-  #   user = Derive.Repo.get(User, "99")
-  #   assert user.name == "Blueberry"
-  # end
+    events = [
+      %UserCreated{id: "2", user_id: "55", name: "Squirtle"},
+      %UserRaiseError{id: "3", user_id: "99", message: "bad stuff happened"},
+      %UserNameUpdated{id: "4", user_id: "99", name: "Raichu"},
+      %UserNameUpdated{id: "5", user_id: "55", name: "Wartortle"}
+    ]
+
+    InMemoryEventLog.append(:events, events)
+    Derive.Dispatcher.await(dispatcher, events)
+
+    user = Derive.Repo.get(User, "99")
+    assert user.name == "Pikachu"
+
+    user = Derive.Repo.get(User, "55")
+    assert user.name == "Wartortle"
+
+    # future events are not processed after a failure
+    events = [%UserNameUpdated{id: "6", user_id: "99", name: "Super Pikachu"}]
+    InMemoryEventLog.append(:events, events)
+    Derive.Dispatcher.await(dispatcher, events)
+
+    user = Derive.Repo.get(User, "99")
+    assert user.name == "Pikachu"
+  end
 
   test "resuming a dispatcher after a server is restarted" do
     {:ok, _event_log} = InMemoryEventLog.start_link(name: :events)
