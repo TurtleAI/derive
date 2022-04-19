@@ -5,7 +5,6 @@ defmodule Derive do
 
   def start(_type, _args) do
     children = [
-      Derive.Repo,
       {Registry, keys: :unique, name: Derive.Registry},
       Derive.PartitionSupervisor
     ]

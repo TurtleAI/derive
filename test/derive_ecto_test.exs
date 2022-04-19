@@ -172,6 +172,8 @@ defmodule DeriveEctoTest do
   end
 
   setup_all do
+    {:ok, _pid} = Derive.Repo.start_link()
+
     UserReducer.reset_state()
 
     :ok
