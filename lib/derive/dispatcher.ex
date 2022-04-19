@@ -5,7 +5,7 @@ defmodule Derive.Dispatcher do
 
   alias __MODULE__, as: S
 
-  defstruct [:reducer, :batch_size, :partition]
+  defstruct [:reducer, :batch_size, :partition, :source]
 
   @type t :: %__MODULE__{
           reducer: Derive.Reducer.t(),
@@ -29,22 +29,27 @@ defmodule Derive.Dispatcher do
 
   @spec start_link(Derive.Reducer.t(), any()) :: {:ok, pid()} | {:error, any()}
   def start_link(reducer, opts \\ []) do
-    {dispatcher_opts, genserver_opts} = Keyword.split(opts, [:batch_size])
+    {dispatcher_opts, genserver_opts} = Keyword.split(opts, [:batch_size, :source])
 
     batch_size = Keyword.get(dispatcher_opts, :batch_size, 100)
+    source = Keyword.fetch!(dispatcher_opts, :source)
 
-    GenServer.start_link(__MODULE__, %S{reducer: reducer, batch_size: batch_size}, genserver_opts)
+    GenServer.start_link(
+      __MODULE__,
+      %S{reducer: reducer, batch_size: batch_size, source: source},
+      genserver_opts
+    )
   end
 
   @doc """
   Rebuilds the state of a reducer.
   This means the state will be reset and all of the events processed to get to the final state.
   """
-  @spec rebuild(Derive.Reducer.t()) :: :ok
-  def rebuild(reducer) do
+  @spec rebuild(Derive.Reducer.t(), any()) :: :ok
+  def rebuild(reducer, opts \\ []) do
     reducer.reset_state()
 
-    {:ok, dispatcher} = start_link(reducer)
+    {:ok, dispatcher} = start_link(reducer, opts)
     Process.monitor(dispatcher)
 
     # @TODO: remove hack to get test passing
@@ -75,10 +80,10 @@ defmodule Derive.Dispatcher do
     do: GenServer.call(dispatcher, {:await, events})
 
   @impl true
-  def init(%S{reducer: reducer} = state) do
+  def init(%S{source: source} = state) do
     Process.flag(:trap_exit, true)
 
-    Derive.EventLog.subscribe(reducer.source(), self())
+    Derive.EventLog.subscribe(source, self())
 
     # handle_continue(:load_partition...) will first boot with the version
     GenServer.cast(self(), :catchup_on_boot)
@@ -123,11 +128,12 @@ defmodule Derive.Dispatcher do
   defp catchup(
          %S{
            reducer: reducer,
+           source: source,
            partition: %Derive.Partition{version: version} = partition,
            batch_size: batch_size
          } = state
        ) do
-    case Derive.EventLog.fetch(reducer.source(), {version, batch_size}) do
+    case Derive.EventLog.fetch(source, {version, batch_size}) do
       {[], _} ->
         # done processing so return the state as is
         state

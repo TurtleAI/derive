@@ -73,7 +73,7 @@ defmodule DeriveInMemoryTest do
   end
 
   test "processes events from an empty event log" do
-    {:ok, _event_log} = EventLog.start_link(name: :events)
+    {:ok, event_log} = EventLog.start_link()
 
     {:ok, _sink} =
       Derive.State.InMemory.start_link(
@@ -81,9 +81,9 @@ defmodule DeriveInMemoryTest do
         reduce: &Derive.State.InMemory.Reduce.reduce/2
       )
 
-    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer)
+    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer, source: event_log)
 
-    EventLog.append(:events, [%UserCreated{id: "1", user_id: 99, name: "John"}])
+    EventLog.append(event_log, [%UserCreated{id: "1", user_id: 99, name: "John"}])
 
     Derive.Dispatcher.await(dispatcher, [
       %UserCreated{id: "1", user_id: 99, name: "John"}
@@ -95,7 +95,7 @@ defmodule DeriveInMemoryTest do
              }
            }
 
-    EventLog.append(:events, [
+    EventLog.append(event_log, [
       %UserNameUpdated{id: "2", user_id: 99, name: "Johny Darko"},
       %UserEmailUpdated{id: "3", user_id: 99, email: "john@hotmail.com"},
       %UserNameUpdated{id: "4", user_id: 99, name: "Donny Darko"}
