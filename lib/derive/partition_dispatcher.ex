@@ -118,7 +118,7 @@ defmodule Derive.PartitionDispatcher do
 
     reducer.commit_operations(multi_op)
 
-    new_partition = MultiOp.next_partition(multi_op)
+    new_partition = multi_op.partition
 
     # The awaiters that can be notified after these events get processed
     {awaiters_to_notify, pending_awaiters_left} =

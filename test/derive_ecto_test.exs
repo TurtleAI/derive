@@ -123,14 +123,12 @@ defmodule DeriveEctoTest do
     end
 
     def commit_operations(%MultiOp{} = op) do
-      partition = MultiOp.next_partition(op)
-
       operations =
         MultiOp.operations(op) ++
           [
             %Derive.State.Ecto.Operation.SetPartition{
               table: UserReducerPartitions,
-              partition: partition
+              partition: op.partition
             }
           ]
 

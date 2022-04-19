@@ -34,8 +34,14 @@ defmodule Derive.State.MultiOp do
   def error(%Op{} = multi, event, error),
     do: add_operation(multi, event, {:error, error})
 
-  defp add_operation(%Op{event_operations: event_operations} = multi, event, op) do
-    %{multi | event_operations: [{event, op} | event_operations]}
+  defp add_operation(
+         %Op{partition: partition, event_operations: event_operations} = multi,
+         event,
+         op
+       ) do
+    new_partition = %{partition | version: max(event.id, partition.id)}
+    new_event_operations = [{event, op} | event_operations]
+    %{multi | partition: new_partition, event_operations: new_event_operations}
   end
 
   @doc """
@@ -46,18 +52,5 @@ defmodule Derive.State.MultiOp do
       {_e, {:ok, ops}} -> ops
       {_e, {:error, _}} -> []
     end)
-  end
-
-  @doc """
-  The new version of the state once a commit has succeeded
-  """
-  def next_partition(%Op{partition: partition, event_operations: event_operations}) do
-    next_version =
-      Enum.map(event_operations, fn
-        {%{id: id}, _} -> id
-      end)
-      |> Enum.max()
-
-    %{partition | version: next_version}
   end
 end

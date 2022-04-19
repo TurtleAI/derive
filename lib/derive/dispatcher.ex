@@ -44,11 +44,19 @@ defmodule Derive.Dispatcher do
   def rebuild(reducer) do
     reducer.reset_state()
 
-    {:ok, _dispatcher} = start_link(reducer)
+    {:ok, dispatcher} = start_link(reducer)
+    Process.monitor(dispatcher)
 
     # @TODO: remove hack to get test passing
     # we really want to wait until all the events have been processed
     Process.sleep(500)
+
+    Process.exit(dispatcher, :normal)
+
+    receive do
+      {:DOWN, _ref, :process, ^dispatcher, _} ->
+        :ok
+    end
   end
 
   ### Client
