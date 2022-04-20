@@ -9,11 +9,12 @@ defmodule Derive.PartitionSupervisor do
   @supervisor Derive.PartitionSupervisor
   @registry Derive.Registry
 
-  def start_link(mod, opts \\ []),
-    do: Supervisor.start_link(__MODULE__, mod, opts)
+  def start_link(opts \\ []),
+    do: Supervisor.start_link(__MODULE__, opts)
 
   def init(_) do
     children = [
+      {Registry, keys: :unique, name: Derive.Registry},
       {DynamicSupervisor, strategy: :one_for_one, name: @supervisor}
     ]
 

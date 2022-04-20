@@ -5,8 +5,7 @@ defmodule Derive do
 
   def start(_type, _args) do
     children = [
-      {Registry, keys: :unique, name: Derive.Registry},
-      Derive.PartitionSupervisor
+      {Derive.PartitionSupervisor, name: :psup}
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one, name: Derive.Supervisor)
