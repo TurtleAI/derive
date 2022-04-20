@@ -13,7 +13,6 @@ defmodule Derive.MixProject do
 
   def application do
     [
-      mod: {Derive, []},
       extra_applications: [:logger]
     ]
   end

@@ -13,23 +13,15 @@ defmodule Derive.Util do
           Derive.Partition.t()
         ) ::
           Derive.State.MultiOp.t()
-  def process_events(events, reducer, partition, opts \\ []) do
-    on_error = Keyword.get(opts, :on_error, :skip)
-
+  def process_events(events, reducer, partition) do
     MultiOp.new(partition)
-    |> do_process(events, reducer, on_error)
+    |> do_process(events, reducer, reducer.on_error())
   end
 
   defp do_process(multi, [], _reducer, _),
     do: MultiOp.processed(multi)
 
-  defp do_process(multi, [event | rest], reducer, :skip) do
-    # current overall behavior is to skip failed events
-    # @TODO: replace with more explicit error handling which may vary per use case
-    # For example:
-    # - Skip over the failed event
-    # - Stop processing all future events
-
+  defp do_process(multi, [event | rest], reducer, on_error) do
     resp =
       try do
         {:ok, reducer.handle_event(event)}
@@ -41,11 +33,17 @@ defmodule Derive.Util do
     case resp do
       {:ok, ops} ->
         MultiOp.add(multi, event, ops)
-        |> do_process(rest, reducer, :skip)
+        |> do_process(rest, reducer, on_error)
 
       {:error, error} ->
-        MultiOp.add_error(multi, event, error)
-        |> do_process(rest, reducer, :skip)
+        case on_error do
+          :skip ->
+            MultiOp.add_error(multi, event, error)
+            |> do_process(rest, reducer, on_error)
+
+          :halt ->
+            MultiOp.failed_on_event(multi, event, error)
+        end
     end
   end
 end
