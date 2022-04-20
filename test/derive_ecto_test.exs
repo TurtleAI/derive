@@ -1,7 +1,7 @@
 defmodule DeriveEctoTest do
   use ExUnit.Case
 
-  alias Derive.EventLog.InMemoryEventLog
+  alias Derive.EventLog.InMemoryEventLog, as: EventLog
 
   @same_time_threshold 10
 
@@ -196,10 +196,10 @@ defmodule DeriveEctoTest do
   end
 
   test "insert a user" do
-    {:ok, event_log} = InMemoryEventLog.start_link()
+    {:ok, event_log} = EventLog.start_link()
     {:ok, _} = Derive.start_link(reducer: UserReducer, source: event_log, name: :a)
 
-    InMemoryEventLog.append(event_log, [
+    EventLog.append(event_log, [
       %UserCreated{id: "1", user_id: "99", name: "John"}
     ])
 
@@ -210,7 +210,7 @@ defmodule DeriveEctoTest do
     user = Derive.Repo.get(User, "99")
     assert user.name == "John"
 
-    InMemoryEventLog.append(event_log, [
+    EventLog.append(event_log, [
       %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
     ])
 
@@ -225,7 +225,7 @@ defmodule DeriveEctoTest do
   test "events are processed in parallel according to the partition" do
     name = :parallel
 
-    {:ok, event_log} = InMemoryEventLog.start_link()
+    {:ok, event_log} = EventLog.start_link()
     {:ok, _derive} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
     events = [
@@ -234,7 +234,7 @@ defmodule DeriveEctoTest do
       %UserCreated{id: "3", user_id: "t", name: "Time", sleep: 100}
     ]
 
-    InMemoryEventLog.append(event_log, events)
+    EventLog.append(event_log, events)
     Derive.await(name, events)
 
     assert [{"created-s", t1}, {"created-t", t2}, {"updated-s", t3}] = get_logs()
@@ -250,7 +250,7 @@ defmodule DeriveEctoTest do
   end
 
   test "events are processed when there are more events than the batch size allows" do
-    {:ok, event_log} = InMemoryEventLog.start_link()
+    {:ok, event_log} = EventLog.start_link()
 
     name = :batch_dispatcher
 
@@ -265,7 +265,7 @@ defmodule DeriveEctoTest do
       %UserNameUpdated{id: "5", user_id: "99", name: "Mango"}
     ]
 
-    InMemoryEventLog.append(event_log, events)
+    EventLog.append(event_log, events)
     Derive.await(name, events)
 
     user = Derive.Repo.get(User, "99")
@@ -275,10 +275,10 @@ defmodule DeriveEctoTest do
   test "a partition is halted if an error is raised in handle_event" do
     name = :partition_halted
 
-    {:ok, event_log} = InMemoryEventLog.start_link()
+    {:ok, event_log} = EventLog.start_link()
     {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
-    InMemoryEventLog.append(event_log, [
+    EventLog.append(event_log, [
       %UserCreated{id: "1", user_id: "99", name: "Pikachu"}
     ])
 
@@ -291,7 +291,7 @@ defmodule DeriveEctoTest do
       %UserNameUpdated{id: "5", user_id: "55", name: "Wartortle"}
     ]
 
-    InMemoryEventLog.append(event_log, events)
+    EventLog.append(event_log, events)
     Derive.await(name, events)
 
     user = Derive.Repo.get(User, "99")
@@ -303,7 +303,7 @@ defmodule DeriveEctoTest do
 
     # future events are not processed after a failure
     events = [%UserNameUpdated{id: "6", user_id: "99", name: "Super Pikachu"}]
-    InMemoryEventLog.append(event_log, events)
+    EventLog.append(event_log, events)
     Derive.await(name, events)
 
     # name hasn't changed
@@ -314,14 +314,14 @@ defmodule DeriveEctoTest do
   test "resuming a dispatcher after a server is restarted" do
     name = :resuming
 
-    {:ok, event_log} = InMemoryEventLog.start_link()
+    {:ok, event_log} = EventLog.start_link()
     {:ok, derive} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
     events = [
       %UserCreated{id: "1", user_id: "j", name: "John", sleep: 100}
     ]
 
-    InMemoryEventLog.append(event_log, events)
+    EventLog.append(event_log, events)
     Derive.await(name, events)
 
     Process.monitor(derive)
@@ -339,7 +339,7 @@ defmodule DeriveEctoTest do
       %UserNameUpdated{id: "2", user_id: "j", name: "John Smith", sleep: 100}
     ]
 
-    InMemoryEventLog.append(event_log, events)
+    EventLog.append(event_log, events)
 
     # Dispatcher should pick up where it left off and process the remaining events
     {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
@@ -353,7 +353,7 @@ defmodule DeriveEctoTest do
   test "rebuilding the state for a reducer" do
     name = :rebuild
 
-    {:ok, event_log} = InMemoryEventLog.start_link()
+    {:ok, event_log} = EventLog.start_link()
     {:ok, derive} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
     events = [
@@ -361,7 +361,7 @@ defmodule DeriveEctoTest do
       %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
     ]
 
-    InMemoryEventLog.append(event_log, events)
+    EventLog.append(event_log, events)
     Derive.await(name, events)
 
     user = Derive.Repo.get(User, "99")
