@@ -297,6 +297,7 @@ defmodule DeriveEctoTest do
     user = Derive.Repo.get(User, "99")
     assert user.name == "Pikachu"
 
+    # other partitions can happily continue processing
     user = Derive.Repo.get(User, "55")
     assert user.name == "Wartortle"
 
@@ -305,6 +306,7 @@ defmodule DeriveEctoTest do
     InMemoryEventLog.append(:events, events)
     Derive.await(name, events)
 
+    # name hasn't changed
     user = Derive.Repo.get(User, "99")
     assert user.name == "Pikachu"
   end
@@ -348,34 +350,36 @@ defmodule DeriveEctoTest do
     assert john.name == "John Smith"
   end
 
-  # test "rebuilding the state for a reducer" do
-  #   {:ok, event_log} = InMemoryEventLog.start_link()
-  #   {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer, source: event_log)
+  test "rebuilding the state for a reducer" do
+    name = :rebuild
 
-  #   events = [
-  #     %UserCreated{id: "1", user_id: "99", name: "John"},
-  #     %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
-  #   ]
+    {:ok, event_log} = InMemoryEventLog.start_link()
+    {:ok, derive} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
-  #   InMemoryEventLog.append(event_log, events)
-  #   Derive.Dispatcher.await(dispatcher, events)
+    events = [
+      %UserCreated{id: "1", user_id: "99", name: "John"},
+      %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
+    ]
 
-  #   user = Derive.Repo.get(User, "99")
-  #   assert user.name == "John Wayne"
+    InMemoryEventLog.append(event_log, events)
+    Derive.await(name, events)
 
-  #   Derive.Repo.delete_all(User)
+    user = Derive.Repo.get(User, "99")
+    assert user.name == "John Wayne"
 
-  #   Process.monitor(dispatcher)
-  #   Process.exit(dispatcher, :normal)
+    Derive.Repo.delete_all(User)
 
-  #   receive do
-  #     {:DOWN, _ref, :process, ^dispatcher, _} ->
-  #       :ok
-  #   end
+    Process.monitor(derive)
+    Process.exit(derive, :normal)
 
-  #   Derive.Dispatcher.rebuild(UserReducer, source: event_log)
+    receive do
+      {:DOWN, _ref, :process, ^derive, _} ->
+        :ok
+    end
 
-  #   user = Derive.Repo.get(User, "99")
-  #   assert user.name == "John Wayne"
-  # end
+    Derive.rebuild(UserReducer, source: event_log)
+
+    user = Derive.Repo.get(User, "99")
+    assert user.name == "John Wayne"
+  end
 end

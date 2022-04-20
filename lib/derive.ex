@@ -1,8 +1,6 @@
 defmodule Derive do
   use Supervisor
 
-  alias Derive.Dispatcher
-
   @moduledoc """
   Manages a pool of GenServers of `Derive.PartitionDispatcher`
   Each partition incrementally updates a single partition to its latest state.
@@ -23,7 +21,32 @@ defmodule Derive do
   have been committed by `Derive.Reducer.commit_operations/1`
   """
   def await(name, events),
-    do: Dispatcher.await(dispatcher_name(name), events)
+    do: GenServer.call(dispatcher_name(name), {:await, events})
+
+  @doc """
+  Rebuilds the state of a reducer.
+  This means the state will be reset and all of the events processed to get to the final state.
+  """
+  @spec rebuild(Derive.Reducer.t(), any()) :: :ok
+  def rebuild(reducer, opts \\ []) do
+    derive_opts = Keyword.merge(opts, reducer: reducer, name: reducer)
+
+    reducer.reset_state()
+
+    {:ok, derive} = start_link(derive_opts)
+    Process.monitor(derive)
+
+    # @TODO: remove hack to get test passing
+    # we really want to wait until all the events have been processed
+    Process.sleep(500)
+
+    Process.exit(derive, :normal)
+
+    receive do
+      {:DOWN, _ref, :process, ^derive, _} ->
+        :ok
+    end
+  end
 
   ### Server
 

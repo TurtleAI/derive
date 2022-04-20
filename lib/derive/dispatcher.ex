@@ -50,21 +50,6 @@ defmodule Derive.Dispatcher do
     )
   end
 
-  ### Client
-
-  @doc """
-  Wait for all of the events to be processed by all of the matching partitions as defined by
-  `Derive.Reducer.partition/1`
-
-  If the event has already been processed, this will complete immediately
-  If the event has not yet been processed, this will block until it completes processing
-
-  Events are not considered processed until *all* operations produced by `Derive.Reducer.handle_event/1`
-  have been committed by `Derive.Reducer.commit_operations/1`
-  """
-  def await(dispatcher, events),
-    do: GenServer.call(dispatcher, {:await, events})
-
   ### Server
 
   @impl true
