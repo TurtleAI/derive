@@ -81,11 +81,11 @@ defmodule DeriveInMemoryTest do
         reduce: &Derive.State.InMemory.Reduce.reduce/2
       )
 
-    {:ok, dispatcher} = Derive.Dispatcher.start_link(UserReducer, source: event_log)
+    {:ok, _} = Derive.start_link(reducer: UserReducer, source: event_log, name: :t1)
 
     EventLog.append(event_log, [%UserCreated{id: "1", user_id: 99, name: "John"}])
 
-    Derive.Dispatcher.await(dispatcher, [
+    Derive.await(:t1, [
       %UserCreated{id: "1", user_id: 99, name: "John"}
     ])
 
@@ -101,7 +101,7 @@ defmodule DeriveInMemoryTest do
       %UserNameUpdated{id: "4", user_id: 99, name: "Donny Darko"}
     ])
 
-    Derive.Dispatcher.await(dispatcher, [
+    Derive.await(:t1, [
       %UserNameUpdated{id: "4", user_id: 99, name: "Donny Darko"}
     ])
 
