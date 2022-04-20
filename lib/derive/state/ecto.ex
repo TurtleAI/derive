@@ -17,8 +17,8 @@ defmodule Derive.State.Ecto do
   """
   def reset_state(repo, models) do
     for model <- models do
-      Ecto.Migration.Runner.run(repo, [], 0, model, :forward, :down, :down, [])
-      Ecto.Migration.Runner.run(repo, [], 1, model, :forward, :up, :up, [])
+      Ecto.Migration.Runner.run(repo, [], 0, model, :forward, :down, :down, log: :debug)
+      Ecto.Migration.Runner.run(repo, [], 1, model, :forward, :up, :up, log: :debug)
     end
   end
 

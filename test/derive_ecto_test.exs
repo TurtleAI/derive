@@ -275,10 +275,10 @@ defmodule DeriveEctoTest do
   test "a partition is halted if an error is raised in handle_event" do
     name = :partition_halted
 
-    {:ok, event_log} = InMemoryEventLog.start_link(name: :events)
+    {:ok, event_log} = InMemoryEventLog.start_link()
     {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
-    InMemoryEventLog.append(:events, [
+    InMemoryEventLog.append(event_log, [
       %UserCreated{id: "1", user_id: "99", name: "Pikachu"}
     ])
 
@@ -291,7 +291,7 @@ defmodule DeriveEctoTest do
       %UserNameUpdated{id: "5", user_id: "55", name: "Wartortle"}
     ]
 
-    InMemoryEventLog.append(:events, events)
+    InMemoryEventLog.append(event_log, events)
     Derive.await(name, events)
 
     user = Derive.Repo.get(User, "99")
@@ -303,7 +303,7 @@ defmodule DeriveEctoTest do
 
     # future events are not processed after a failure
     events = [%UserNameUpdated{id: "6", user_id: "99", name: "Super Pikachu"}]
-    InMemoryEventLog.append(:events, events)
+    InMemoryEventLog.append(event_log, events)
     Derive.await(name, events)
 
     # name hasn't changed
