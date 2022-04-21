@@ -5,14 +5,23 @@ defmodule Derive.Dispatcher do
 
   alias __MODULE__, as: S
 
-  defstruct [:reducer, :batch_size, :partition, :source, :lookup_or_start]
+  defstruct [:reducer, :batch_size, :partition, :source, :lookup_or_start, :mode]
 
   @type t :: %__MODULE__{
           reducer: Derive.Reducer.t(),
           batch_size: integer(),
           partition: Derive.Reducer.partition(),
-          lookup_or_start: function()
+          lookup_or_start: function(),
+          mode: mode()
         }
+
+  @typedoc """
+  The mode in which the dispatcher should operate
+
+  catchup: on boot, catch up to the last point possible, stay alive and up to date
+  rebuild: destroy the state, rebuild it up to the last point possible, then shut down
+  """
+  @type mode :: :catchup | :rebuild
 
   # We maintain the version of a special partition with this name
   @global_partition "$"
@@ -30,13 +39,13 @@ defmodule Derive.Dispatcher do
 
   @spec start_link(any()) :: {:ok, pid()} | {:error, any()}
   def start_link(opts \\ []) do
-    {dispatcher_opts, genserver_opts} =
-      Keyword.split(opts, [:reducer, :batch_size, :source, :lookup_or_start])
+    {dispatcher_opts, genserver_opts} = Keyword.split(opts, Map.keys(__struct__()))
 
     reducer = Keyword.fetch!(dispatcher_opts, :reducer)
-    batch_size = Keyword.fetch!(dispatcher_opts, :batch_size)
+    batch_size = Keyword.get(dispatcher_opts, :batch_size, 100)
     source = Keyword.fetch!(dispatcher_opts, :source)
     lookup_or_start = Keyword.fetch!(dispatcher_opts, :lookup_or_start)
+    mode = Keyword.get(dispatcher_opts, :mode, :catchup)
 
     GenServer.start_link(
       __MODULE__,
@@ -44,7 +53,8 @@ defmodule Derive.Dispatcher do
         reducer: reducer,
         batch_size: batch_size,
         source: source,
-        lookup_or_start: lookup_or_start
+        lookup_or_start: lookup_or_start,
+        mode: mode
       },
       genserver_opts
     )
@@ -53,13 +63,16 @@ defmodule Derive.Dispatcher do
   ### Server
 
   @impl true
-  def init(%S{source: source} = state) do
+  def init(%S{source: source, mode: mode, reducer: reducer} = state) do
     Process.flag(:trap_exit, true)
 
-    Derive.EventLog.subscribe(source, self())
+    if mode == :rebuild do
+      reducer.reset_state()
+    end
 
-    # handle_continue(:load_partition...) will first boot with the version
-    GenServer.cast(self(), :catchup_on_boot)
+    if mode == :catchup do
+      Derive.EventLog.subscribe(source, self())
+    end
 
     {:ok, state, {:continue, :load_partition}}
   end
@@ -67,7 +80,11 @@ defmodule Derive.Dispatcher do
   @impl true
   def handle_continue(:load_partition, %S{reducer: reducer} = state) do
     partition = reducer.get_partition(@global_partition)
-    {:noreply, %{state | partition: partition}}
+    GenServer.cast(self(), :catchup_on_boot)
+
+    new_state = %{state | partition: partition}
+
+    {:noreply, new_state}
   end
 
   @impl true
@@ -86,15 +103,22 @@ defmodule Derive.Dispatcher do
   end
 
   @impl true
-  def handle_cast({:new_events, _new_events}, state),
-    do: {:noreply, catchup(state)}
+  def handle_cast({:new_events, _new_events}, %S{} = state) do
+    {:noreply, catchup(state)}
+  end
 
-  def handle_cast(:catchup_on_boot, state),
-    do: {:noreply, catchup(state)}
+  def handle_cast(:catchup_on_boot, %S{mode: mode} = state) do
+    new_state = catchup(state)
+
+    case mode do
+      :catchup -> {:noreply, new_state}
+      :rebuild -> {:stop, :caught_up, new_state}
+    end
+  end
 
   @impl true
   def handle_info({:EXIT, _, :normal}, state),
-    do: {:stop, :shutdown, state}
+    do: {:stop, :normal, state}
 
   @impl true
   def terminate(_reason, _state),

@@ -5,10 +5,16 @@ defmodule Derive.State.InMemory do
   An in-memory implementation of state
   """
 
+  defstruct [:reduce, :acc]
+
+  alias Derive.State.InMemory, as: S
+
   def start_link(opts) do
     {reducer_opts, genserver_opts} = Keyword.split(opts, [:reduce])
     GenServer.start_link(__MODULE__, reducer_opts, genserver_opts)
   end
+
+  ### Client
 
   def get_state(server),
     do: GenServer.call(server, :get_state)
@@ -19,12 +25,14 @@ defmodule Derive.State.InMemory do
   def commit(server, operations),
     do: GenServer.call(server, {:commit, operations})
 
+  ### Server
+
   def init(opts) do
     reduce = Keyword.fetch!(opts, :reduce)
-    {:ok, %{reduce: reduce, acc: %{}}}
+    {:ok, %S{reduce: reduce, acc: %{}}}
   end
 
-  def handle_call({:commit, operations}, _from, %{reduce: reduce, acc: acc} = state) do
+  def handle_call({:commit, operations}, _from, %S{reduce: reduce, acc: acc} = state) do
     new_acc = Enum.reduce(operations, acc, reduce)
     {:reply, :ok, %{state | acc: new_acc}}
   end
@@ -33,7 +41,7 @@ defmodule Derive.State.InMemory do
     {:reply, :ok, %{state | acc: %{}}}
   end
 
-  def handle_call(:get_state, _from, %{acc: acc} = state) do
+  def handle_call(:get_state, _from, %S{acc: acc} = state) do
     {:reply, acc, state}
   end
 end

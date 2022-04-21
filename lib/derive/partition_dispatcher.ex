@@ -60,33 +60,41 @@ defmodule Derive.PartitionDispatcher do
 
   ### Server
 
+  @impl true
   def init(state) do
     Process.flag(:trap_exit, true)
     {:ok, state, {:continue, :load_partition}}
   end
 
+  @impl true
   def handle_continue(:load_partition, %S{reducer: reducer, partition: %{id: id}} = state) do
     partition = reducer.get_partition(id)
     {:noreply, %{state | partition: partition}}
   end
 
+  @impl true
   def handle_info(:timeout, state),
     do: {:stop, :normal, state}
 
   def handle_info({:EXIT, _, :normal}, state),
     do: {:stop, :shutdown, state}
 
+  @impl true
   def handle_call(
         {:await, event},
         from,
         %S{pending_awaiters: pending_awaiters} = state
       ) do
+    # IO.inspect({:await, event, processed_event?(state, event)})
+
     case processed_event?(state, event) do
       true ->
         # The event was already processed, so we can immediately reply :ok
         {:reply, :ok, state}
 
       false ->
+        # IO.inspect(state)
+
         # The event hasn't yet been processed, so we hold onto a reference to the caller
         # At a later time, we will reply to these callers after we process the events
         new_state = %{
@@ -98,6 +106,7 @@ defmodule Derive.PartitionDispatcher do
     end
   end
 
+  @impl true
   def handle_cast({:dispatch_events, []}, state),
     do: {:noreply, state}
 
@@ -135,6 +144,8 @@ defmodule Derive.PartitionDispatcher do
           pending_awaiters: pending_awaiters
         } = state
       ) do
+    # IO.inspect(events, label: :dispatch_events)
+
     multi =
       Derive.Util.process_events(
         events,
@@ -169,8 +180,16 @@ defmodule Derive.PartitionDispatcher do
     {:noreply, new_state}
   end
 
-  def terminate(_, _state),
-    do: :ok
+  @impl true
+  def terminate(_, _state) do
+    :ok
+  end
+
+  # if there's an error we stop caring
+  # everything is marked as processed
+  defp processed_event?(%S{partition: %{status: :error}}, _) do
+    true
+  end
 
   defp processed_event?(%S{partition: %{version: version}}, id) when is_binary(id),
     do: version >= id

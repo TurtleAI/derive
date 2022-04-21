@@ -2,8 +2,8 @@ defmodule Derive do
   use Supervisor
 
   @moduledoc """
-  Manages a pool of GenServers of `Derive.PartitionDispatcher`
-  Each partition incrementally updates a single partition to its latest state.
+  A process to keep state in sync with a source event log based on the
+  logic defined by a module implementing the behavior in `Derive.Reducer`
   """
 
   def start_link(opts \\ []),
@@ -29,21 +29,23 @@ defmodule Derive do
   """
   @spec rebuild(Derive.Reducer.t(), any()) :: :ok
   def rebuild(reducer, opts \\ []) do
-    derive_opts = Keyword.merge(opts, reducer: reducer, name: reducer)
+    name = reducer
 
-    reducer.reset_state()
+    derive_opts =
+      Keyword.merge(opts,
+        reducer: reducer,
+        name: name,
+        mode: :rebuild
+      )
 
     {:ok, derive} = start_link(derive_opts)
-    Process.monitor(derive)
 
-    # @TODO: remove hack to get test passing
-    # we really want to wait until all the events have been processed
-    Process.sleep(500)
-
-    Process.exit(derive, :normal)
+    dispatcher = Process.whereis(dispatcher_name(name))
+    Process.monitor(dispatcher)
 
     receive do
-      {:DOWN, _ref, :process, ^derive, _} ->
+      {:DOWN, _ref, :process, ^dispatcher, _} ->
+        Process.exit(derive, :normal)
         :ok
     end
   end
@@ -51,22 +53,20 @@ defmodule Derive do
   ### Server
 
   def init(opts) do
-    name = Keyword.fetch!(opts, :name)
+    {derive_opts, dispatcher_opts} = Keyword.split(opts, [:name])
+    name = Keyword.fetch!(derive_opts, :name)
 
-    reducer = Keyword.fetch!(opts, :reducer)
-    batch_size = Keyword.get(opts, :batch_size, 100)
-    source = Keyword.fetch!(opts, :source)
+    dispatcher_opts =
+      Keyword.merge(dispatcher_opts,
+        name: dispatcher_name(name),
+        lookup_or_start: fn {reducer, partition} ->
+          lookup_or_start(name, {reducer, partition})
+        end
+      )
 
     children = [
       {Registry, keys: :unique, name: registry_name(name)},
-      {Derive.Dispatcher,
-       name: dispatcher_name(name),
-       reducer: reducer,
-       batch_size: batch_size,
-       source: source,
-       lookup_or_start: fn {reducer, partition} ->
-         lookup_or_start(name, {reducer, partition})
-       end},
+      {Derive.Dispatcher, dispatcher_opts},
       {DynamicSupervisor, strategy: :one_for_one, name: supervisor_name(name)}
     ]
 
