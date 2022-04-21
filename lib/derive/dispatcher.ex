@@ -66,12 +66,14 @@ defmodule Derive.Dispatcher do
   def init(%S{source: source, mode: mode, reducer: reducer} = state) do
     Process.flag(:trap_exit, true)
 
-    if mode == :rebuild do
-      reducer.reset_state()
-    end
+    case mode do
+      :catchup ->
+        # only catchup needs to subscribe to new events
+        Derive.EventLog.subscribe(source, self())
 
-    if mode == :catchup do
-      Derive.EventLog.subscribe(source, self())
+      :rebuild ->
+        # reset the state before anything is loaded
+        reducer.reset_state()
     end
 
     {:ok, state, {:continue, :load_partition}}

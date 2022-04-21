@@ -274,17 +274,18 @@ defmodule DeriveEctoTest do
     assert user.name == "Mango"
   end
 
+  @tag :focus
   test "a partition is halted if an error is raised in handle_event" do
     name = :partition_halted
 
     {:ok, event_log} = EventLog.start_link()
     {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
-    EventLog.append(event_log, [
-      %UserCreated{id: "1", user_id: "99", name: "Pikachu"}
-    ])
+    event = %UserCreated{id: "1", user_id: "99", name: "Pikachu"}
 
-    Process.sleep(100)
+    EventLog.append(event_log, [event])
+
+    Derive.await(name, [event])
 
     events = [
       %UserCreated{id: "2", user_id: "55", name: "Squirtle"},
@@ -313,7 +314,6 @@ defmodule DeriveEctoTest do
     assert user.name == "Pikachu"
   end
 
-  @tag :focus
   test "resuming a dispatcher after a server is restarted" do
     name = :resuming
 
