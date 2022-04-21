@@ -59,7 +59,6 @@ defmodule Derive do
 
     children = [
       {Registry, keys: :unique, name: registry_name(name)},
-      {DynamicSupervisor, strategy: :one_for_one, name: supervisor_name(name)},
       {Derive.Dispatcher,
        name: dispatcher_name(name),
        reducer: reducer,
@@ -67,10 +66,13 @@ defmodule Derive do
        source: source,
        lookup_or_start: fn {reducer, partition} ->
          lookup_or_start(name, {reducer, partition})
-       end}
+       end},
+      {DynamicSupervisor, strategy: :one_for_one, name: supervisor_name(name)}
     ]
 
-    Supervisor.init(children, strategy: :one_for_all)
+    # :rest_for_one because if the dispatcher does,
+    # we want all of the partitions that run the processing to get shut down
+    Supervisor.init(children, strategy: :rest_for_one)
   end
 
   # Return the given `Derive.PartitionSupervisor` dispatcher for the given {reducer, partition} pair
