@@ -8,6 +8,7 @@ defmodule Derive.State.InMemory do
   defstruct [:reduce, :acc]
 
   alias Derive.State.InMemory, as: S
+  alias Derive.State.MultiOp
 
   def start_link(opts) do
     {reducer_opts, genserver_opts} = Keyword.split(opts, [:reduce])
@@ -22,8 +23,9 @@ defmodule Derive.State.InMemory do
   def reset_state(server),
     do: GenServer.call(server, :reset_state)
 
-  def commit(server, operations),
-    do: GenServer.call(server, {:commit, operations})
+  def commit(server, %MultiOp{} = op) do
+    GenServer.call(server, {:commit, op})
+  end
 
   ### Server
 
@@ -32,9 +34,10 @@ defmodule Derive.State.InMemory do
     {:ok, %S{reduce: reduce, acc: %{}}}
   end
 
-  def handle_call({:commit, operations}, _from, %S{reduce: reduce, acc: acc} = state) do
+  def handle_call({:commit, op}, _from, %S{reduce: reduce, acc: acc} = state) do
+    operations = MultiOp.operations(op)
     new_acc = Enum.reduce(operations, acc, reduce)
-    {:reply, :ok, %{state | acc: new_acc}}
+    {:reply, MultiOp.committed(op), %{state | acc: new_acc}}
   end
 
   def handle_call(:reset_state, _from, state) do
