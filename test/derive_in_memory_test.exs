@@ -31,7 +31,6 @@ defmodule DeriveInMemoryTest do
 
     alias Derive.State.MultiOp
 
-    def source, do: :events
     def partition(%{user_id: user_id}), do: user_id
 
     defp state, do: :users

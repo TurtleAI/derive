@@ -64,9 +64,6 @@ defmodule DeriveEctoTest do
 
     import Derive.State.Ecto.Operation
 
-    alias Derive.State.MultiOp
-
-    def source, do: :events
     def partition(%{user_id: user_id}), do: user_id
 
     def models,
@@ -109,7 +106,7 @@ defmodule DeriveEctoTest do
       raise UserError, message
     end
 
-    def commit_operations(%MultiOp{} = op),
+    def commit_operations(op),
       do: Derive.State.Ecto.commit(@state, op)
 
     def get_partition(id),
