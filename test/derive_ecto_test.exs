@@ -143,11 +143,8 @@ defmodule DeriveEctoTest do
     def set_partition(partition),
       do: Derive.State.Ecto.set_partition(@state, partition)
 
-    def reset_state do
-      Derive.State.Ecto.reset_state(repo(), [
-        {PartitionRecord, partition_table()} | models()
-      ])
-    end
+    def reset_state,
+      do: Derive.State.Ecto.reset_state(@state, models())
   end
 
   setup_all do

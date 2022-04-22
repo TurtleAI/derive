@@ -50,7 +50,11 @@ defmodule Derive.State.Ecto do
   Erase all of the state to bring it back to the starting point.
   This involves dropping and recreating all the tables.
   """
-  def reset_state(repo, models) do
+  def reset_state(%S{repo: repo} = state, models) do
+    models = [
+      {PartitionRecord, partition_table(state)} | models
+    ]
+
     for model <- models do
       reset_model(model, repo)
     end
