@@ -6,14 +6,27 @@ defmodule Derive.State.Ecto do
   defstruct [:repo, :namespace]
 
   alias __MODULE__, as: S
-  alias Drive.State.Ecto.PartitionRecord
+
+  alias Derive.State.Ecto.PartitionRecord
+  alias Derive.State.MultiOp
 
   @doc """
   Commit a list of operations to disk within a transaction.
   """
-  def commit(%S{repo: repo}, operations) do
+  def commit(%S{repo: repo} = state, %MultiOp{} = op) do
+    operations =
+      MultiOp.operations(op) ++
+        [
+          %Derive.State.Ecto.Operation.SetPartition{
+            table: partition_table(state),
+            partition: op.partition
+          }
+        ]
+
     multi = operations_to_multi(Ecto.Multi.new(), 1, operations)
     repo.transaction(multi)
+
+    MultiOp.committed(op)
   end
 
   def get_partition(%S{repo: repo} = state, partition_id) do
@@ -34,13 +47,16 @@ defmodule Derive.State.Ecto do
     end
   end
 
-  def set_partition(%S{} = state, partition) do
-    Derive.State.Ecto.commit(state, [
-      %Derive.State.Ecto.Operation.SetPartition{
-        table: partition_table(state),
-        partition: partition
-      }
-    ])
+  def set_partition(%S{repo: repo} = state, partition) do
+    multi =
+      operations_to_multi(Ecto.Multi.new(), 1, [
+        %Derive.State.Ecto.Operation.SetPartition{
+          table: partition_table(state),
+          partition: partition
+        }
+      ])
+
+    repo.transaction(multi)
   end
 
   defp partition_table(%S{namespace: namespace}),

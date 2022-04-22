@@ -1,4 +1,4 @@
-defmodule Drive.State.Ecto.PartitionRecord do
+defmodule Derive.State.Ecto.PartitionRecord do
   use Derive.State.Ecto.Model
 
   @primary_key {:id, :string, [autogenerate: false]}

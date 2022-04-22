@@ -9,7 +9,7 @@ defmodule Derive.State.Ecto.Operation.SetPartition do
 end
 
 defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.SetPartition do
-  alias Drive.State.Ecto.PartitionRecord
+  alias Derive.State.Ecto.PartitionRecord
 
   def to_multi(
         %Derive.State.Ecto.Operation.SetPartition{

@@ -65,27 +65,14 @@ defmodule DeriveEctoTest do
     import Derive.State.Ecto.Operation
 
     alias Derive.State.MultiOp
-    alias Drive.State.Ecto.PartitionRecord
 
     def source, do: :events
     def partition(%{user_id: user_id}), do: user_id
 
-    @state %Derive.State.Ecto{repo: Derive.Repo, namespace: "user_reducer"}
-
-    ## Begin ecto
-    # todo: these appear to be specific to Ecto
-    # so we may want to extract an ecto-specific implementation
-
-    def repo,
-      do: Derive.Repo
-
-    def partition_table,
-      do: "user_reducer_partitions"
-
     def models,
       do: [User, LogEntry]
 
-    ## END Ecto
+    @state %Derive.State.Ecto{repo: Derive.Repo, namespace: "user_reducer"}
 
     defp maybe_sleep(0), do: :ok
     defp maybe_sleep(timeout), do: Process.sleep(timeout)
@@ -122,20 +109,8 @@ defmodule DeriveEctoTest do
       raise UserError, message
     end
 
-    def commit_operations(%MultiOp{} = op) do
-      operations =
-        MultiOp.operations(op) ++
-          [
-            %Derive.State.Ecto.Operation.SetPartition{
-              table: partition_table(),
-              partition: op.partition
-            }
-          ]
-
-      Derive.State.Ecto.commit(@state, operations)
-
-      MultiOp.committed(op)
-    end
+    def commit_operations(%MultiOp{} = op),
+      do: Derive.State.Ecto.commit(@state, op)
 
     def get_partition(id),
       do: Derive.State.Ecto.get_partition(@state, id)
