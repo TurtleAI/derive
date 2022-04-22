@@ -25,26 +25,6 @@ defmodule DeriveEctoTest do
     def down, do: drop_if_exists(table(:users))
   end
 
-  defmodule UserReducerPartitions do
-    use Derive.State.Ecto.Model
-
-    @primary_key {:id, :string, []}
-    schema "user_reducer_partitions" do
-      field(:version, :string)
-      field(:status, Ecto.Enum, values: [ok: 1, error: 2])
-    end
-
-    def up do
-      create table(:user_reducer_partitions, primary_key: false) do
-        add(:id, :string, size: 32, primary_key: true)
-        add(:version, :string, size: 32)
-        add(:status, :integer, null: false, default: 1)
-      end
-    end
-
-    def down, do: drop_if_exists(table(:user_reducer_partitions))
-  end
-
   defmodule LogEntry do
     use Derive.State.Ecto.Model
 
@@ -85,9 +65,27 @@ defmodule DeriveEctoTest do
     import Derive.State.Ecto.Operation
 
     alias Derive.State.MultiOp
+    alias Drive.State.Ecto.PartitionRecord
 
     def source, do: :events
     def partition(%{user_id: user_id}), do: user_id
+
+    @state %Derive.State.Ecto{repo: Derive.Repo, namespace: "user_reducer"}
+
+    ## Begin ecto
+    # todo: these appear to be specific to Ecto
+    # so we may want to extract an ecto-specific implementation
+
+    def repo,
+      do: Derive.Repo
+
+    def partition_table,
+      do: "user_reducer_partitions"
+
+    def models,
+      do: [User, LogEntry]
+
+    ## END Ecto
 
     defp maybe_sleep(0), do: :ok
     defp maybe_sleep(timeout), do: Process.sleep(timeout)
@@ -129,45 +127,26 @@ defmodule DeriveEctoTest do
         MultiOp.operations(op) ++
           [
             %Derive.State.Ecto.Operation.SetPartition{
-              table: UserReducerPartitions,
+              table: partition_table(),
               partition: op.partition
             }
           ]
 
-      Derive.State.Ecto.commit(Derive.Repo, operations)
+      Derive.State.Ecto.commit(@state, operations)
 
       MultiOp.committed(op)
     end
 
-    def get_partition(id) do
-      case Derive.Repo.get(UserReducerPartitions, id) do
-        nil ->
-          %Derive.Partition{
-            id: id,
-            version: :start,
-            status: :ok
-          }
+    def get_partition(id),
+      do: Derive.State.Ecto.get_partition(@state, id)
 
-        %{id: id, version: version, status: status} ->
-          %Derive.Partition{
-            id: id,
-            version: version,
-            status: status
-          }
-      end
-    end
-
-    def set_partition(partition) do
-      Derive.State.Ecto.commit(Derive.Repo, [
-        %Derive.State.Ecto.Operation.SetPartition{
-          table: UserReducerPartitions,
-          partition: partition
-        }
-      ])
-    end
+    def set_partition(partition),
+      do: Derive.State.Ecto.set_partition(@state, partition)
 
     def reset_state do
-      Derive.State.Ecto.reset_state(Derive.Repo, [UserReducerPartitions, User, LogEntry])
+      Derive.State.Ecto.reset_state(repo(), [
+        {PartitionRecord, partition_table()} | models()
+      ])
     end
   end
 
@@ -193,6 +172,8 @@ defmodule DeriveEctoTest do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Derive.Repo)
     # Setting the shared mode must be done only after checkout
     Ecto.Adapters.SQL.Sandbox.mode(Derive.Repo, {:shared, self()})
+
+    :ok
   end
 
   test "insert a user" do

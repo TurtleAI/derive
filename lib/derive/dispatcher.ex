@@ -1,5 +1,16 @@
 defmodule Derive.Dispatcher do
-  use GenServer
+  @moduledoc """
+  Responsible for keeping derived state up to date based on implementation `Derive.Reducer`
+
+  Events are processed concurrently, but in order is guaranteed based on the result of Derive.Reducer.partition/1
+  State is eventually consistent
+  You can call `&Derive.Dispatcher.await/2` lets you wait for events to be finished processing.
+
+  `Derive.Dispatcher` doesn't do the actual processing itself, it forwards events
+  to processes defined by `Derive.PartitionDispatcher`
+  """
+
+  use GenServer, restart: :transient
 
   alias Derive.PartitionDispatcher
 
@@ -25,17 +36,6 @@ defmodule Derive.Dispatcher do
 
   # We maintain the version of a special partition with this name
   @global_partition "$"
-
-  @moduledoc """
-  Responsible for keeping derived state up to date based on implementation `Derive.Reducer`
-
-  Events are processed concurrently, but in order is guaranteed based on the result of Derive.Reducer.partition/1
-  State is eventually consistent
-  You can call `&Derive.Dispatcher.await/2` lets you wait for events to be finished processing.
-
-  `Derive.Dispatcher` doesn't do the actual processing itself, it forwards events
-  to processes defined by `Derive.PartitionDispatcher`
-  """
 
   @spec start_link(any()) :: {:ok, pid()} | {:error, any()}
   def start_link(opts \\ []) do
@@ -84,9 +84,7 @@ defmodule Derive.Dispatcher do
     partition = reducer.get_partition(@global_partition)
     GenServer.cast(self(), :catchup_on_boot)
 
-    new_state = %{state | partition: partition}
-
-    {:noreply, new_state}
+    {:noreply, %{state | partition: partition}}
   end
 
   @impl true

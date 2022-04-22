@@ -1,10 +1,16 @@
 defmodule Derive do
-  use Supervisor
-
   @moduledoc """
-  A process to keep state in sync with a source event log based on the
-  logic defined by a module implementing the behavior in `Derive.Reducer`
+  Derive is responsiblef or keeping state in sync with a source event log
+  based on logic defined by a module which implements `Derive.Reducer`
+
+  The event log can be anything such as a Ecto table or an in memory process.
+  As long as it implements the interface described at `Derive.Eventlog` for
+  paginating events and subscribing to new ones.
+
+  The state can also be anything as long as there is a way
   """
+
+  use Supervisor
 
   def start_link(opts \\ []),
     do: Supervisor.start_link(__MODULE__, opts)
@@ -25,7 +31,8 @@ defmodule Derive do
 
   @doc """
   Rebuilds the state of a reducer.
-  This means the state will be reset and all of the events processed to get to the final state.
+  This means the state will get reset to its initial state,
+  Then all events from the event source will get reprocessed until the state is caught up again
   """
   @spec rebuild(Derive.Reducer.t(), any()) :: :ok
   def rebuild(reducer, opts \\ []) do
@@ -99,12 +106,16 @@ defmodule Derive do
     end
   end
 
+  # process of a child process given the Derive process name
   defp registry_name(name),
     do: :"#{name}.Registy"
 
+  # process of the dynamic supervisor for Derive.PartitionDispatcher
+  # given the Derive process name
   defp supervisor_name(name),
     do: :"#{name}.Supervisor"
 
+  # process of the `Derive.Dispatcher`
   defp dispatcher_name(name),
     do: :"#{name}.Dispatcher"
 end

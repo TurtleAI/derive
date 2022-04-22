@@ -1,5 +1,14 @@
 defmodule Derive.PartitionDispatcher do
-  use GenServer, restart: :temporary
+  @moduledoc """
+  A process for a given {reducer, partition} to keep the state of its partition up to date
+
+  processed_events:
+    a set of event ids that have been processed so far
+  pending_awaiters:
+     [{awaiter, event_id}, {awaiter, event_id}, ...]
+  """
+
+  use GenServer, restart: :transient
   require Logger
 
   alias __MODULE__, as: S
@@ -13,15 +22,6 @@ defmodule Derive.PartitionDispatcher do
           partition: Partition.t(),
           pending_awaiters: any()
         }
-
-  @moduledoc """
-  A process for a given {reducer, partition} to keep the state of its partition up to date
-
-  processed_events:
-    a set of event ids that have been processed so far
-  pending_awaiters:
-     [{awaiter, event_id}, {awaiter, event_id}, ...]
-  """
 
   def start_link(opts) do
     reducer = Keyword.fetch!(opts, :reducer)

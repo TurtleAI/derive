@@ -1,11 +1,4 @@
 defmodule Derive.EventLog do
-  @typedoc """
-  A generic struct that represents an event.
-  """
-  @type event() :: any()
-
-  @type cursor() :: any()
-
   @moduledoc """
   The interface for a persistent, ordered log of events.
   They can be stored anywhere such as in-memory, in a postgres table, or on disk.
@@ -17,6 +10,13 @@ defmodule Derive.EventLog do
 
   Has an in-memory implementation `Derive.EventLog.InMemoryEventLog` for testing purposes.
   """
+
+  @typedoc """
+  A generic struct that represents an event.
+  """
+  @type event() :: any()
+
+  @type cursor() :: any()
 
   @doc """
   Subscribe to the event log so that when new events appear in it,
