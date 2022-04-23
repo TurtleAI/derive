@@ -77,8 +77,8 @@ defmodule Derive.State.Ecto do
   end
 
   defp reset_model(model, repo) when is_atom(model) do
-    Ecto.Migration.Runner.run(repo, [], 0, model, :forward, :down, :down, [])
-    Ecto.Migration.Runner.run(repo, [], 1, model, :forward, :up, :up, [])
+    Ecto.Migration.Runner.run(repo, [], 0, model, :forward, :down, :down, log: :debug)
+    Ecto.Migration.Runner.run(repo, [], 1, model, :forward, :up, :up, log: :debug)
   end
 
   # if a model has a custom down_sql or up_sql, we can use that instead
