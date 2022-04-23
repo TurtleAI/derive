@@ -51,6 +51,9 @@ defmodule DeriveInMemoryTest do
       delete([User, user_id])
     end
 
+    def process_events(events, partition),
+      do: Derive.Util.process_events(events, __MODULE__, partition)
+
     def commit_operations(%MultiOp{} = op),
       do: Derive.State.InMemory.commit(state(), op)
 

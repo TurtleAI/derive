@@ -1,13 +1,19 @@
 defmodule Derive do
   @moduledoc """
-  Derive is responsiblef or keeping state in sync with a source event log
-  based on logic defined by a module which implements `Derive.Reducer`
+  Derive keeps a derived state in sync with an event log based on the behavior  in `Derive.Reducer`.
 
-  The event log can be anything such as a Ecto table or an in memory process.
-  As long as it implements the interface described at `Derive.Eventlog` for
-  paginating events and subscribing to new ones.
+  Once the process has been started, it will automatically start processing events
+  to make sure it's up-to-date. Then it will start listening to the event log for new events
+  to make sure it stays up-to-date.
 
-  The state can also be anything as long as there is a way
+  The event log is an ordered log of events.
+  For example, an events table in Postgres or an in memory process.
+  An event log is generic and only has to implement the `Derive.Eventlog` interface.
+
+  Derived state is generic too.
+  For example, it can be a set of Postgres tables or an in-memory GenServer.
+  How state is kept up in date is defined by the callbacks `c:Derive.Reducer.handle_event/1`
+  and `c:Derive.Reducer.commit_operations/1`
   """
 
   use Supervisor
@@ -77,8 +83,8 @@ defmodule Derive do
       {DynamicSupervisor, strategy: :one_for_one, name: supervisor_name(name)}
     ]
 
-    # :rest_for_one because if the dispatcher does,
-    # we want all of the partitions that run the processing to get shut down
+    # :rest_for_one because if the dispatcher dies,
+    # we want all of the `Derive.PartitionDispatcher` to die
     Supervisor.init(children, strategy: :rest_for_one)
   end
 

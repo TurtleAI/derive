@@ -2,10 +2,14 @@ defmodule Derive.Util do
   alias Derive.State.MultiOp
 
   @doc """
-  Execute the `handle_event` and return the collected operations
-  for all the executed handlers.
+  Execute the `handle_event` for all events and return a combined operation
+  that needs be committed for the state to update.
 
-  The operations that come from `Derive.State.MultiOp` have not yet been committed.
+  For a reducer using Ecto-based state, this may be SQL queries represented by `Ecto.Multi`
+  For an in-memory reducer, this might be some updates to an in-memory data structure.
+
+  Depending on the on_error implementation of the reducer, an error may halt
+  further processing or skip over the event.
   """
   @spec process_events(
           [Derive.EventLog.event()],

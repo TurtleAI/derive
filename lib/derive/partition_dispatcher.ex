@@ -9,7 +9,6 @@ defmodule Derive.PartitionDispatcher do
   """
 
   use GenServer, restart: :transient
-  require Logger
 
   alias __MODULE__, as: S
   alias Derive.{Partition, Reducer}
@@ -85,16 +84,12 @@ defmodule Derive.PartitionDispatcher do
         from,
         %S{pending_awaiters: pending_awaiters} = state
       ) do
-    # IO.inspect({:await, event, processed_event?(state, event)})
-
     case processed_event?(state, event) do
       true ->
         # The event was already processed, so we can immediately reply :ok
         {:reply, :ok, state}
 
       false ->
-        # IO.inspect(state)
-
         # The event hasn't yet been processed, so we hold onto a reference to the caller
         # At a later time, we will reply to these callers after we process the events
         new_state = %{
@@ -144,14 +139,7 @@ defmodule Derive.PartitionDispatcher do
           pending_awaiters: pending_awaiters
         } = state
       ) do
-    # IO.inspect(events, label: :dispatch_events)
-
-    multi =
-      Derive.Util.process_events(
-        events,
-        reducer,
-        partition
-      )
+    multi = reducer.process_events(events, partition)
 
     multi =
       case multi do
@@ -181,18 +169,14 @@ defmodule Derive.PartitionDispatcher do
   end
 
   @impl true
-  def terminate(_, _state) do
-    :ok
-  end
+  def terminate(_, _state),
+    do: :ok
 
   # if there's an error we stop caring
   # everything is marked as processed
   defp processed_event?(%S{partition: %{status: :error}}, _) do
     true
   end
-
-  defp processed_event?(%S{partition: %{version: version}}, id) when is_binary(id),
-    do: version >= id
 
   defp processed_event?(%S{partition: %{version: version}}, %{id: id}),
     do: version >= id

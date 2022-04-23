@@ -109,6 +109,9 @@ defmodule DeriveEctoTest do
     def commit_operations(op),
       do: Derive.State.Ecto.commit(@state, op)
 
+    def process_events(events, partition),
+      do: Derive.Util.process_events(events, __MODULE__, partition)
+
     def get_partition(id),
       do: Derive.State.Ecto.get_partition(@state, id)
 

@@ -44,6 +44,16 @@ defmodule Derive.Reducer do
   @callback handle_event(Derive.EventLog.event()) :: operation()
 
   @doc """
+  Execute the `handle_event` for all events and return a combined operation
+  that needs be committed for the state to update.
+  """
+  @callback process_events(
+              [Derive.EventLog.event()],
+              Derive.Partition.t()
+            ) ::
+              Derive.State.MultiOp.t()
+
+  @doc """
   Execute the operations that come from handle_event.
   These events will be processed in batches.
   """
