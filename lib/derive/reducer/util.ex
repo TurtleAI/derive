@@ -2,7 +2,7 @@ defmodule Derive.Reducer.Util do
   alias Derive.State.MultiOp
 
   @doc """
-  Execute the `handle_event` for all events and return a combined operation
+  Execute the `handle_event` for all events and return a combined `Derive.State.MultiOp`
   that needs be committed for the state to update.
 
   For a reducer using Ecto-based state, this may be SQL queries represented by `Ecto.Multi`

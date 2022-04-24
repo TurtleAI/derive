@@ -1,21 +1,18 @@
 defmodule Derive.State.MultiOp do
   @moduledoc """
-  Represents a collection of operations produced by events
+  `Derive.State.MultiOp` is a data structure for grouping multiple generic operations
+  produced by combining the operations produced by `handle_event` over a list of events.
 
-  partition: the partition the operations must be run on
+  Inspired by `Ecto.Multi` but generic to other types of operations.
   """
 
-  alias Derive.State.MultiOp, as: Op
+  alias Derive.State.{MultiOp, EventOp}
 
-  @type event_operation ::
-          {Derive.EventLog.event(), {:ok, Derive.Reducer.operation()}}
-          | {Derive.EventLog.event(), {:error, any()}}
-
-  @type t :: %Derive.State.MultiOp{
+  @type t :: %__MODULE__{
           partition: Derive.Partition.t(),
           error: any(),
           status: status(),
-          event_operations: event_operation
+          operations: [Derive.State.EventOp.t()]
         }
 
   @typedoc """
@@ -27,31 +24,35 @@ defmodule Derive.State.MultiOp do
   """
   @type status :: :processing | :processed | :committed | :error
 
-  defstruct [:partition, :error, status: :processing, event_operations: []]
+  defstruct [:partition, :error, status: :processing, operations: []]
 
-  def empty?(%Op{event_operations: []}), do: true
+  def empty?(%MultiOp{operations: []}), do: true
   def empty?(_), do: false
 
-  def new(partition, event_operations \\ []) do
-    %Op{partition: partition, event_operations: Enum.reverse(event_operations)}
+  def new(partition),
+    do: %MultiOp{partition: partition}
+
+  def add(%MultiOp{} = multi, _event, []),
+    do: multi
+
+  def add(%MultiOp{} = multi, _event, nil),
+    do: multi
+
+  def add(%MultiOp{} = multi, event, operation) do
+    add_operation(multi, %EventOp{event: event, status: :ok, operation: List.wrap(operation)})
   end
 
-  def add(%Op{} = multi, _event, []), do: multi
-  def add(%Op{} = multi, _event, nil), do: multi
+  def add_error(%MultiOp{} = multi, event, error) do
+    add_operation(multi, %EventOp{event: event, status: :error, error: error})
+  end
 
-  def add(%Op{} = multi, event, operation),
-    do: add_operation(multi, event, {:ok, List.wrap(operation)})
-
-  def add_error(%Op{} = multi, event, error),
-    do: add_operation(multi, event, {:error, error})
-
-  def processed(%Op{status: :processing} = multi),
+  def processed(%MultiOp{status: :processing} = multi),
     do: %{multi | status: :processed}
 
-  def committed(%Op{status: :processed} = multi),
+  def committed(%MultiOp{status: :processed} = multi),
     do: %{multi | status: :committed}
 
-  def failed_on_event(%Op{partition: partition} = multi, event, error) do
+  def failed_on_event(%MultiOp{partition: partition} = multi, event, error) do
     %{
       multi
       | status: :error,
@@ -61,22 +62,21 @@ defmodule Derive.State.MultiOp do
   end
 
   defp add_operation(
-         %Op{partition: partition, event_operations: event_operations} = multi,
-         event,
-         op
+         %MultiOp{partition: partition, operations: operations} = multi,
+         %EventOp{event: event} = op
        ) do
     new_partition = %{partition | version: max(event.id, partition.version)}
-    new_event_operations = [{event, op} | event_operations]
-    %{multi | partition: new_partition, event_operations: new_event_operations}
+    new_operations = [op | operations]
+    %{multi | partition: new_partition, operations: new_operations}
   end
 
   @doc """
   A flat list of the operations that can be committed
   """
-  def operations(%Op{event_operations: event_operations}) do
-    Enum.flat_map(Enum.reverse(event_operations), fn
-      {_e, {:ok, ops}} -> ops
-      {_e, {:error, _}} -> []
+  def operations(%MultiOp{operations: operations}) do
+    Enum.flat_map(Enum.reverse(operations), fn
+      %EventOp{status: :ok, operation: ops} -> ops
+      %EventOp{status: :error} -> []
     end)
   end
 end

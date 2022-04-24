@@ -60,6 +60,8 @@ defmodule DeriveEctoTest do
   end
 
   defmodule UserReducer do
+    # TODO: extract ecto-specific implementation to a `use Derive.EctoReducer`
+    # to minimize boilerplate
     use Derive.Reducer
 
     import Derive.State.Ecto.Operation
