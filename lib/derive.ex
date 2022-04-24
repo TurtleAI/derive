@@ -2,18 +2,23 @@ defmodule Derive do
   @moduledoc """
   Derive keeps a derived state in sync with an event log based on the behavior  in `Derive.Reducer`.
 
-  Once the process has been started, it will automatically start processing events
-  to make sure it's up-to-date. Then it will start listening to the event log for new events
-  to make sure it stays up-to-date.
+  Once the process has been started, it will automatically catch up to the latest version
+  derived state.
+  Then it will start listening to the event log for new events ensure the state stays up-to-date.
 
-  The event log is an ordered log of events.
-  For example, an events table in Postgres or an in memory process.
-  An event log is generic and only has to implement the `Derive.Eventlog` interface.
+  The event log can be any ordered log of events, such as a Postgres table or an in memory process.
+  It only needs to implement the `Derive.Eventlog` interface.
 
   Derived state is generic too.
   For example, it can be a set of Postgres tables or an in-memory GenServer.
-  How state is kept up in date is defined by the callbacks `c:Derive.Reducer.handle_event/1`
-  and `c:Derive.Reducer.commit/1`
+
+  Events are processed as follows:
+  - Events are processed from the configured source
+  - They are processed by `c:Derive.Reducer.handle_event/1` and produce a `Derive.State.MultiOp`,
+    a data structure to represent a state change.
+  - This state change is applied using `c:Derive.Reducer.commit/1`.
+    For Ecto, this is a database transaction.
+    For an in-memory implementation, it's simply a state change.
   """
 
   use Supervisor

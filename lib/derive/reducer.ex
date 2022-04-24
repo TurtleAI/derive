@@ -1,6 +1,4 @@
 defmodule Derive.Reducer do
-  @type t :: module()
-
   @moduledoc """
   Defines how a given state is kept up to date based on an event source by a `Derive.Dispatcher`
 
@@ -14,6 +12,8 @@ defmodule Derive.Reducer do
 
   alias Derive.{EventLog, Partition}
   alias Derive.State.MultiOp
+
+  @type t :: module()
 
   @typedoc """
   A struct that represents a side-effect to be committed.
@@ -59,6 +59,11 @@ defmodule Derive.Reducer do
   These events will be processed in batches.
   """
   @callback commit(MultiOp.t()) :: :ok
+
+  @doc """
+  Whether the event has already been processed or not.
+  """
+  @callback processed_event?(Partition.t(), EventLog.event()) :: boolean()
 
   @doc """
   Reset the state so we can start processing from the first event

@@ -120,6 +120,10 @@ defmodule DeriveEctoTest do
     end
 
     @impl true
+    def processed_event?(%{version: version}, %{id: id}),
+      do: version >= id
+
+    @impl true
     def commit(op),
       do: Derive.State.Ecto.commit(@state, op)
 

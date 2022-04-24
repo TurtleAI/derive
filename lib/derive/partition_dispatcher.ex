@@ -82,9 +82,13 @@ defmodule Derive.PartitionDispatcher do
   def handle_call(
         {:await, event},
         from,
-        %S{pending_awaiters: pending_awaiters} = state
+        %S{
+          reducer: reducer,
+          partition: %{status: status} = partition,
+          pending_awaiters: pending_awaiters
+        } = state
       ) do
-    case processed_event?(state, event) do
+    case status == :error || reducer.processed_event?(partition, event) do
       true ->
         # The event was already processed, so we can immediately reply :ok
         {:reply, :ok, state}
@@ -171,13 +175,4 @@ defmodule Derive.PartitionDispatcher do
   @impl true
   def terminate(_, _state),
     do: :ok
-
-  # if there's an error we stop caring
-  # everything is marked as processed
-  defp processed_event?(%S{partition: %{status: :error}}, _) do
-    true
-  end
-
-  defp processed_event?(%S{partition: %{version: version}}, %{id: id}),
-    do: version >= id
 end

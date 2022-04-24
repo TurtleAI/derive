@@ -60,6 +60,9 @@ defmodule DeriveInMemoryTest do
       )
     end
 
+    def processed_event?(%{version: version}, %{id: id}),
+      do: version >= id
+
     def commit(%MultiOp{} = op),
       do: Derive.State.InMemory.commit(state(), op)
 

@@ -3,13 +3,18 @@ defmodule Derive.Partition do
   Represents the info about the state of a partition.
   """
 
+  defstruct [:id, :version, :status]
+
+  @type t :: %__MODULE__{
+          id: id(),
+          version: Derive.Reducer.version(),
+          status: status()
+        }
+
   @typedoc """
   If the status of a partition is :ok, it is in an active state and can keep catching up
   If the status is :error, there was an error and no further processing is allowed
   """
-
-  defstruct [:id, :version, :status]
-
   @type status() :: :ok | :error
 
   @typedoc """
@@ -17,10 +22,4 @@ defmodule Derive.Partition do
   Originates from `Derive.Reducer.partition(...)`
   """
   @type id() :: binary()
-
-  @type t :: %__MODULE__{
-          id: id(),
-          version: Derive.Reducer.version(),
-          status: status()
-        }
 end
