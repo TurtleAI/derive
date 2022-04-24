@@ -3,7 +3,7 @@ defmodule Derive.State.Ecto do
   An Ecto-based implementation of state
   """
 
-  defstruct [:repo, :namespace]
+  defstruct [:repo, :namespace, :models]
 
   alias __MODULE__, as: S
 
@@ -66,7 +66,7 @@ defmodule Derive.State.Ecto do
   Erase all of the state to bring it back to the starting point.
   This involves dropping and recreating all the tables.
   """
-  def reset_state(%S{repo: repo} = state, models) do
+  def reset_state(%S{repo: repo, models: models} = state) do
     models = [
       {PartitionRecord, partition_table(state)} | models
     ]

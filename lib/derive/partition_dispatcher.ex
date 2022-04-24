@@ -139,11 +139,11 @@ defmodule Derive.PartitionDispatcher do
           pending_awaiters: pending_awaiters
         } = state
       ) do
-    multi = reducer.process_events(events, partition)
+    multi = reducer.reduce_events(events, partition)
 
     multi =
       case multi do
-        %MultiOp{status: :processed} -> reducer.commit_operations(multi)
+        %MultiOp{status: :processed} -> reducer.commit(multi)
         multi -> multi
       end
 

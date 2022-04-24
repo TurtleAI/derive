@@ -64,12 +64,11 @@ defmodule DeriveEctoTest do
 
     import Derive.State.Ecto.Operation
 
-    def partition(%{user_id: user_id}), do: user_id
-
-    def models,
-      do: [User, LogEntry]
-
-    @state %Derive.State.Ecto{repo: Derive.Repo, namespace: "user_reducer"}
+    @state %Derive.State.Ecto{
+      repo: Derive.Repo,
+      namespace: "user_reducer",
+      models: [User, LogEntry]
+    }
 
     defp maybe_sleep(0), do: :ok
     defp maybe_sleep(timeout), do: Process.sleep(timeout)
@@ -78,8 +77,10 @@ defmodule DeriveEctoTest do
       insert(%LogEntry{message: message, timestamp: :os.system_time(:millisecond)})
     end
 
-    def on_error, do: :halt
+    @impl true
+    def partition(%{user_id: user_id}), do: user_id
 
+    @impl true
     def handle_event(%UserCreated{user_id: user_id, name: name, email: email, sleep: sleep}) do
       maybe_sleep(sleep)
 
@@ -106,20 +107,31 @@ defmodule DeriveEctoTest do
       raise UserError, message
     end
 
-    def commit_operations(op),
+    @impl true
+    def reduce_events(events, partition) do
+      Derive.Reducer.Util.reduce_events(
+        events,
+        Derive.State.MultiOp.new(partition),
+        &handle_event/1,
+        on_error: :halt
+      )
+    end
+
+    @impl true
+    def commit(op),
       do: Derive.State.Ecto.commit(@state, op)
 
-    def process_events(events, partition),
-      do: Derive.Util.process_events(events, __MODULE__, partition)
+    @impl true
+    def reset_state,
+      do: Derive.State.Ecto.reset_state(@state)
 
+    @impl true
     def get_partition(id),
       do: Derive.State.Ecto.get_partition(@state, id)
 
+    @impl true
     def set_partition(partition),
       do: Derive.State.Ecto.set_partition(@state, partition)
-
-    def reset_state,
-      do: Derive.State.Ecto.reset_state(@state, models())
   end
 
   setup_all do

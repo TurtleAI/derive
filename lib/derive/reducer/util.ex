@@ -1,4 +1,4 @@
-defmodule Derive.Util do
+defmodule Derive.Reducer.Util do
   alias Derive.State.MultiOp
 
   @doc """
@@ -11,24 +11,24 @@ defmodule Derive.Util do
   Depending on the on_error implementation of the reducer, an error may halt
   further processing or skip over the event.
   """
-  @spec process_events(
+  @spec reduce_events(
           [Derive.EventLog.event()],
-          Derive.Reducer.t(),
-          Derive.Partition.t()
+          Derive.State.MultiOp.t(),
+          Derive.Reducer.event_handler()
         ) ::
           Derive.State.MultiOp.t()
-  def process_events(events, reducer, partition) do
-    MultiOp.new(partition)
-    |> do_process(events, reducer, reducer.on_error())
+  def reduce_events(events, multi, handle_event, opts \\ []) do
+    on_error = Keyword.get(opts, :on_error, :halt)
+    do_reduce(events, multi, handle_event, on_error)
   end
 
-  defp do_process(multi, [], _reducer, _),
+  defp do_reduce([], multi, _handle_event, _),
     do: MultiOp.processed(multi)
 
-  defp do_process(multi, [event | rest], reducer, on_error) do
+  defp do_reduce([event | rest], multi, handle_event, on_error) do
     resp =
       try do
-        {:ok, reducer.handle_event(event)}
+        {:ok, handle_event.(event)}
       rescue
         error ->
           {:error, error}
@@ -36,14 +36,12 @@ defmodule Derive.Util do
 
     case resp do
       {:ok, ops} ->
-        MultiOp.add(multi, event, ops)
-        |> do_process(rest, reducer, on_error)
+        do_reduce(rest, MultiOp.add(multi, event, ops), handle_event, on_error)
 
       {:error, error} ->
         case on_error do
           :skip ->
-            MultiOp.add_error(multi, event, error)
-            |> do_process(rest, reducer, on_error)
+            do_reduce(rest, MultiOp.add_error(multi, event, error), handle_event, on_error)
 
           :halt ->
             MultiOp.failed_on_event(multi, event, error)

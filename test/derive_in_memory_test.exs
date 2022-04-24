@@ -51,11 +51,20 @@ defmodule DeriveInMemoryTest do
       delete([User, user_id])
     end
 
-    def process_events(events, partition),
-      do: Derive.Util.process_events(events, __MODULE__, partition)
+    def reduce_events(events, partition) do
+      Derive.Reducer.Util.reduce_events(
+        events,
+        MultiOp.new(partition),
+        &handle_event/1,
+        on_error: :halt
+      )
+    end
 
-    def commit_operations(%MultiOp{} = op),
+    def commit(%MultiOp{} = op),
       do: Derive.State.InMemory.commit(state(), op)
+
+    def reset_state,
+      do: Derive.State.InMemory.reset_state(state())
 
     def get_partition(id) do
       %Derive.Partition{
@@ -66,9 +75,6 @@ defmodule DeriveInMemoryTest do
     end
 
     def set_partition(_partition), do: :ok
-
-    def reset_state,
-      do: Derive.State.InMemory.reset_state(state())
   end
 
   test "processes events from an empty event log" do

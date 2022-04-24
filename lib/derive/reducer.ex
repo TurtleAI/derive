@@ -9,13 +9,16 @@ defmodule Derive.Reducer do
   - These are partitioned by `&Derive.Reducer.partition/1` for maximum concurrency
   - These events are processed by `&Derive.Reducer.handle_event/1`
     which produces 0+ operations that are meant to update some state
-  - These operations are committed by &Derive.Reducer.commit_operations/1
+  - These operations are committed by &Derive.Reducer.commit/1
   """
+
+  alias Derive.{EventLog, Partition}
+  alias Derive.State.MultiOp
 
   @typedoc """
   A struct that represents a side-effect to be committed.
 
-  `Derive.Reducer.commit_operations/1` will define how a batch of operations should be committed.
+  `Derive.Reducer.commit/1` will define how a batch of operations should be committed.
   """
   @type operation() :: any()
 
@@ -26,6 +29,8 @@ defmodule Derive.Reducer do
 
   @type error_mode() :: :skip | :halt
 
+  @type event_handler() :: (EventLog.event() -> operation() | nil)
+
   @doc """
   Events within the same partition are processed in order.
   For example, returning event.user_id would guarantee that all events for a given user are processed in order.
@@ -33,7 +38,7 @@ defmodule Derive.Reducer do
   A partition is also used to maximize concurrency so events are processed as fast as possible.
   Events in different partitions can be processed simultaneously since they have no dependencies on one another.
   """
-  @callback partition(Derive.EventLog.event()) :: Derive.Partition.id() | nil
+  @callback partition(EventLog.event()) :: Partition.id() | nil
 
   @doc """
   For a given event, return a operation that should be run as a result.
@@ -41,23 +46,25 @@ defmodule Derive.Reducer do
 
   How the operation is processed depends on the sink.
   """
-  @callback handle_event(Derive.EventLog.event()) :: operation()
+  @callback handle_event(EventLog.event()) :: operation()
 
   @doc """
   Execute the `handle_event` for all events and return a combined operation
   that needs be committed for the state to update.
   """
-  @callback process_events(
-              [Derive.EventLog.event()],
-              Derive.Partition.t()
-            ) ::
-              Derive.State.MultiOp.t()
+  @callback reduce_events([EventLog.event()], Partition.t()) :: MultiOp.t()
 
   @doc """
   Execute the operations that come from handle_event.
   These events will be processed in batches.
   """
-  @callback commit_operations([operation()]) :: :ok
+  @callback commit(MultiOp.t()) :: :ok
+
+  @doc """
+  Reset the state so we can start processing from the first event
+  This operation should reset the state in *all* partitions
+  """
+  @callback reset_state() :: :ok
 
   @doc """
   Get the current overall partition record
@@ -69,21 +76,9 @@ defmodule Derive.Reducer do
   """
   @callback set_partition(Derive.Partition.t()) :: :ok
 
-  @doc """
-  Reset the state so we can start processing from the first event
-  This operation should reset the state in *all* partitions
-  """
-  @callback reset_state() :: :ok
-
-  @callback on_error() :: error_mode()
-
   defmacro __using__(_options) do
     quote do
       @behaviour Derive.Reducer
-
-      def on_error, do: :halt
-
-      defoverridable on_error: 0
     end
   end
 end

@@ -13,7 +13,7 @@ defmodule Derive do
   Derived state is generic too.
   For example, it can be a set of Postgres tables or an in-memory GenServer.
   How state is kept up in date is defined by the callbacks `c:Derive.Reducer.handle_event/1`
-  and `c:Derive.Reducer.commit_operations/1`
+  and `c:Derive.Reducer.commit/1`
   """
 
   use Supervisor
@@ -30,7 +30,7 @@ defmodule Derive do
   If the event has not yet been processed, this will block until it completes processing
 
   Events are not considered processed until *all* operations produced by `Derive.Reducer.handle_event/1`
-  have been committed by `Derive.Reducer.commit_operations/1`
+  have been committed by `Derive.Reducer.commit/1`
   """
   def await(name, events),
     do: GenServer.call(dispatcher_name(name), {:await, events})
