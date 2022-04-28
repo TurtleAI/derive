@@ -12,6 +12,6 @@ defprotocol Derive.State.Ecto.DbOp do
   Both of these implement this protocol.
   """
 
-  @spec to_multi(t, integer()) :: Ecto.Multi.t()
-  def to_multi(op, index)
+  @spec to_multi(t, Ecto.Multi.name()) :: Ecto.Multi.t()
+  def to_multi(op, name)
 end

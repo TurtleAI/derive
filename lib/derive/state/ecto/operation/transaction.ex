@@ -1,4 +1,8 @@
 defmodule Derive.State.Ecto.Operation.Transaction do
+  @moduledoc """
+  Run a transaction given by the function.
+  The function has access to a repo and can perform any necessary db changes within the transaction.
+  """
   defstruct [:fun]
 end
 

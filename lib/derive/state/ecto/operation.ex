@@ -12,30 +12,35 @@ defmodule Derive.State.Ecto.Operation do
   def insert(record), do: %Operation.Insert{record: record}
   def insert_if_missing(record), do: %Operation.Insert{record: record, on_conflict: :nothing}
 
-  def update(selector, attrs), do: %Operation.Update{selector: selector, attrs: attrs}
+  def update(selector, fields), do: %Operation.Update{selector: selector, fields: fields}
 
   def upsert(record, on_conflict), do: %Operation.Insert{record: record, on_conflict: on_conflict}
 
   def delete(selector), do: %Operation.Delete{selector: selector}
 
-  def inc(selector, attr, delta),
-    do: %Operation.Increment{selector: selector, attr: attr, delta: delta}
+  def inc(selector, field, delta),
+    do: %Operation.Increment{selector: selector, field: field, delta: delta}
 
   def merge(%type{} = record) do
     primary_key = type.__schema__(:primary_key)
     merge([type, Map.get(record, primary_key)], record)
   end
 
-  def merge(selector, attrs) do
-    %Operation.Merge{selector: selector, attrs: attrs}
+  def merge(selector, fields) do
+    %Operation.Merge{selector: selector, fields: fields}
   end
 
-  def array_push_uniq(selector, attr, values) do
-    %Operation.ArrayPush{unique: true, selector: selector, attr: attr, values: List.wrap(values)}
+  def array_push_uniq(selector, field, values) do
+    %Operation.ArrayPush{
+      unique: true,
+      selector: selector,
+      field: field,
+      values: List.wrap(values)
+    }
   end
 
-  def array_delete(selector, attr, value) do
-    %Operation.ArrayDelete{selector: selector, attr: attr, value: value}
+  def array_delete(selector, field, value) do
+    %Operation.ArrayDelete{selector: selector, field: field, value: value}
   end
 
   def transaction(fun) when is_function(fun, 1) do
