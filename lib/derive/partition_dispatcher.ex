@@ -44,12 +44,14 @@ defmodule Derive.PartitionDispatcher do
   Asynchronously dispatch events to get processed and committed
   To wait for the events to get processed, use `&Derive.PartitionDispatcher.await/2`
   """
+  @spec dispatch_events(pid(), [Derive.EventLog.event()]) :: :ok
   def dispatch_events(server, events),
     do: GenServer.cast(server, {:dispatch_events, events})
 
   @doc """
   Wait until all of the events are processed
   """
+  @spec await(pid(), [Derive.EventLog.event()]) :: :ok
   def await(_server, []),
     do: :ok
 
