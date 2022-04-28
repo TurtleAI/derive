@@ -40,7 +40,7 @@ See the tests directory for now.
 - [ ] Support rebuilding very large reducers
 - [ ] Render progress when rebuilding large reducers
 - [ ] Error handling when a commit fails
-- [ ] Add tests for Ecto DB operations
+- [x] Add tests for Ecto DB operations
 - [ ] Create a Derive.EctoReducer with reduced boilerplate
 - [ ] Shutdown Derive.PartitionDispatcher after a period of inactivity
 - [ ] Improved logging of operations, commits, etc

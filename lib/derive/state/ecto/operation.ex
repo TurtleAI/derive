@@ -9,26 +9,26 @@ defmodule Derive.State.Ecto.Operation do
 
   alias Derive.State.Ecto.Operation
 
-  def insert(record), do: %Operation.Insert{record: record}
-  def insert_if_missing(record), do: %Operation.Insert{record: record, on_conflict: :nothing}
+  def insert(record),
+    do: %Operation.Insert{record: record}
 
-  def update(selector, fields), do: %Operation.Update{selector: selector, fields: fields}
+  def insert_new(record),
+    do: %Operation.Insert{record: record, on_conflict: :nothing}
 
-  def upsert(record, on_conflict), do: %Operation.Insert{record: record, on_conflict: on_conflict}
+  def update(selector, fields),
+    do: %Operation.Update{selector: selector, fields: fields}
 
-  def delete(selector), do: %Operation.Delete{selector: selector}
+  def upsert(record, on_conflict),
+    do: %Operation.Insert{record: record, on_conflict: on_conflict}
+
+  def delete(selector),
+    do: %Operation.Delete{selector: selector}
 
   def inc(selector, field, delta),
     do: %Operation.Increment{selector: selector, field: field, delta: delta}
 
-  def merge(%type{} = record) do
-    primary_key = type.__schema__(:primary_key)
-    merge([type, Map.get(record, primary_key)], record)
-  end
-
-  def merge(selector, fields) do
-    %Operation.Merge{selector: selector, fields: fields}
-  end
+  def merge(selector, fields),
+    do: %Operation.Merge{selector: selector, fields: Enum.into(fields, %{})}
 
   def array_push_uniq(selector, field, values) do
     %Operation.ArrayPush{
@@ -39,13 +39,11 @@ defmodule Derive.State.Ecto.Operation do
     }
   end
 
-  def array_delete(selector, field, value) do
-    %Operation.ArrayDelete{selector: selector, field: field, value: value}
-  end
+  def array_delete(selector, field, value),
+    do: %Operation.ArrayDelete{selector: selector, field: field, value: value}
 
-  def transaction(fun) when is_function(fun, 1) do
-    %Operation.Transaction{fun: fun}
-  end
+  def transaction(fun) when is_function(fun, 1),
+    do: %Operation.Transaction{fun: fun}
 
   def trace(func) when is_function(func, 1) do
     transaction(fn repo ->

@@ -5,9 +5,7 @@ defmodule DeriveEctoTest do
 
   @same_time_threshold 10
 
-  defmodule Repo do
-    use Ecto.Repo, otp_app: :derive, adapter: Ecto.Adapters.Postgres
-  end
+  alias DeriveTestRepo, as: Repo
 
   defmodule User do
     use Derive.State.Ecto.Model
@@ -162,7 +160,6 @@ defmodule DeriveEctoTest do
     # Explicitly get a connection before each test
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
     # Setting the shared mode must be done only after checkout
-    Ecto.Adapters.SQL.Sandbox.mode(Repo, {:shared, self()})
     Ecto.Adapters.SQL.Sandbox.mode(Repo, :auto)
 
     :ok
