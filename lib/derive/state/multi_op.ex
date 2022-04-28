@@ -14,6 +14,7 @@ defmodule Derive.State.MultiOp do
           status: status(),
           operations: [Derive.State.EventOp.t()]
         }
+  defstruct [:partition, :error, status: :processing, operations: []]
 
   @typedoc """
   When processing events, there are 3 stages
@@ -23,8 +24,6 @@ defmodule Derive.State.MultiOp do
   - error: the processing or committing has failed (an exception has been raised)
   """
   @type status :: :processing | :processed | :committed | :error
-
-  defstruct [:partition, :error, status: :processing, operations: []]
 
   def empty?(%MultiOp{operations: []}), do: true
   def empty?(_), do: false

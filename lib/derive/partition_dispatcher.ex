@@ -1,11 +1,6 @@
 defmodule Derive.PartitionDispatcher do
   @moduledoc """
   A process for a given {reducer, partition} to keep the state of its partition up to date
-
-  processed_events:
-    a set of event ids that have been processed so far
-  pending_awaiters:
-     [{awaiter, event_id}, {awaiter, event_id}, ...]
   """
 
   use GenServer, restart: :transient
@@ -14,13 +9,19 @@ defmodule Derive.PartitionDispatcher do
   alias Derive.{Partition, Reducer}
   alias Derive.State.MultiOp
 
-  defstruct [:reducer, :partition, :pending_awaiters]
-
   @type t :: %__MODULE__{
           reducer: Reducer.t(),
           partition: Partition.t(),
-          pending_awaiters: any()
+          pending_awaiters: [pending_awaiter()]
         }
+
+  defstruct [:reducer, :partition, :pending_awaiters]
+
+  @typedoc """
+  A process which has called await, along with a version it is waiting for
+  Once the version has been processed, the awaiter will be notified
+  """
+  @type pending_awaiter :: {pid(), Reducer.version()}
 
   def start_link(opts) do
     reducer = Keyword.fetch!(opts, :reducer)

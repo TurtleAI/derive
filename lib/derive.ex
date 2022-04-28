@@ -61,6 +61,10 @@ defmodule Derive do
     dispatcher = Process.whereis(dispatcher_name(name))
     Process.monitor(dispatcher)
 
+    # In :rebuild mode, the dispatcher will shut down when
+    # it has fully caught up
+    # So we can block until it has completed, then kill the entire
+    # process tree.
     receive do
       {:DOWN, _ref, :process, ^dispatcher, _} ->
         Process.exit(derive, :normal)
@@ -68,10 +72,30 @@ defmodule Derive do
     end
   end
 
+  @doc """
+  Gracefully shutdown a derive process.
+  Completes once the process has been shut down
+  """
+  @spec stop(pid() | atom()) :: :ok
+  def stop(derive) when is_atom(derive),
+    do: stop(Process.whereis(derive))
+
+  def stop(pid) when is_pid(pid) do
+    Process.monitor(pid)
+    Process.exit(pid, :normal)
+
+    receive do
+      {:DOWN, _ref, :process, ^pid, _} ->
+        :ok
+    end
+  end
+
   ### Server
 
   def init(opts) do
+    # besides :name, all options are forwarded to the dispatcher
     {derive_opts, dispatcher_opts} = Keyword.split(opts, [:name])
+
     name = Keyword.fetch!(derive_opts, :name)
 
     dispatcher_opts =

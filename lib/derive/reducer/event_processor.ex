@@ -1,4 +1,4 @@
-defmodule Derive.Reducer.Util do
+defmodule Derive.Reducer.EventProcessor do
   alias Derive.State.MultiOp
 
   @doc """

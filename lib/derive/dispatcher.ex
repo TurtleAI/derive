@@ -16,8 +16,6 @@ defmodule Derive.Dispatcher do
 
   alias __MODULE__, as: S
 
-  defstruct [:reducer, :batch_size, :partition, :source, :lookup_or_start, :mode]
-
   @type t :: %__MODULE__{
           reducer: Derive.Reducer.t(),
           batch_size: integer(),
@@ -25,6 +23,8 @@ defmodule Derive.Dispatcher do
           lookup_or_start: function(),
           mode: mode()
         }
+
+  defstruct [:reducer, :batch_size, :partition, :source, :lookup_or_start, :mode]
 
   @typedoc """
   The mode in which the dispatcher should operate
@@ -82,6 +82,7 @@ defmodule Derive.Dispatcher do
   @impl true
   def handle_continue(:load_partition, %S{reducer: reducer} = state) do
     partition = reducer.get_partition(@global_partition)
+
     GenServer.cast(self(), :catchup_on_boot)
 
     {:noreply, %{state | partition: partition}}
@@ -112,13 +113,14 @@ defmodule Derive.Dispatcher do
 
     case mode do
       :catchup -> {:noreply, new_state}
-      :rebuild -> {:stop, :caught_up, new_state}
+      :rebuild -> {:stop, :normal, new_state}
     end
   end
 
   @impl true
-  def handle_info({:EXIT, _, :normal}, state),
-    do: {:stop, :normal, state}
+  def handle_info({:EXIT, _from, :normal}, state) do
+    {:stop, :normal, state}
+  end
 
   @impl true
   def terminate(_reason, _state),

@@ -3,7 +3,7 @@ defmodule Derive.State.Ecto.Operation.ArrayDelete do
 end
 
 defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.ArrayDelete do
-  import Derive.State.Ecto.Util
+  import Derive.State.Ecto.Selector
 
   def to_multi(
         %Derive.State.Ecto.Operation.ArrayDelete{selector: selector, attr: attr, value: value},

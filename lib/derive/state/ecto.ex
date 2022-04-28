@@ -5,6 +5,12 @@ defmodule Derive.State.Ecto do
 
   defstruct [:repo, :namespace, :models]
 
+  @type t :: %__MODULE__{
+          repo: Ecto.Repo.t(),
+          namespace: binary(),
+          models: [Derive.State.Ecto.Model.t()]
+        }
+
   alias __MODULE__, as: S
 
   alias Derive.State.Ecto.PartitionRecord
@@ -77,8 +83,8 @@ defmodule Derive.State.Ecto do
   end
 
   defp reset_model(model, repo) when is_atom(model) do
-    Ecto.Migration.Runner.run(repo, [], 0, model, :forward, :down, :down, log: :debug)
-    Ecto.Migration.Runner.run(repo, [], 1, model, :forward, :up, :up, log: :debug)
+    run_migration(repo, [], 0, model, :forward, :down, :down, log: :debug)
+    run_migration(repo, [], 1, model, :forward, :up, :up, log: :debug)
   end
 
   # if a model has a custom down_sql or up_sql, we can use that instead
@@ -86,6 +92,40 @@ defmodule Derive.State.Ecto do
     for q <- model.down_sql(opts) ++ model.up_sql(opts) do
       repo.query!(q)
     end
+  end
+
+  # Copy of `Ecto.Migation.Runner.run`
+  # The default implementation links the process with self(), which causes
+  # the calling process to shutdown with the migration runner when the migration is done
+  # For Derive, we want the process to keep running
+  defp run_migration(
+         repo,
+         config,
+         _version,
+         module,
+         direction,
+         operation,
+         migrator_direction,
+         opts
+       ) do
+    level = Keyword.get(opts, :log, :info)
+    sql = Keyword.get(opts, :log_migrations_sql, false)
+    log = %{level: level, sql: sql}
+    args = {self(), repo, config, module, direction, migrator_direction, log}
+
+    {:ok, runner} =
+      DynamicSupervisor.start_child(Ecto.MigratorSupervisor, {Ecto.Migration.Runner, args})
+
+    # We undo the `Process.link` called in `&Ecto.Migration.Runner.start_link/1`
+    # to ensure self() isn't shut dowon once the migration completes
+    Process.unlink(runner)
+
+    Ecto.Migration.Runner.metadata(runner, opts)
+
+    apply(module, operation, [])
+
+    Ecto.Migration.Runner.flush()
+    Ecto.Migration.Runner.stop()
   end
 
   defp operations_to_multi(multi, _, []), do: multi

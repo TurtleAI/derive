@@ -5,6 +5,10 @@ defmodule DeriveEctoTest do
 
   @same_time_threshold 10
 
+  defmodule Repo do
+    use Ecto.Repo, otp_app: :derive, adapter: Ecto.Adapters.Postgres
+  end
+
   defmodule User do
     use Derive.State.Ecto.Model
 
@@ -60,14 +64,13 @@ defmodule DeriveEctoTest do
   end
 
   defmodule UserReducer do
-    # TODO: extract ecto-specific implementation to a `use Derive.EctoReducer`
-    # to minimize boilerplate
+    # TODO: Extract ecto-specific implementation to a `use Derive.EctoReducer` to minimize boilerplate
     use Derive.Reducer
 
     import Derive.State.Ecto.Operation
 
     @state %Derive.State.Ecto{
-      repo: Derive.Repo,
+      repo: Repo,
       namespace: "user_reducer",
       models: [User, LogEntry]
     }
@@ -101,7 +104,7 @@ defmodule DeriveEctoTest do
 
       [
         log("updated-#{user_id}"),
-        update([User, user_id], %{name: name})
+        update({User, user_id}, %{name: name})
       ]
     end
 
@@ -111,7 +114,7 @@ defmodule DeriveEctoTest do
 
     @impl true
     def reduce_events(events, partition) do
-      Derive.Reducer.Util.reduce_events(
+      Derive.Reducer.EventProcessor.reduce_events(
         events,
         Derive.State.MultiOp.new(partition),
         &handle_event/1,
@@ -141,15 +144,13 @@ defmodule DeriveEctoTest do
   end
 
   setup_all do
-    {:ok, _pid} = Derive.Repo.start_link()
-
-    UserReducer.reset_state()
+    {:ok, _pid} = Repo.start_link()
 
     :ok
   end
 
   def get_logs() do
-    for %{message: message, timestamp: timestamp} <- Derive.Repo.all(LogEntry) do
+    for %{message: message, timestamp: timestamp} <- Repo.all(LogEntry) do
       {message, timestamp}
     end
     |> Enum.sort_by(fn {message, timestamp} ->
@@ -159,9 +160,10 @@ defmodule DeriveEctoTest do
 
   setup do
     # Explicitly get a connection before each test
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Derive.Repo)
+    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
     # Setting the shared mode must be done only after checkout
-    Ecto.Adapters.SQL.Sandbox.mode(Derive.Repo, {:shared, self()})
+    Ecto.Adapters.SQL.Sandbox.mode(Repo, {:shared, self()})
+    Ecto.Adapters.SQL.Sandbox.mode(Repo, :auto)
 
     :ok
   end
@@ -170,6 +172,8 @@ defmodule DeriveEctoTest do
     name = :insert_a_user
 
     {:ok, event_log} = EventLog.start_link()
+    Derive.rebuild(UserReducer, source: event_log)
+
     {:ok, _} = Derive.start_link(reducer: UserReducer, source: event_log, name: name)
 
     EventLog.append(event_log, [
@@ -180,7 +184,7 @@ defmodule DeriveEctoTest do
       %UserCreated{id: "1", user_id: "99", name: "John"}
     ])
 
-    user = Derive.Repo.get(User, "99")
+    user = Repo.get(User, "99")
     assert user.name == "John"
 
     EventLog.append(event_log, [
@@ -191,7 +195,7 @@ defmodule DeriveEctoTest do
       %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
     ])
 
-    user = Derive.Repo.get(User, "99")
+    user = Repo.get(User, "99")
     assert user.name == "John Wayne"
   end
 
@@ -199,6 +203,8 @@ defmodule DeriveEctoTest do
     name = :parallel
 
     {:ok, event_log} = EventLog.start_link()
+    Derive.rebuild(UserReducer, source: event_log)
+
     {:ok, _derive} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
     events = [
@@ -216,7 +222,7 @@ defmodule DeriveEctoTest do
 
     assert t3 - t2 > @same_time_threshold
 
-    [same, time] = [Derive.Repo.get(User, "s"), Derive.Repo.get(User, "t")]
+    [same, time] = [Repo.get(User, "s"), Repo.get(User, "t")]
 
     assert same.name == "Similar"
     assert time.name == "Time"
@@ -226,6 +232,7 @@ defmodule DeriveEctoTest do
     name = :batch_dispatcher
 
     {:ok, event_log} = EventLog.start_link()
+    Derive.rebuild(UserReducer, source: event_log)
 
     {:ok, _} =
       Derive.start_link(name: name, reducer: UserReducer, source: event_log, batch_size: 2)
@@ -241,15 +248,16 @@ defmodule DeriveEctoTest do
     EventLog.append(event_log, events)
     Derive.await(name, events)
 
-    user = Derive.Repo.get(User, "99")
+    user = Repo.get(User, "99")
     assert user.name == "Mango"
   end
 
-  @tag :focus
   test "a partition is halted if an error is raised in handle_event" do
     name = :partition_halted
 
     {:ok, event_log} = EventLog.start_link()
+    Derive.rebuild(UserReducer, source: event_log)
+
     {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
     event = %UserCreated{id: "1", user_id: "99", name: "Pikachu"}
@@ -268,11 +276,11 @@ defmodule DeriveEctoTest do
     EventLog.append(event_log, events)
     Derive.await(name, events)
 
-    user = Derive.Repo.get(User, "99")
+    user = Repo.get(User, "99")
     assert user.name == "Pikachu"
 
     # other partitions can happily continue processing
-    user = Derive.Repo.get(User, "55")
+    user = Repo.get(User, "55")
     assert user.name == "Wartortle"
 
     # future events are not processed after a failure
@@ -281,7 +289,7 @@ defmodule DeriveEctoTest do
     Derive.await(name, events)
 
     # name hasn't changed
-    user = Derive.Repo.get(User, "99")
+    user = Repo.get(User, "99")
     assert user.name == "Pikachu"
   end
 
@@ -289,6 +297,8 @@ defmodule DeriveEctoTest do
     name = :resuming
 
     {:ok, event_log} = EventLog.start_link()
+    Derive.rebuild(UserReducer, source: event_log)
+
     {:ok, derive} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
     events = [
@@ -298,13 +308,7 @@ defmodule DeriveEctoTest do
     EventLog.append(event_log, events)
     Derive.await(name, events)
 
-    Process.monitor(derive)
-    Process.exit(derive, :normal)
-
-    receive do
-      {:DOWN, _ref, :process, ^derive, _} ->
-        :ok
-    end
+    Derive.stop(derive)
 
     assert Process.alive?(derive) == false
 
@@ -323,14 +327,32 @@ defmodule DeriveEctoTest do
 
     Derive.await(name, events)
 
-    john = Derive.Repo.get(User, "j")
+    john = Repo.get(User, "j")
     assert john.name == "John Smith"
+  end
+
+  test "building the state of a reducer for the first time" do
+    {:ok, event_log} = EventLog.start_link()
+
+    events = [
+      %UserCreated{id: "1", user_id: "99", name: "John"},
+      %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
+    ]
+
+    EventLog.append(event_log, events)
+
+    Derive.rebuild(UserReducer, source: event_log)
+
+    user = Repo.get(User, "99")
+    assert user.name == "John Wayne"
   end
 
   test "rebuilding the state for a reducer" do
     name = :rebuild
 
     {:ok, event_log} = EventLog.start_link()
+    Derive.rebuild(UserReducer, source: event_log)
+
     {:ok, derive} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
     events = [
@@ -341,22 +363,16 @@ defmodule DeriveEctoTest do
     EventLog.append(event_log, events)
     Derive.await(name, events)
 
-    user = Derive.Repo.get(User, "99")
+    user = Repo.get(User, "99")
     assert user.name == "John Wayne"
 
-    Derive.Repo.delete_all(User)
+    Repo.delete_all(User)
 
-    Process.monitor(derive)
-    Process.exit(derive, :normal)
-
-    receive do
-      {:DOWN, _ref, :process, ^derive, _} ->
-        :ok
-    end
+    Derive.stop(derive)
 
     Derive.rebuild(UserReducer, source: event_log)
 
-    # user = Derive.Repo.get(User, "99")
-    # assert user.name == "John Wayne"
+    user = Repo.get(User, "99")
+    assert user.name == "John Wayne"
   end
 end

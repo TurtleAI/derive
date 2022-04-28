@@ -3,7 +3,7 @@ defmodule Derive.State.Ecto.Operation.Update do
 end
 
 defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.Update do
-  import Derive.State.Ecto.Util
+  import Derive.State.Ecto.Selector
 
   def to_multi(
         %Derive.State.Ecto.Operation.Update{selector: selector, attrs: fun} = update,

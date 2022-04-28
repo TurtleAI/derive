@@ -1,13 +1,18 @@
 defmodule Derive.EventLog.InMemoryEventLog do
+  @moduledoc """
+  An ephemeral in-memory implementation of `Derive.EventLog`
+  Currently only meant for testing purposes
+  """
+
   use GenServer
 
+  @type t :: %__MODULE__{
+          events: Derive.EventLog.event(),
+          subscribers: [pid()]
+        }
   defstruct events: [], subscribers: []
 
   alias __MODULE__, as: S
-
-  @moduledoc """
-  An ephemeral in-memory event log used just for testing purposes.
-  """
 
   def start_link(opts \\ []),
     do: GenServer.start_link(__MODULE__, :ok, opts)

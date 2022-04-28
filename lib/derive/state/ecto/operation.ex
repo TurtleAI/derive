@@ -1,4 +1,12 @@
 defmodule Derive.State.Ecto.Operation do
+  @moduledoc """
+  Provides shortcut functions for common Ecto state operations to reduce
+  the amount of boilerplate that needs to be written for reducers.
+
+  For example, rather than creating `%Operation.Insert{record: record}`, you can just call
+  `insert(record)`.
+  """
+
   alias Derive.State.Ecto.Operation
 
   def insert(record), do: %Operation.Insert{record: record}

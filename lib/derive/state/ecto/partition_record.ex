@@ -1,4 +1,12 @@
 defmodule Derive.State.Ecto.PartitionRecord do
+  @moduledoc """
+  Each reducer has a table to keep track of partitions,
+  up to which event they have processed, and whether it's in an
+  active or error state.
+
+  This is model that backs it.
+  """
+
   use Derive.State.Ecto.Model
 
   @primary_key {:id, :string, [autogenerate: false]}
@@ -7,7 +15,16 @@ defmodule Derive.State.Ecto.PartitionRecord do
     field(:status, Ecto.Enum, values: [ok: 1, error: 2])
   end
 
+  # Because we can't create a migration with a dynamic table name using create table(...),
+  # we implement the raw up_sql/down_sql implementations instead
   def up_sql(table) do
+    # Equivalent up/0 implementation
+    # create table(:partitions, primary_key: false) do
+    #   add(:id, :string, size: 32, primary_key: true)
+    #   add(:version, :string, size: 32)
+    #   add(:status, :integer, null: false, default: 1)
+    # end
+
     [
       """
       CREATE TABLE #{table} (
@@ -20,20 +37,10 @@ defmodule Derive.State.Ecto.PartitionRecord do
   end
 
   def down_sql(table) do
+    # Equivalent down/0 implementation
+    # drop_if_exists(table(:partitions))
     [
       "DROP TABLE IF EXISTS #{table};"
     ]
-  end
-
-  def up do
-    create table(:partitions, primary_key: false) do
-      add(:id, :string, size: 32, primary_key: true)
-      add(:version, :string, size: 32)
-      add(:status, :integer, null: false, default: 1)
-    end
-  end
-
-  def down do
-    drop_if_exists(table(:partitions))
   end
 end

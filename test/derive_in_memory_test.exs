@@ -52,7 +52,7 @@ defmodule DeriveInMemoryTest do
     end
 
     def reduce_events(events, partition) do
-      Derive.Reducer.Util.reduce_events(
+      Derive.Reducer.EventProcessor.reduce_events(
         events,
         MultiOp.new(partition),
         &handle_event/1,

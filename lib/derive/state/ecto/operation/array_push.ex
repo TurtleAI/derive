@@ -3,7 +3,7 @@ defmodule Derive.State.Ecto.Operation.ArrayPush do
 end
 
 defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.ArrayPush do
-  import Derive.State.Ecto.Util
+  import Derive.State.Ecto.Selector
 
   def to_multi(
         %Derive.State.Ecto.Operation.ArrayPush{
@@ -19,5 +19,11 @@ defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.ArrayPush do
     |> Enum.reduce(Ecto.Multi.new(), fn {v, subindex}, acc ->
       array_push_uniq_query(acc, {index, subindex}, selector, attr, v)
     end)
+  end
+
+  defp array_push_uniq_query(%Ecto.Multi{} = multi, index, [type, id], attr, value) do
+    import Ecto.Query
+    query = from(rec in selector_query([type, id]), where: ^value not in field(rec, ^attr))
+    Ecto.Multi.update_all(multi, index, query, push: [{attr, value}])
   end
 end

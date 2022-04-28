@@ -3,7 +3,7 @@ defmodule Derive.State.Ecto.Operation.Merge do
 end
 
 defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.Merge do
-  import Derive.State.Ecto.Util
+  import Derive.State.Ecto.Selector
 
   def to_multi(%Derive.State.Ecto.Operation.Merge{selector: selector, attrs: fun} = merge, index)
       when is_function(fun) do
