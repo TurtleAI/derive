@@ -1,8 +1,12 @@
 defmodule Derive.State.Ecto.Operation.SetPartition do
   @moduledoc """
+  Insert or update a partition record that's stored in the given table.
+
   In state backed by Ecto, we want to update the latest version of a partition
   within a transaction to guarantee consistency.
-  This way, the state is update and its partition version is updated within the same transaction.
+
+  If the state and the partition version is updated within the same transaction,
+  the two can never get out of sync.
   """
 
   defstruct [:table, :partition]

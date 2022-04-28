@@ -61,7 +61,15 @@ defmodule Derive.Reducer do
   @callback commit(MultiOp.t()) :: :ok
 
   @doc """
-  Whether the event has already been processed or not.
+  Whether the event has already been processed.
+
+  To handle unpredictable error scenarios, we need to make it possible for Derive
+  to skip over already processed events.
+
+  For example, imagine backend shuts down after a transaction is committed but before
+  the `Derive.Dispatcher` updates its version to the latest one. Then the dispatcher
+  will resend some events that were already processed by the partitions and the
+  reducer will need to skip over them.
   """
   @callback processed_event?(Partition.t(), EventLog.event()) :: boolean()
 

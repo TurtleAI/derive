@@ -34,3 +34,14 @@ be found at [https://hexdocs.pm/derive](https://hexdocs.pm/derive).
 ## Basic usage
 
 See the tests directory for now.
+
+## TODO
+
+- [ ] Support rebuilding very large reducers
+- [ ] Render progress when rebuilding large reducers
+- [ ] Error handling when a commit fails
+- [ ] Add tests for Ecto DB operations
+- [ ] Create a Derive.EctoReducer with reduced boilerplate
+- [ ] Shutdown Derive.PartitionDispatcher after a period of inactivity
+- [ ] Improved logging of operations, commits, etc
+- [ ] Integrate with turtle-api
