@@ -53,8 +53,12 @@ defmodule DeriveEctoTest do
     defstruct [:id, :user_id, :name, sleep: 0]
   end
 
-  defmodule UserRaiseError do
+  defmodule UserRaiseHandleError do
     defstruct [:id, :user_id, :message]
+  end
+
+  defmodule UserMissingFieldUpdated do
+    defstruct [:id, :user_id]
   end
 
   defmodule UserError do
@@ -106,8 +110,12 @@ defmodule DeriveEctoTest do
       ]
     end
 
-    def handle_event(%UserRaiseError{message: message}) do
+    def handle_event(%UserRaiseHandleError{message: message}) do
       raise UserError, message
+    end
+
+    def handle_event(%UserMissingFieldUpdated{user_id: user_id}) do
+      update({User, user_id}, missing_field: "stuff")
     end
 
     @impl true
@@ -160,7 +168,10 @@ defmodule DeriveEctoTest do
     # Explicitly get a connection before each test
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
     # Setting the shared mode must be done only after checkout
-    Ecto.Adapters.SQL.Sandbox.mode(Repo, :auto)
+
+    # For some reason, :auto causes some tests to lock up
+    # Ecto.Adapters.SQL.Sandbox.mode(Repo, :auto)
+    Ecto.Adapters.SQL.Sandbox.mode(Repo, {:shared, self()})
 
     :ok
   end
@@ -247,42 +258,84 @@ defmodule DeriveEctoTest do
     assert %{name: "Mango"} = Repo.get(User, "99")
   end
 
-  test "a partition is halted if an error is raised in handle_event" do
-    name = :partition_halted
+  describe "error handling" do
+    test "a partition is halted if an error is raised in handle_event" do
+      name = :partition_halted
 
-    {:ok, event_log} = EventLog.start_link()
-    Derive.rebuild(UserReducer, source: event_log)
+      {:ok, event_log} = EventLog.start_link()
+      Derive.rebuild(UserReducer, source: event_log)
 
-    {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
+      {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
-    event = %UserCreated{id: "1", user_id: "99", name: "Pikachu"}
+      event = %UserCreated{id: "1", user_id: "99", name: "Pikachu"}
 
-    EventLog.append(event_log, [event])
+      EventLog.append(event_log, [event])
 
-    Derive.await(name, [event])
+      Derive.await(name, [event])
 
-    events = [
-      %UserCreated{id: "2", user_id: "55", name: "Squirtle"},
-      %UserRaiseError{id: "3", user_id: "99", message: "bad stuff happened"},
-      %UserNameUpdated{id: "4", user_id: "99", name: "Raichu"},
-      %UserNameUpdated{id: "5", user_id: "55", name: "Wartortle"}
-    ]
+      events = [
+        %UserCreated{id: "2", user_id: "55", name: "Squirtle"},
+        %UserRaiseHandleError{id: "3", user_id: "99", message: "bad stuff happened"},
+        %UserNameUpdated{id: "4", user_id: "99", name: "Raichu"},
+        %UserNameUpdated{id: "5", user_id: "55", name: "Wartortle"}
+      ]
 
-    EventLog.append(event_log, events)
-    Derive.await(name, events)
+      EventLog.append(event_log, events)
+      Derive.await(name, events)
 
-    assert %{name: "Pikachu"} = Repo.get(User, "99")
+      assert %{name: "Pikachu"} = Repo.get(User, "99")
 
-    # other partitions can happily continue processing
-    assert %{name: "Wartortle"} = Repo.get(User, "55")
+      # other partitions can happily continue processing
+      assert %{name: "Wartortle"} = Repo.get(User, "55")
 
-    # future events are not processed after a failure
-    events = [%UserNameUpdated{id: "6", user_id: "99", name: "Super Pikachu"}]
-    EventLog.append(event_log, events)
-    Derive.await(name, events)
+      # future events are not processed after a failure
+      events = [%UserNameUpdated{id: "6", user_id: "99", name: "Super Pikachu"}]
+      EventLog.append(event_log, events)
+      Derive.await(name, events)
 
-    # name hasn't changed
-    assert %{name: "Pikachu"} = Repo.get(User, "99")
+      # name hasn't changed
+      assert %{name: "Pikachu"} = Repo.get(User, "99")
+    end
+
+    test "a commit failing causes the partition to halt" do
+      # a copy of the previous test except this failure happens on commit
+
+      name = :commit_failed
+
+      {:ok, event_log} = EventLog.start_link()
+      Derive.rebuild(UserReducer, source: event_log)
+
+      {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
+
+      event = %UserCreated{id: "1", user_id: "99", name: "Pikachu"}
+
+      EventLog.append(event_log, [event])
+
+      Derive.await(name, [event])
+
+      events = [
+        %UserCreated{id: "2", user_id: "55", name: "Squirtle"},
+        %UserMissingFieldUpdated{id: "3", user_id: "99"},
+        %UserNameUpdated{id: "4", user_id: "99", name: "Raichu"},
+        %UserNameUpdated{id: "5", user_id: "55", name: "Wartortle"}
+      ]
+
+      EventLog.append(event_log, events)
+      Derive.await(name, events)
+
+      assert %{name: "Pikachu"} = Repo.get(User, "99")
+
+      # other partitions can happily continue processing
+      assert %{name: "Wartortle"} = Repo.get(User, "55")
+
+      # future events are not processed after a failure
+      events = [%UserNameUpdated{id: "6", user_id: "99", name: "Super Pikachu"}]
+      EventLog.append(event_log, events)
+      Derive.await(name, events)
+
+      # name hasn't changed
+      assert %{name: "Pikachu"} = Repo.get(User, "99")
+    end
   end
 
   test "resuming a dispatcher after a server is restarted" do
@@ -338,34 +391,35 @@ defmodule DeriveEctoTest do
       assert %{name: "John Wayne"} = Repo.get(User, "99")
     end
 
-    # test "rebuilding the state for a reducer" do
-    #   name = :rebuild
+    @tag :focus
+    test "rebuilding the state for a reducer" do
+      name = :rebuild
 
-    #   {:ok, event_log} = EventLog.start_link()
-    #   Derive.rebuild(UserReducer, source: event_log)
+      {:ok, event_log} = EventLog.start_link()
+      Derive.rebuild(UserReducer, source: event_log)
 
-    #   {:ok, derive} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
+      {:ok, derive} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
-    #   events = [
-    #     %UserCreated{id: "1", user_id: "99", name: "John"},
-    #     %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
-    #   ]
+      events = [
+        %UserCreated{id: "1", user_id: "99", name: "John"},
+        %UserNameUpdated{id: "2", user_id: "99", name: "John Wayne"}
+      ]
 
-    #   EventLog.append(event_log, events)
-    #   Derive.await(name, events)
+      EventLog.append(event_log, events)
+      Derive.await(name, events)
 
-    #   assert %{name: "John Wayne"} = Repo.get(User, "99")
+      assert %{name: "John Wayne"} = Repo.get(User, "99")
 
-    #   Repo.delete_all(User)
+      Repo.delete_all(User)
 
-    #   Derive.stop(derive)
+      Derive.stop(derive)
 
-    #   Process.sleep(500)
+      Process.sleep(500)
 
-    #   Derive.rebuild(UserReducer, source: event_log)
+      Derive.rebuild(UserReducer, source: event_log)
 
-    #   user = Repo.get(User, "99")
-    #   assert user.name == "John Wayne"
-    # end
+      user = Repo.get(User, "99")
+      assert user.name == "John Wayne"
+    end
   end
 end

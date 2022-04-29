@@ -30,9 +30,14 @@ defmodule Derive.State.Ecto do
         ]
 
     multi = operations_to_multi(Ecto.Multi.new(), 1, operations)
-    repo.transaction(multi)
 
-    MultiOp.committed(op)
+    try do
+      repo.transaction(multi)
+      MultiOp.committed(op)
+    rescue
+      error ->
+        MultiOp.commit_failed(op, error)
+    end
   end
 
   def get_partition(%S{repo: repo} = state, partition_id) do

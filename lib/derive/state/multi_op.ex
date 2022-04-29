@@ -10,7 +10,7 @@ defmodule Derive.State.MultiOp do
 
   @type t :: %__MODULE__{
           partition: Derive.Partition.t(),
-          error: any(),
+          error: error() | nil,
           status: status(),
           operations: [Derive.State.EventOp.t()]
         }
@@ -24,6 +24,16 @@ defmodule Derive.State.MultiOp do
   - error: the processing or committing has failed (an exception has been raised)
   """
   @type status :: :processing | :processed | :committed | :error
+
+  @typedoc """
+  An operation can fail when processing an event (calling handle_event)
+  or during a commit.
+  """
+  @type error ::
+          {:commit, inner_error()}
+          | {:handle_event, {Derive.EventLog.event(), inner_error()}}
+
+  @type inner_error :: any()
 
   def empty?(%MultiOp{operations: []}), do: true
   def empty?(_), do: false
@@ -51,12 +61,27 @@ defmodule Derive.State.MultiOp do
   def committed(%MultiOp{status: :processed} = multi),
     do: %{multi | status: :committed}
 
+  @doc """
+  This operation failed during the commit phase
+  """
+  def commit_failed(%MultiOp{partition: partition} = multi, error) do
+    %{
+      multi
+      | status: :error,
+        partition: %{partition | status: :error},
+        error: {:commit, error}
+    }
+  end
+
+  @doc """
+  This operation failed when
+  """
   def failed_on_event(%MultiOp{partition: partition} = multi, event, error) do
     %{
       multi
       | status: :error,
         partition: %{partition | status: :error},
-        error: {:failed_on_event, event, error}
+        error: {:handle_event, {event, error}}
     }
   end
 
