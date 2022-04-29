@@ -1,6 +1,6 @@
 defmodule Derive.State.Ecto.Selector do
   @moduledoc """
-  A selector is a way to select a rows in a database with a minimal amount of boilerplate.
+  A selector is a tuple that points rows in a database.
 
   For example:
   * `{MyApp.User, 5}` could refer to a user with id 5.

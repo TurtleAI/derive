@@ -27,10 +27,31 @@ defmodule DeriveEctoDbOpTest do
     def down, do: drop_if_exists(table(:people))
   end
 
+  defmodule Checkin do
+    use Derive.State.Ecto.Model
+
+    @primary_key false
+    schema "checkins" do
+      field(:user_id, :string, primary_key: true)
+      field(:location_id, :string, primary_key: true)
+      field(:timestamp, :utc_datetime)
+    end
+
+    def up do
+      create table(:checkins, primary_key: false) do
+        add(:user_id, :string, size: 32, primary_key: true)
+        add(:location_id, :string, size: 32, primary_key: true)
+        add(:timestamp, :utc_datetime)
+      end
+    end
+
+    def down, do: drop_if_exists(table(:checkins))
+  end
+
   setup_all do
     {:ok, _pid} = Repo.start_link()
 
-    state = %Derive.State.Ecto{repo: Repo, namespace: "db_op_test", models: [Person]}
+    state = %Derive.State.Ecto{repo: Repo, namespace: "db_op_test", models: [Person, Checkin]}
     Derive.State.Ecto.reset_state(state)
 
     :ok
@@ -65,7 +86,7 @@ defmodule DeriveEctoDbOpTest do
       insert(%Person{id: "1", name: "John"})
     ])
 
-    assert Repo.get(Person, "1").name == "John"
+    assert %{name: "John"} = Repo.get(Person, "1")
   end
 
   test "delete" do
@@ -94,29 +115,55 @@ defmodule DeriveEctoDbOpTest do
       insert_new(%Person{id: "x", name: "Xavierrrrryyyy"})
     ])
 
-    assert Repo.get(Person, "x").name == "Xavier"
+    assert %{name: "Xavier"} = Repo.get(Person, "x")
   end
 
-  describe "merge" do
-    test "merge by a simple selector" do
+  test "merge" do
+    commit([
+      insert(%Person{id: "3", name: "Bruce", email: "bruce@hotmail.com"}),
+      merge({Person, "3"}, name: "Wayney")
+    ])
+
+    assert %{name: "Wayney", email: "bruce@hotmail.com"} = Repo.get(Person, "3")
+  end
+
+  describe "replace" do
+    test "single pk" do
       commit([
-        insert(%Person{id: "3", name: "Bruce", email: "bruce@hotmail.com"}),
-        merge({Person, "3"}, name: "Wayney")
+        replace(%Person{id: "r", name: "Robin", email: "rob@hotmail.com"}),
+        replace(%Person{id: "r", name: "Robber"})
       ])
 
-      user = Repo.get(Person, "3")
-      assert user.name == "Wayney"
-      assert user.email == "bruce@hotmail.com"
+      # The entire record gets replaced based on the primary key
+      assert %{id: "r", name: "Robber", email: nil, age: 0} = Repo.get(Person, "r")
+    end
+
+    test "composite pk" do
+      commit([
+        replace(%Checkin{
+          user_id: "a",
+          location_id: "x",
+          timestamp: ~U[2022-04-29T15:00:00Z]
+        }),
+        replace(%Checkin{
+          user_id: "a",
+          location_id: "x",
+          timestamp: ~U[2023-12-12T15:00:00Z]
+        })
+      ])
+
+      assert %{user_id: "a", location_id: "x", timestamp: ~U[2023-12-12T15:00:00Z]} =
+               Repo.get_by(Checkin, user_id: "a", location_id: "x")
     end
   end
 
   test "inc" do
     commit([
       insert(%Person{id: "4", name: "Flash", age: 35}),
-      inc({Person, "4"}, :age, 2)
+      inc({Person, "4"}, :age, 2),
+      inc({Person, "4"}, :age, -10)
     ])
 
-    user = Repo.get(Person, "4")
-    assert user.age == 37
+    assert %{age: 27} = Repo.get(Person, "4")
   end
 end

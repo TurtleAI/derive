@@ -30,6 +30,9 @@ defmodule Derive.State.Ecto.Operation do
   def merge(selector, fields),
     do: %Operation.Merge{selector: selector, fields: Enum.into(fields, %{})}
 
+  def replace(record),
+    do: %Operation.Replace{record: record}
+
   def array_push_uniq(selector, field, values) do
     %Operation.ArrayPush{
       unique: true,
