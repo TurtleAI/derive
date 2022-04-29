@@ -50,7 +50,7 @@ defmodule Derive.EventLog do
 
   If there are no more events, an empty list will be returned
   """
-  @spec fetch(pid(), {cursor(), integer()}) :: {[event()], cursor()}
+  @spec fetch(pid(), {cursor(), non_neg_integer()}) :: {[event()], cursor()}
   def fetch(server, {cursor, limit}) do
     GenServer.call(server, {:fetch, {cursor, limit}})
   end

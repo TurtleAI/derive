@@ -18,7 +18,7 @@ defmodule Derive.Dispatcher do
 
   @type t :: %__MODULE__{
           reducer: Derive.Reducer.t(),
-          batch_size: integer(),
+          batch_size: non_neg_integer(),
           partition: Derive.Reducer.partition(),
           lookup_or_start: function(),
           mode: mode()

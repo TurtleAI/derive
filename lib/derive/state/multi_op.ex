@@ -31,7 +31,7 @@ defmodule Derive.State.MultiOp do
   """
   @type error ::
           {:commit, inner_error()}
-          | {:handle_event, {Derive.EventLog.event(), inner_error()}}
+          | {:handle_event, EventOp.t()}
 
   @type inner_error :: any()
 
@@ -47,12 +47,13 @@ defmodule Derive.State.MultiOp do
   def add(%MultiOp{} = multi, _event, nil),
     do: multi
 
-  def add(%MultiOp{} = multi, event, operation) do
-    add_operation(multi, %EventOp{event: event, status: :ok, operation: List.wrap(operation)})
-  end
-
-  def add_error(%MultiOp{} = multi, event, error) do
-    add_operation(multi, %EventOp{event: event, status: :error, error: error})
+  def add(
+        %MultiOp{partition: partition, operations: operations} = multi,
+        %EventOp{event: event} = op
+      ) do
+    new_partition = %{partition | version: max(event.id, partition.version)}
+    new_operations = [op | operations]
+    %{multi | partition: new_partition, operations: new_operations}
   end
 
   def processed(%MultiOp{status: :processing} = multi),
@@ -74,24 +75,15 @@ defmodule Derive.State.MultiOp do
   end
 
   @doc """
-  This operation failed when
+  This operation failed on a particular handle_event
   """
-  def failed_on_event(%MultiOp{partition: partition} = multi, event, error) do
+  def failed_on_event(%MultiOp{partition: partition} = multi, event_op) do
     %{
       multi
       | status: :error,
         partition: %{partition | status: :error},
-        error: {:handle_event, {event, error}}
+        error: {:handle_event, event_op}
     }
-  end
-
-  defp add_operation(
-         %MultiOp{partition: partition, operations: operations} = multi,
-         %EventOp{event: event} = op
-       ) do
-    new_partition = %{partition | version: max(event.id, partition.version)}
-    new_operations = [op | operations]
-    %{multi | partition: new_partition, operations: new_operations}
   end
 
   @doc """

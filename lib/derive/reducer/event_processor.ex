@@ -1,5 +1,6 @@
 defmodule Derive.Reducer.EventProcessor do
   alias Derive.State.MultiOp
+  alias Derive.State.EventOp
 
   @doc """
   Execute the `handle_event` for all events and return a combined `Derive.State.MultiOp`
@@ -26,25 +27,29 @@ defmodule Derive.Reducer.EventProcessor do
     do: MultiOp.processed(multi)
 
   defp do_reduce([event | rest], multi, handle_event, on_error) do
+    tstart = :erlang.timestamp()
+
     resp =
       try do
-        {:ok, handle_event.(event)}
+        ops = handle_event.(event)
+        tend = :erlang.timestamp()
+        {:ok, EventOp.new(event, ops, {tstart, tend})}
       rescue
         error ->
-          {:error, error}
+          {:error, EventOp.error(event, error, {tstart, nil})}
       end
 
     case resp do
-      {:ok, ops} ->
-        do_reduce(rest, MultiOp.add(multi, event, ops), handle_event, on_error)
+      {:ok, event_op} ->
+        do_reduce(rest, MultiOp.add(multi, event_op), handle_event, on_error)
 
-      {:error, error} ->
+      {:error, event_op} ->
         case on_error do
           :skip ->
-            do_reduce(rest, MultiOp.add_error(multi, event, error), handle_event, on_error)
+            do_reduce(rest, MultiOp.add(multi, event_op), handle_event, on_error)
 
           :halt ->
-            MultiOp.failed_on_event(multi, event, error)
+            MultiOp.failed_on_event(multi, event_op)
         end
     end
   end
