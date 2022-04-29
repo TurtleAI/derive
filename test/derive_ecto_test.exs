@@ -209,10 +209,12 @@ defmodule DeriveEctoTest do
   test "events are processed in parallel according to the partition" do
     name = :parallel
 
+    {:ok, logger} = Derive.Logger.InMemoryLogger.start_link()
     {:ok, event_log} = EventLog.start_link()
     Derive.rebuild(UserReducer, source: event_log)
 
-    {:ok, _derive} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
+    {:ok, _derive} =
+      Derive.start_link(name: name, reducer: UserReducer, source: event_log, logger: logger)
 
     events = [
       %UserCreated{id: "1", user_id: "s", name: "Same", sleep: 100},

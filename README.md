@@ -43,5 +43,5 @@ See the tests directory for now.
 - [x] Add tests for Ecto DB operations
 - [ ] Create a Derive.EctoReducer with reduced boilerplate
 - [ ] Shutdown Derive.PartitionDispatcher after a period of inactivity
-- [ ] Improved logging of operations, commits, etc
+- [x] Improved logging of operations, commits, etc
 - [ ] Integrate with turtle-api

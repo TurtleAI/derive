@@ -21,10 +21,11 @@ defmodule Derive.Dispatcher do
           batch_size: non_neg_integer(),
           partition: Derive.Reducer.partition(),
           lookup_or_start: function(),
-          mode: mode()
+          mode: mode(),
+          logger: pid() | nil
         }
 
-  defstruct [:reducer, :batch_size, :partition, :source, :lookup_or_start, :mode]
+  defstruct [:reducer, :batch_size, :partition, :source, :lookup_or_start, :mode, :logger]
 
   @typedoc """
   The mode in which the dispatcher should operate
@@ -46,6 +47,7 @@ defmodule Derive.Dispatcher do
     source = Keyword.fetch!(dispatcher_opts, :source)
     lookup_or_start = Keyword.fetch!(dispatcher_opts, :lookup_or_start)
     mode = Keyword.get(dispatcher_opts, :mode, :catchup)
+    logger = Keyword.get(dispatcher_opts, :logger)
 
     GenServer.start_link(
       __MODULE__,
@@ -54,7 +56,8 @@ defmodule Derive.Dispatcher do
         batch_size: batch_size,
         source: source,
         lookup_or_start: lookup_or_start,
-        mode: mode
+        mode: mode,
+        logger: logger
       },
       genserver_opts
     )
@@ -132,7 +135,8 @@ defmodule Derive.Dispatcher do
            source: source,
            partition: %Derive.Partition{version: version} = partition,
            batch_size: batch_size,
-           lookup_or_start: lookup_or_start
+           lookup_or_start: lookup_or_start,
+           logger: logger
          } = state
        ) do
     case Derive.EventLog.fetch(source, {version, batch_size}) do
@@ -144,7 +148,7 @@ defmodule Derive.Dispatcher do
         events
         |> events_by_partition_dispatcher(reducer, lookup_or_start)
         |> Enum.map(fn {partition_dispatcher, events} ->
-          PartitionDispatcher.dispatch_events(partition_dispatcher, events)
+          PartitionDispatcher.dispatch_events(partition_dispatcher, events, logger)
           {partition_dispatcher, events}
         end)
         |> Enum.each(fn {partition_dispatcher, events} ->

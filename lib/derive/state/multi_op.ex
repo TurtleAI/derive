@@ -35,18 +35,18 @@ defmodule Derive.State.MultiOp do
 
   @type inner_error :: any()
 
+  @doc """
+  There are no operations, so committing this would be a no-op
+  """
   def empty?(%MultiOp{operations: []}), do: true
   def empty?(_), do: false
 
   def new(partition),
     do: %MultiOp{partition: partition}
 
-  def add(%MultiOp{} = multi, _event, []),
-    do: multi
-
-  def add(%MultiOp{} = multi, _event, nil),
-    do: multi
-
+  @doc """
+  Add an event operation that results from calling handle_event(event)
+  """
   def add(
         %MultiOp{partition: partition, operations: operations} = multi,
         %EventOp{event: event} = op
@@ -56,11 +56,31 @@ defmodule Derive.State.MultiOp do
     %{multi | partition: new_partition, operations: new_operations}
   end
 
+  @doc """
+  All of the events have been processed with handle_event, but they have
+  not yet been committed
+  """
   def processed(%MultiOp{status: :processing} = multi),
     do: %{multi | status: :processed}
 
+  @doc """
+  The events have been processed and committed.
+  There is nothing more eto be done.
+  """
   def committed(%MultiOp{status: :processed} = multi),
     do: %{multi | status: :committed}
+
+  @doc """
+  This operation failed on a particular handle_event(event)
+  """
+  def failed_on_event(%MultiOp{partition: partition} = multi, event_op) do
+    %{
+      multi
+      | status: :error,
+        partition: %{partition | status: :error},
+        error: {:handle_event, event_op}
+    }
+  end
 
   @doc """
   This operation failed during the commit phase
@@ -75,23 +95,12 @@ defmodule Derive.State.MultiOp do
   end
 
   @doc """
-  This operation failed on a particular handle_event
-  """
-  def failed_on_event(%MultiOp{partition: partition} = multi, event_op) do
-    %{
-      multi
-      | status: :error,
-        partition: %{partition | status: :error},
-        error: {:handle_event, event_op}
-    }
-  end
-
-  @doc """
   A flat list of the operations that can be committed
+  In the order that they were added
   """
   def operations(%MultiOp{operations: operations}) do
     Enum.flat_map(Enum.reverse(operations), fn
-      %EventOp{status: :ok, operation: ops} -> ops
+      %EventOp{status: :ok, operations: ops} -> ops
       %EventOp{status: :error} -> []
     end)
   end

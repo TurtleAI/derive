@@ -5,24 +5,20 @@ defmodule Derive.State.EventOp do
 
   @type t :: %__MODULE__{
           event: Derive.EventLog.event(),
-          operation: Derive.Reducer.operation(),
+          operations: Derive.Reducer.operation(),
           status: status(),
           error: any(),
-          timing: timing() | nil
+          timing: Derive.Timing.t() | nil
         }
-  defstruct [:event, :operation, :status, :error, :timing]
+  defstruct [:event, :operations, :status, :error, :timing]
 
   @type status() :: :ok | :error
-
-  @type timing() :: {timestamp(), timestamp()} | {timestamp(), nil}
-
-  @type timestamp :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}
 
   def new(event, ops, timing \\ nil) do
     %__MODULE__{
       status: :ok,
       event: event,
-      operation: List.wrap(ops),
+      operations: List.wrap(ops),
       timing: timing
     }
   end
@@ -31,8 +27,12 @@ defmodule Derive.State.EventOp do
     %__MODULE__{
       status: :error,
       event: event,
+      operations: [],
       error: error,
       timing: timing
     }
   end
+
+  def empty?(%__MODULE__{operations: []}), do: true
+  def empty?(%__MODULE__{}), do: false
 end

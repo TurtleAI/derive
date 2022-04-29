@@ -44,9 +44,9 @@ defmodule Derive.PartitionDispatcher do
   Asynchronously dispatch events to get processed and committed
   To wait for the events to get processed, use `&Derive.PartitionDispatcher.await/2`
   """
-  @spec dispatch_events(pid(), [Derive.EventLog.event()]) :: :ok
-  def dispatch_events(server, events),
-    do: GenServer.cast(server, {:dispatch_events, events})
+  @spec dispatch_events(pid(), [Derive.EventLog.event()], pid() | nil) :: :ok
+  def dispatch_events(server, events, logger),
+    do: GenServer.cast(server, {:dispatch_events, events, logger})
 
   @doc """
   Wait until all of the events are processed
@@ -113,7 +113,7 @@ defmodule Derive.PartitionDispatcher do
     do: {:noreply, state}
 
   def handle_cast(
-        {:dispatch_events, events},
+        {:dispatch_events, events, _logger},
         %S{
           partition: %Partition{status: :error},
           pending_awaiters: pending_awaiters
@@ -139,7 +139,7 @@ defmodule Derive.PartitionDispatcher do
   end
 
   def handle_cast(
-        {:dispatch_events, events},
+        {:dispatch_events, events, logger},
         %S{
           reducer: reducer,
           partition: %Partition{} = partition,
@@ -153,6 +153,8 @@ defmodule Derive.PartitionDispatcher do
         %MultiOp{status: :processed} -> reducer.commit(multi)
         multi -> multi
       end
+
+    Derive.Logger.committed(logger, multi)
 
     new_partition = multi.partition
 
