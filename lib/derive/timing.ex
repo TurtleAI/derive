@@ -1,4 +1,4 @@
-defmodule Derive.Timing do
+defmodule Derive.Timespan do
   @moduledoc """
   A tuple of start/stop times to measure how long operations take
   """
@@ -22,4 +22,21 @@ defmodule Derive.Timing do
   @spec elapsed(t()) :: integer()
   def elapsed({tstart, tend}),
     do: :timer.now_diff(tend, tstart)
+
+  @doc """
+  Whether two timespans overlap
+  """
+  @spec overlaps?(t(), t()) :: boolean()
+  def overlaps?({tstart1, tend1}, {tstart2, tend2}) do
+    cond do
+      tend1 < tstart2 ->
+        false
+
+      tend2 < tstart1 ->
+        false
+
+      true ->
+        true
+    end
+  end
 end

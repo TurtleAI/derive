@@ -2,10 +2,8 @@ defmodule DeriveEctoTest do
   use ExUnit.Case
 
   alias Derive.EventLog.InMemoryEventLog, as: EventLog
-
-  @same_time_threshold 10
-
   alias DeriveTestRepo, as: Repo
+  alias Derive.Timespan
 
   defmodule User do
     use Derive.State.Ecto.Model
@@ -25,24 +23,6 @@ defmodule DeriveEctoTest do
     end
 
     def down, do: drop_if_exists(table(:users))
-  end
-
-  defmodule LogEntry do
-    use Derive.State.Ecto.Model
-
-    schema "log_entries" do
-      field(:message, :string)
-      field(:timestamp, :integer)
-    end
-
-    def up do
-      create table(:log_entries) do
-        add(:message, :string, size: 512)
-        add(:timestamp, :bigint)
-      end
-    end
-
-    def down, do: drop_if_exists(table(:log_entries))
   end
 
   defmodule UserCreated do
@@ -74,15 +54,11 @@ defmodule DeriveEctoTest do
     @state %Derive.State.Ecto{
       repo: Repo,
       namespace: "user_reducer",
-      models: [User, LogEntry]
+      models: [User]
     }
 
     defp maybe_sleep(0), do: :ok
     defp maybe_sleep(timeout), do: Process.sleep(timeout)
-
-    defp log(message) do
-      insert(%LogEntry{message: message, timestamp: :os.system_time(:millisecond)})
-    end
 
     @impl true
     def partition(%{user_id: user_id}), do: user_id
@@ -91,23 +67,16 @@ defmodule DeriveEctoTest do
     def handle_event(%UserCreated{user_id: user_id, name: name, email: email, sleep: sleep}) do
       maybe_sleep(sleep)
 
-      [
-        log("created-#{user_id}"),
-        insert(%User{
-          id: user_id,
-          name: name,
-          email: email
-        })
-      ]
+      insert(%User{
+        id: user_id,
+        name: name,
+        email: email
+      })
     end
 
     def handle_event(%UserNameUpdated{user_id: user_id, name: name, sleep: sleep}) do
       maybe_sleep(sleep)
-
-      [
-        log("updated-#{user_id}"),
-        update({User, user_id}, %{name: name})
-      ]
+      update({User, user_id}, %{name: name})
     end
 
     def handle_event(%UserRaiseHandleError{message: message}) do
@@ -155,15 +124,6 @@ defmodule DeriveEctoTest do
     :ok
   end
 
-  def get_logs() do
-    for %{message: message, timestamp: timestamp} <- Repo.all(LogEntry) do
-      {message, timestamp}
-    end
-    |> Enum.sort_by(fn {message, timestamp} ->
-      {timestamp, message}
-    end)
-  end
-
   setup do
     # Explicitly get a connection before each test
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
@@ -175,6 +135,12 @@ defmodule DeriveEctoTest do
 
     :ok
   end
+
+  def concurrent?(t1, t2),
+    do: Timespan.overlaps?(t1, t2) == true
+
+  def sequential?(t1, t2),
+    do: Timespan.overlaps?(t1, t2) == false
 
   test "insert a user" do
     name = :insert_a_user
@@ -216,25 +182,28 @@ defmodule DeriveEctoTest do
     {:ok, _derive} =
       Derive.start_link(name: name, reducer: UserReducer, source: event_log, logger: logger)
 
-    events = [
-      %UserCreated{id: "1", user_id: "s", name: "Same", sleep: 100},
-      %UserNameUpdated{id: "2", user_id: "s", name: "Similar", sleep: 100},
-      %UserCreated{id: "3", user_id: "t", name: "Time", sleep: 100}
-    ]
+    e1 = %UserCreated{id: "1", user_id: "s", name: "Same", sleep: 100}
+    e2 = %UserNameUpdated{id: "2", user_id: "s", name: "Similar", sleep: 100}
+    e3 = %UserCreated{id: "3", user_id: "t", name: "Time", sleep: 100}
+
+    events = [e1, e2, e3]
 
     EventLog.append(event_log, events)
     Derive.await(name, events)
 
-    assert [{"created-s", t1}, {"created-t", t2}, {"updated-s", t3}] = get_logs()
+    event_ops_by_event =
+      Derive.Logger.fetch(logger)
+      |> Enum.flat_map(& &1.operations)
+      |> Enum.group_by(& &1.event)
 
-    assert t2 - t1 <= @same_time_threshold
+    [op1, op2, op3] = Enum.map(events, fn e -> hd(Map.get(event_ops_by_event, e)) end)
 
-    assert t3 - t2 > @same_time_threshold
+    # ops in different partitions happen concurrently
+    assert concurrent?(op1.timespan, op3.timespan)
+    # ops in the same partition happen sequentially
+    assert sequential?(op1.timespan, op2.timespan)
 
-    [same, time] = [Repo.get(User, "s"), Repo.get(User, "t")]
-
-    assert same.name == "Similar"
-    assert time.name == "Time"
+    assert [%{name: "Similar"}, %{name: "Time"}] = [Repo.get(User, "s"), Repo.get(User, "t")]
   end
 
   test "events are processed when there are more events than the batch size allows" do

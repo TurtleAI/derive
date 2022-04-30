@@ -8,28 +8,28 @@ defmodule Derive.State.EventOp do
           operations: Derive.Reducer.operation(),
           status: status(),
           error: any(),
-          timing: Derive.Timing.t() | nil
+          timespan: Derive.Timespan.t() | nil
         }
-  defstruct [:event, :operations, :status, :error, :timing]
+  defstruct [:event, :operations, :status, :error, :timespan]
 
   @type status() :: :ok | :error
 
-  def new(event, ops, timing \\ nil) do
+  def new(event, ops, timespan \\ nil) do
     %__MODULE__{
       status: :ok,
       event: event,
       operations: List.wrap(ops),
-      timing: timing
+      timespan: timespan
     }
   end
 
-  def error(event, error, timing \\ nil) do
+  def error(event, error, timespan \\ nil) do
     %__MODULE__{
       status: :error,
       event: event,
       operations: [],
       error: error,
-      timing: timing
+      timespan: timespan
     }
   end
 

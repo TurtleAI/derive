@@ -1,7 +1,7 @@
 defmodule Derive.Reducer.EventProcessor do
   alias Derive.State.MultiOp
   alias Derive.State.EventOp
-  alias Derive.Timing
+  alias Derive.Timespan
 
   @doc """
   Execute the `handle_event` for all events and return a combined `Derive.State.MultiOp`
@@ -31,15 +31,15 @@ defmodule Derive.Reducer.EventProcessor do
     do: multi
 
   defp do_reduce([event | rest], multi, handle_event, on_error) do
-    timing = Timing.start()
+    timespan = Timespan.start()
 
     resp =
       try do
         ops = handle_event.(event)
-        {:ok, EventOp.new(event, ops, Timing.stop(timing))}
+        {:ok, EventOp.new(event, ops, Timespan.stop(timespan))}
       rescue
         error ->
-          {:error, EventOp.error(event, error, Timing.stop(timing))}
+          {:error, EventOp.error(event, error, Timespan.stop(timespan))}
       end
 
     case resp do
