@@ -18,12 +18,12 @@ defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.SetPartition do
   def to_multi(
         %Derive.State.Ecto.Operation.SetPartition{
           table: table,
-          partition: %{id: id, version: version, status: status}
+          partition: %{id: id, cursor: cursor, status: status}
         },
         index
       ) do
     record =
-      %PartitionRecord{id: id, version: version, status: status}
+      %PartitionRecord{id: id, cursor: cursor, status: status}
       |> Ecto.put_meta(source: table)
 
     Ecto.Multi.insert(Ecto.Multi.new(), index, record,

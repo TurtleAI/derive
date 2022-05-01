@@ -5,10 +5,10 @@ defmodule Derive.Partition do
 
   @type t :: %__MODULE__{
           id: id(),
-          version: Derive.Reducer.version(),
+          cursor: Derive.Reducer.cursor(),
           status: status()
         }
-  defstruct [:id, :version, :status]
+  defstruct [:id, :cursor, :status]
 
   @typedoc """
   If the status of a partition is :ok, it is in an active state and can keep catching up

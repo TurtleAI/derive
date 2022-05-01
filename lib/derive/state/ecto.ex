@@ -45,14 +45,14 @@ defmodule Derive.State.Ecto do
       nil ->
         %Derive.Partition{
           id: partition_id,
-          version: :start,
+          cursor: :start,
           status: :ok
         }
 
-      %{id: id, version: version, status: status} ->
+      %{id: id, cursor: cursor, status: status} ->
         %Derive.Partition{
           id: id,
-          version: version,
+          cursor: cursor,
           status: status
         }
     end

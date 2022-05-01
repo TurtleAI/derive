@@ -37,7 +37,7 @@ See the tests directory for now.
 
 ## TODO
 
-- [ ] Support rebuilding very large reducers
+- [x] Support rebuilding very large reducers
 - [ ] Render progress when rebuilding large reducers
 - [x] Error handling when a commit fails
 - [x] Add tests for Ecto DB operations
@@ -45,3 +45,4 @@ See the tests directory for now.
 - [ ] Shutdown Derive.PartitionDispatcher after a period of inactivity
 - [x] Improved logging of operations, commits, etc
 - [ ] Integrate with turtle-api
+- [ ] Rename version to cursor

@@ -35,7 +35,7 @@ defmodule Derive.Dispatcher do
   """
   @type mode :: :catchup | :rebuild
 
-  # We maintain the version of a special partition with this name
+  # We maintain the cursor of a special partition with this name
   @global_partition "$"
 
   @spec start_link(any()) :: {:ok, pid()} | {:error, any()}
@@ -63,6 +63,15 @@ defmodule Derive.Dispatcher do
     )
   end
 
+  ### Client
+  def await(_server, []),
+    do: :ok
+
+  def await(server, [event | rest]) do
+    GenServer.call(server, {:await, event})
+    await(server, rest)
+  end
+
   ### Server
 
   @impl true
@@ -86,37 +95,40 @@ defmodule Derive.Dispatcher do
   def handle_continue(:load_partition, %S{reducer: reducer} = state) do
     partition = reducer.get_partition(@global_partition)
 
-    GenServer.cast(self(), :catchup_on_boot)
+    GenServer.cast(self(), :catchup)
 
     {:noreply, %{state | partition: partition}}
   end
 
   @impl true
   def handle_call(
-        {:await, events},
-        _from,
+        {:await, event},
+        from,
         %S{reducer: reducer, lookup_or_start: lookup_or_start} = state
       ) do
-    List.wrap(events)
-    |> events_by_partition_dispatcher(reducer, lookup_or_start)
-    |> Enum.each(fn {partition_dispatcher, events} ->
-      PartitionDispatcher.await(partition_dispatcher, events)
-    end)
-
-    {:reply, :ok, state}
+    partition = reducer.partition(event)
+    partition_dispatcher = lookup_or_start.({reducer, partition})
+    PartitionDispatcher.register_awaiter(partition_dispatcher, from, event)
+    {:noreply, state}
   end
 
   @impl true
-  def handle_cast({:new_events, _new_events}, %S{} = state) do
-    {:noreply, catchup(state)}
-  end
+  def handle_cast({:new_events, _new_events}, %S{} = state),
+    do: handle_cast(:catchup, state)
 
-  def handle_cast(:catchup_on_boot, %S{mode: mode} = state) do
-    new_state = catchup(state)
+  def handle_cast(:catchup, %S{mode: mode} = state) do
+    case catchup(state) do
+      {:continue, new_state} ->
+        # recursively call catchup
 
-    case mode do
-      :catchup -> {:noreply, new_state}
-      :rebuild -> {:stop, :normal, new_state}
+        GenServer.cast(self(), :catchup)
+        {:noreply, new_state}
+
+      {:done, new_state} ->
+        case mode do
+          :catchup -> {:noreply, new_state}
+          :rebuild -> {:stop, :normal, new_state}
+        end
     end
   end
 
@@ -133,34 +145,37 @@ defmodule Derive.Dispatcher do
          %S{
            reducer: reducer,
            source: source,
-           partition: %Derive.Partition{version: version} = partition,
+           partition: %Derive.Partition{cursor: cursor} = partition,
            batch_size: batch_size,
            lookup_or_start: lookup_or_start,
            logger: logger
          } = state
        ) do
-    case Derive.EventLog.fetch(source, {version, batch_size}) do
+    case Derive.EventLog.fetch(source, {cursor, batch_size}) do
       {[], _} ->
-        # done processing so return the state as is
-        state
+        # done processing all events
+        {:done, state}
 
-      {events, new_version} ->
+      {events, new_cursor} ->
         events
         |> events_by_partition_dispatcher(reducer, lookup_or_start)
         |> Enum.map(fn {partition_dispatcher, events} ->
           PartitionDispatcher.dispatch_events(partition_dispatcher, events, logger)
           {partition_dispatcher, events}
         end)
+        # We want to wait until all of the partitions have processed the events
+        # before updating the cursor of this partition
         |> Enum.each(fn {partition_dispatcher, events} ->
-          PartitionDispatcher.await(partition_dispatcher, events)
+          for e <- events do
+            PartitionDispatcher.await(partition_dispatcher, e)
+          end
         end)
 
-        new_partition = %{partition | version: new_version}
+        new_partition = %{partition | cursor: new_cursor}
         reducer.set_partition(new_partition)
 
-        # we have more events left to process, so we recursively call catchup
-        %{state | partition: new_partition}
-        |> catchup()
+        # we have more events left to process
+        {:continue, %{state | partition: new_partition}}
     end
   end
 

@@ -98,8 +98,8 @@ defmodule DeriveEctoTest do
     end
 
     @impl true
-    def processed_event?(%{version: version}, %{id: id}),
-      do: version >= id
+    def processed_event?(%{cursor: cursor}, %{id: id}),
+      do: cursor >= id
 
     @impl true
     def commit(op),
@@ -206,14 +206,19 @@ defmodule DeriveEctoTest do
     assert [%{name: "Similar"}, %{name: "Time"}] = [Repo.get(User, "s"), Repo.get(User, "t")]
   end
 
-  test "events are processed when there are more events than the batch size allows" do
+  test "events are processed when there are more events than the configured batch size" do
     name = :batch_dispatcher
 
     {:ok, event_log} = EventLog.start_link()
     Derive.rebuild(UserReducer, source: event_log)
 
     {:ok, _} =
-      Derive.start_link(name: name, reducer: UserReducer, source: event_log, batch_size: 2)
+      Derive.start_link(
+        name: name,
+        reducer: UserReducer,
+        source: event_log,
+        batch_size: 2
+      )
 
     events = [
       %UserCreated{id: "1", user_id: "99", name: "Pear"},
@@ -224,6 +229,7 @@ defmodule DeriveEctoTest do
     ]
 
     EventLog.append(event_log, events)
+
     Derive.await(name, events)
 
     assert %{name: "Mango"} = Repo.get(User, "99")
@@ -338,8 +344,8 @@ defmodule DeriveEctoTest do
     # Dispatcher should pick up where it left off and process the remaining events
     {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
-    # TODO: remove this hack
-    Process.sleep(50)
+    # todo: remove this hack
+    Process.sleep(1)
 
     Derive.await(name, events)
 
@@ -362,7 +368,6 @@ defmodule DeriveEctoTest do
       assert %{name: "John Wayne"} = Repo.get(User, "99")
     end
 
-    @tag :focus
     test "rebuilding the state for a reducer" do
       name = :rebuild
 
@@ -384,8 +389,6 @@ defmodule DeriveEctoTest do
       Repo.delete_all(User)
 
       Derive.stop(derive)
-
-      Process.sleep(500)
 
       Derive.rebuild(UserReducer, source: event_log)
 

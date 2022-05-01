@@ -11,7 +11,7 @@ defmodule Derive.State.Ecto.PartitionRecord do
 
   @primary_key {:id, :string, [autogenerate: false]}
   schema "partitions" do
-    field(:version, :string)
+    field(:cursor, :string)
     field(:status, Ecto.Enum, values: [ok: 1, error: 2])
   end
 
@@ -21,7 +21,7 @@ defmodule Derive.State.Ecto.PartitionRecord do
     # Equivalent up/0 implementation
     # create table(:partitions, primary_key: false) do
     #   add(:id, :string, size: 32, primary_key: true)
-    #   add(:version, :string, size: 32)
+    #   add(:cursor, :string, size: 32)
     #   add(:status, :integer, null: false, default: 1)
     # end
 
@@ -29,7 +29,7 @@ defmodule Derive.State.Ecto.PartitionRecord do
       """
       CREATE TABLE #{table} (
         id character varying(32) PRIMARY KEY,
-        version character varying(32),
+        cursor character varying(32),
         status integer NOT NULL DEFAULT 1
       );
       """

@@ -37,8 +37,9 @@ defmodule Derive do
   Events are not considered processed until *all* operations produced by `Derive.Reducer.handle_event/1`
   have been committed by `Derive.Reducer.commit/1`
   """
+  @spec await(pid(), [Derive.EventLog.event()]) :: :ok
   def await(name, events),
-    do: GenServer.call(dispatcher_name(name), {:await, events})
+    do: Derive.Dispatcher.await(dispatcher_name(name), events)
 
   @doc """
   Rebuilds the state of a reducer.

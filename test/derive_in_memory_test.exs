@@ -60,8 +60,8 @@ defmodule DeriveInMemoryTest do
       )
     end
 
-    def processed_event?(%{version: version}, %{id: id}),
-      do: version >= id
+    def processed_event?(%{cursor: cursor}, %{id: id}),
+      do: cursor >= id
 
     def commit(%MultiOp{} = op),
       do: Derive.State.InMemory.commit(state(), op)
@@ -72,7 +72,7 @@ defmodule DeriveInMemoryTest do
     def get_partition(id) do
       %Derive.Partition{
         id: id,
-        version: 0,
+        cursor: 0,
         status: :ok
       }
     end

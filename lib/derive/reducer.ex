@@ -25,7 +25,7 @@ defmodule Derive.Reducer do
   @typedoc """
   The cursor pointing to a last event processed
   """
-  @type version() :: String.t()
+  @type cursor() :: String.t()
 
   @type error_mode() :: :skip | :halt
 
