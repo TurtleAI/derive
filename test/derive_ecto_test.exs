@@ -206,6 +206,28 @@ defmodule DeriveEctoTest do
     assert [%{name: "Similar"}, %{name: "Time"}] = [Repo.get(User, "s"), Repo.get(User, "t")]
   end
 
+  describe "&Derive.await/2" do
+    test "await before an event has been persisted" do
+      name = :basic_await
+
+      {:ok, event_log} = EventLog.start_link()
+      Derive.rebuild(UserReducer, source: event_log)
+
+      {:ok, _derive} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
+
+      e1 = %UserCreated{id: "1", user_id: "22", name: "Late user"}
+
+      Task.async(fn ->
+        Process.sleep(50)
+        EventLog.append(event_log, [e1])
+      end)
+
+      Derive.await(name, [e1])
+
+      assert %{id: "22", name: "Late user"} = Repo.get(User, "22")
+    end
+  end
+
   test "events are processed when there are more events than the configured batch size" do
     name = :batch_dispatcher
 

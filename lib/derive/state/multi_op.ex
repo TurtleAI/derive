@@ -12,7 +12,7 @@ defmodule Derive.State.MultiOp do
           partition: Derive.Partition.t(),
           error: error() | nil,
           status: status(),
-          operations: [Derive.State.EventOp.t()]
+          operations: [EventOp.t()]
         }
   defstruct [:partition, :error, status: :processing, operations: []]
 
@@ -41,12 +41,14 @@ defmodule Derive.State.MultiOp do
   def empty?(%MultiOp{operations: []}), do: true
   def empty?(_), do: false
 
+  @spec new(Derive.Partition.t()) :: Derive.State.MultiOp.t()
   def new(partition),
     do: %MultiOp{partition: partition}
 
   @doc """
   Add an event operation that results from calling handle_event(event)
   """
+  @spec add(MultiOp.t(), EventOp.t()) :: MultiOp.t()
   def add(
         %MultiOp{partition: partition, operations: operations} = multi,
         %EventOp{event: event} = op
@@ -60,6 +62,7 @@ defmodule Derive.State.MultiOp do
   All of the events have been processed with handle_event, but they have
   not yet been committed
   """
+  @spec processed(MultiOp.t()) :: MultiOp.t()
   def processed(%MultiOp{status: :processing} = multi),
     do: %{multi | status: :processed}
 
@@ -67,12 +70,14 @@ defmodule Derive.State.MultiOp do
   The events have been processed and committed.
   There is nothing more eto be done.
   """
+  @spec committed(MultiOp.t()) :: MultiOp.t()
   def committed(%MultiOp{status: :processed} = multi),
     do: %{multi | status: :committed}
 
   @doc """
   This operation failed on a particular handle_event(event)
   """
+  @spec failed_on_event(MultiOp.t(), EventOp.t()) :: MultiOp.t()
   def failed_on_event(%MultiOp{partition: partition} = multi, event_op) do
     %{
       multi
@@ -85,6 +90,7 @@ defmodule Derive.State.MultiOp do
   @doc """
   This operation failed during the commit phase
   """
+  @spec commit_failed(MultiOp.t(), error()) :: MultiOp.t()
   def commit_failed(%MultiOp{partition: partition} = multi, error) do
     %{
       multi
@@ -98,6 +104,7 @@ defmodule Derive.State.MultiOp do
   A flat list of the operations that can be committed
   In the order that they were added
   """
+  @spec operations(MultiOp.t()) :: [EventOp.t()]
   def operations(%MultiOp{operations: operations}) do
     Enum.flat_map(Enum.reverse(operations), fn
       %EventOp{status: :ok, operations: ops} -> ops
