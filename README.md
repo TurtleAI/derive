@@ -41,8 +41,8 @@ See the tests directory for now.
 - [ ] Render progress when rebuilding large reducers
 - [x] Error handling when a commit fails
 - [x] Add tests for Ecto DB operations
-- [ ] Create a Derive.EctoReducer with reduced boilerplate
+- [x] Create a Derive.EctoReducer with reduced boilerplate
 - [ ] Shutdown Derive.PartitionDispatcher after a period of inactivity
 - [x] Improved logging of operations, commits, etc
 - [ ] Integrate with turtle-api
-- [ ] Rename version to cursor
+- [x] Rename version to cursor

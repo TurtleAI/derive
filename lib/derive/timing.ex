@@ -4,11 +4,14 @@ defmodule Derive.Timespan do
   """
 
   @typedoc """
-  A simple tuple with the start and stop times,
-  each in the Erlang timestamp format
+  A tuple with the start and stop times
   """
   @type t() :: {timestamp(), timestamp()}
 
+  @typedoc """
+  An erlang timestamp.
+  Number of microseconds since the epoch.
+  """
   @type timestamp :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}
 
   @spec start() :: {timestamp(), nil}

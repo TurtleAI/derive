@@ -46,16 +46,10 @@ defmodule DeriveEctoTest do
   end
 
   defmodule UserReducer do
-    # TODO: Extract ecto-specific implementation to a `use Derive.EctoReducer` to minimize boilerplate
-    use Derive.Reducer
-
-    import Derive.State.Ecto.Operation
-
-    @state %Derive.State.Ecto{
+    use Derive.EctoReducer,
       repo: Repo,
       namespace: "user_reducer",
       models: [User]
-    }
 
     defp maybe_sleep(0), do: :ok
     defp maybe_sleep(timeout), do: Process.sleep(timeout)
@@ -86,36 +80,6 @@ defmodule DeriveEctoTest do
     def handle_event(%UserMissingFieldUpdated{user_id: user_id}) do
       update({User, user_id}, missing_field: "stuff")
     end
-
-    @impl true
-    def reduce_events(events, partition) do
-      Derive.Reducer.EventProcessor.reduce_events(
-        events,
-        Derive.State.MultiOp.new(partition),
-        &handle_event/1,
-        on_error: :halt
-      )
-    end
-
-    @impl true
-    def processed_event?(%{cursor: cursor}, %{id: id}),
-      do: cursor >= id
-
-    @impl true
-    def commit(op),
-      do: Derive.State.Ecto.commit(@state, op)
-
-    @impl true
-    def reset_state,
-      do: Derive.State.Ecto.reset_state(@state)
-
-    @impl true
-    def get_partition(id),
-      do: Derive.State.Ecto.get_partition(@state, id)
-
-    @impl true
-    def set_partition(partition),
-      do: Derive.State.Ecto.set_partition(@state, partition)
   end
 
   setup_all do
@@ -215,16 +179,17 @@ defmodule DeriveEctoTest do
 
       {:ok, _derive} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
 
-      e1 = %UserCreated{id: "1", user_id: "22", name: "Late user"}
+      e1 = %UserCreated{id: "1", user_id: "22", name: "Fake name"}
+      e2 = %UserNameUpdated{id: "2", user_id: "22", name: "Real name"}
 
       Task.async(fn ->
         Process.sleep(50)
-        EventLog.append(event_log, [e1])
+        EventLog.append(event_log, [e1, e2])
       end)
 
-      Derive.await(name, [e1])
+      Derive.await(name, [e1, e2])
 
-      assert %{id: "22", name: "Late user"} = Repo.get(User, "22")
+      assert %{id: "22", name: "Real name"} = Repo.get(User, "22")
     end
   end
 
