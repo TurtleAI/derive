@@ -1,6 +1,6 @@
 defmodule Derive.EctoReducer do
   @moduledoc """
-  An ecto-specific implementation of `Derive.Reducer`
+  An Ecto-specific implementation of `Derive.Reducer`
 
   ## Example
 

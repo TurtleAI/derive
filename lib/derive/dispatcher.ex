@@ -35,10 +35,22 @@ defmodule Derive.Dispatcher do
   """
   @type mode :: :catchup | :rebuild
 
+  @type server :: pid() | atom()
+
+  @type dispatcher_option ::
+          {:reducer, Derive.Reducer.t()}
+          | {:batch_size, non_neg_integer()}
+          | {:partition, Derive.Reducer.partition()}
+          | {:lookup_or_start, function()}
+          | {:mode, mode()}
+          | {:logger, pid()}
+
+  @type option :: dispatcher_option() | GenServer.option()
+
   # We maintain the cursor of a special partition with this name
   @global_partition "$"
 
-  @spec start_link(any()) :: {:ok, pid()} | {:error, any()}
+  @spec start_link([option]) :: {:ok, server()} | {:error, any()}
   def start_link(opts \\ []) do
     {dispatcher_opts, genserver_opts} = Keyword.split(opts, Map.keys(__struct__()))
 
@@ -64,6 +76,7 @@ defmodule Derive.Dispatcher do
   end
 
   ### Client
+  @spec await(server(), [Derive.EventLog.event()]) :: :ok
   def await(_server, []),
     do: :ok
 
@@ -154,6 +167,7 @@ defmodule Derive.Dispatcher do
     case Derive.EventLog.fetch(source, {cursor, batch_size}) do
       {[], _} ->
         # done processing all events
+        Derive.Logger.log(logger, :caught_up)
         {:done, state}
 
       {events, new_cursor} ->
@@ -173,6 +187,8 @@ defmodule Derive.Dispatcher do
 
         new_partition = %{partition | cursor: new_cursor}
         reducer.set_partition(new_partition)
+
+        Derive.Logger.log(logger, {:events_processed, Enum.count(events)})
 
         # we have more events left to process
         {:continue, %{state | partition: new_partition}}

@@ -35,6 +35,8 @@ defmodule DeriveInMemoryEventLogTest do
 
     events = EventLog.stream(event_log) |> Enum.to_list()
     assert events == events(["a", "b", "c", "d", "e", "f"])
+
+    assert EventLog.count(event_log) == 6
   end
 
   test "it allows fetching the first N records with a limit" do

@@ -21,8 +21,12 @@ defmodule Derive do
     For an in-memory implementation, it's simply a state change.
   """
 
+  @type option :: {:show_progress, boolean()} | Derive.Dispatcher.option()
+  @type server :: pid() | atom()
+
   use Supervisor
 
+  @spec start_link([option()]) :: {:ok, server()}
   def start_link(opts \\ []),
     do: Supervisor.start_link(__MODULE__, opts)
 
@@ -37,7 +41,7 @@ defmodule Derive do
   Events are not considered processed until *all* operations produced by `Derive.Reducer.handle_event/1`
   have been committed by `Derive.Reducer.commit/1`
   """
-  @spec await(pid(), [Derive.EventLog.event()]) :: :ok
+  @spec await(server(), [Derive.EventLog.event()]) :: :ok
   def await(name, events),
     do: Derive.Dispatcher.await(dispatcher_name(name), events)
 
@@ -46,16 +50,29 @@ defmodule Derive do
   This means the state will get reset to its initial state,
   Then all events from the event source will get reprocessed until the state is caught up again
   """
-  @spec rebuild(Derive.Reducer.t(), any()) :: :ok
+  @spec rebuild(Derive.Reducer.t(), [option()]) :: :ok
   def rebuild(reducer, opts \\ []) do
     name = reducer
+
+    {:ok, rebuild_progress} =
+      case Keyword.get(opts, :show_progress, false) do
+        true -> Derive.Logger.RebuildProgress.start_link()
+        false -> {:ok, nil}
+      end
 
     derive_opts =
       Keyword.merge(opts,
         reducer: reducer,
         name: name,
-        mode: :rebuild
+        mode: :rebuild,
+        logger: rebuild_progress
       )
+
+    event_log = Keyword.fetch!(derive_opts, :source)
+
+    count = Derive.EventLog.count(event_log)
+
+    Derive.Logger.log(rebuild_progress, {:rebuild_started, count})
 
     {:ok, derive} = start_link(derive_opts)
 
@@ -77,7 +94,7 @@ defmodule Derive do
   Gracefully shutdown a derive process.
   Completes once the process has been shut down
   """
-  @spec stop(pid() | atom()) :: :ok
+  @spec stop(server() | atom()) :: :ok
   def stop(derive) when is_atom(derive),
     do: stop(Process.whereis(derive))
 

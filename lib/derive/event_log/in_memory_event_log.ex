@@ -64,6 +64,9 @@ defmodule Derive.EventLog.InMemoryEventLog do
     end
   end
 
+  def handle_call(:count, _from, %S{events: events} = state),
+    do: {:reply, Enum.count(events), state}
+
   @impl true
   def handle_info(:timeout, state),
     do: {:stop, :normal, state}

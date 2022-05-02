@@ -1,7 +1,7 @@
 defmodule Derive.Logger.InMemoryLogger do
   @moduledoc """
   An ephemeral in-memory implementation of `Derive.EventLog`
-  Currently only meant for testing purposes
+  Used only for test
   """
 
   use GenServer
@@ -39,4 +39,8 @@ defmodule Derive.Logger.InMemoryLogger do
     new_multis = [multi_op | multis]
     {:noreply, %{state | multis: new_multis}}
   end
+
+  @impl true
+  def handle_cast({:log, _}, state),
+    do: {:noreply, state}
 end
