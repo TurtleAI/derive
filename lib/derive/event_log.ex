@@ -18,6 +18,14 @@ defmodule Derive.EventLog do
 
   @type cursor() :: any()
 
+  @type option :: {:cursor, cursor()} | {:batch_size, non_neg_integer()}
+
+  @typedoc """
+  Used for pagination.
+  A cursor and a limit on how many records to fetch.
+  """
+  @type slice :: {cursor(), non_neg_integer()}
+
   @doc """
   Subscribe to the event log so that when new events appear in it,
   the subscriber will be notified.
@@ -50,7 +58,7 @@ defmodule Derive.EventLog do
 
   If there are no more events, an empty list will be returned
   """
-  @spec fetch(pid(), {cursor(), non_neg_integer()}) :: {[event()], cursor()}
+  @spec fetch(pid(), slice()) :: {[event()], cursor()}
   def fetch(server, {cursor, limit}),
     do: GenServer.call(server, {:fetch, {cursor, limit}})
 
@@ -63,6 +71,7 @@ defmodule Derive.EventLog do
 
   Interally makes use of `Derive.EventLog.fetch/2` to lazily fetch the events in batches
   """
+  @spec stream(pid(), [option()]) :: Enum.t()
   def stream(server, opts \\ []) do
     cursor = Keyword.get(opts, :cursor, :start)
     batch_size = Keyword.get(opts, :batch_size, 100)

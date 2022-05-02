@@ -15,7 +15,7 @@ defmodule Derive.EventLog.InMemoryEventLog do
   alias __MODULE__, as: S
 
   def start_link(opts \\ []),
-    do: GenServer.start_link(__MODULE__, :ok, opts)
+    do: GenServer.start_link(__MODULE__, %S{}, opts)
 
   ### Client
 
@@ -28,8 +28,8 @@ defmodule Derive.EventLog.InMemoryEventLog do
   ### Server
 
   @impl true
-  def init(:ok),
-    do: {:ok, %S{}}
+  def init(state),
+    do: {:ok, state}
 
   @impl true
   def handle_call(
