@@ -9,6 +9,8 @@ defmodule Derive.PartitionDispatcher do
   alias Derive.{Partition, Reducer}
   alias Derive.State.MultiOp
 
+  require Logger
+
   @type t :: %__MODULE__{
           reducer: Reducer.t(),
           partition: Partition.t(),
@@ -156,15 +158,21 @@ defmodule Derive.PartitionDispatcher do
           pending_awaiters: pending_awaiters
         } = state
       ) do
-    multi = reducer.reduce_events(events, partition)
+    multi = process_events(events, reducer, partition)
 
-    multi =
-      case multi do
-        %MultiOp{status: :processed} -> reducer.commit(multi)
-        multi -> multi
-      end
+    # log out what happened
+    case multi do
+      %MultiOp{status: :committed} = multi ->
+        Derive.Logger.committed(logger, multi)
+        multi
 
-    Derive.Logger.committed(logger, multi)
+      %MultiOp{status: :error, error: error} = multi ->
+        Logger.error(inspect(error))
+        multi
+
+      _ ->
+        :ok
+    end
 
     new_partition = multi.partition
 
@@ -193,5 +201,16 @@ defmodule Derive.PartitionDispatcher do
     Enum.each(awaiters, fn {reply_to, _event_id} ->
       GenServer.reply(reply_to, :ok)
     end)
+  end
+
+  defp process_events(events, reducer, partition) do
+    case reducer.reduce_events(events, partition) do
+      %MultiOp{status: :processed} = multi ->
+        # we only commit a multi if it has successfully been processed
+        reducer.commit(multi)
+
+      multi ->
+        multi
+    end
   end
 end

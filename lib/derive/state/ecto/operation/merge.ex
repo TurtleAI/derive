@@ -23,10 +23,10 @@ defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.Merge do
         pk_fields -> Map.take(selector_fields, pk_fields)
       end
 
-    fields_to_insert = Map.merge(primary_key_fields_in_selector, fields)
+    record = struct(type, Map.merge(primary_key_fields_in_selector, fields))
     fields_to_set = fields |> Map.take(type.__schema__(:fields)) |> Map.to_list()
 
-    Ecto.Multi.insert_all(Ecto.Multi.new(), name, type, [fields_to_insert],
+    Ecto.Multi.insert(Ecto.Multi.new(), name, record,
       returning: false,
       on_conflict: [set: fields_to_set],
       conflict_target: conflict_target

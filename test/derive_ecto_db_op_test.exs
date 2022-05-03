@@ -166,4 +166,17 @@ defmodule DeriveEctoDbOpTest do
 
     assert %{age: 27} = Repo.get(Person, "4")
   end
+
+  test "transaction" do
+    commit([
+      insert(%Person{id: "r", name: "Robinhood", age: 99}),
+      transaction(fn repo ->
+        user = repo.get(Person, "r")
+        update({Person, "r"}, name: "**" <> user.name <> "**")
+      end),
+      inc({Person, "r"}, :age, 1)
+    ])
+
+    assert %{name: "**Robinhood**", age: 100} = Repo.get(Person, "r")
+  end
 end

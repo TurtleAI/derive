@@ -11,16 +11,18 @@ defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.Transaction do
     Ecto.Multi.run(Ecto.Multi.new(), index, fn repo, _ ->
       changes = List.wrap(fun.(repo))
 
-      multis =
-        changes
-        |> List.flatten()
-        |> Enum.with_index(1)
-        |> Enum.map(fn {op, index} -> to_multi(op, index) end)
-
-      combined_multi = Enum.reduce(multis, Ecto.Multi.new(), &Ecto.Multi.append(&2, &1))
-      repo.transaction(combined_multi)
+      produced_multi = operations_to_multi(Ecto.Multi.new(), 0, List.flatten(changes))
+      repo.transaction(produced_multi)
 
       {:ok, nil}
     end)
+  end
+
+  defp operations_to_multi(multi, _, []), do: multi
+
+  defp operations_to_multi(multi, index, [op | rest]) do
+    multi
+    |> Ecto.Multi.append(Derive.State.Ecto.DbOp.to_multi(op, index))
+    |> operations_to_multi(index + 1, rest)
   end
 end

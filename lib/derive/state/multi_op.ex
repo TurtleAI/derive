@@ -107,8 +107,7 @@ defmodule Derive.State.MultiOp do
   @spec operations(MultiOp.t()) :: [EventOp.t()]
   def operations(%MultiOp{operations: operations}) do
     Enum.flat_map(Enum.reverse(operations), fn
-      %EventOp{status: :ok, operations: ops} -> ops
-      %EventOp{status: :error} -> []
+      %EventOp{operations: ops} -> ops
     end)
   end
 end

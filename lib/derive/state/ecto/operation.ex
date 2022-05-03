@@ -86,6 +86,11 @@ defmodule Derive.State.Ecto.Operation do
   def array_delete(selector, field, value),
     do: %Operation.ArrayDelete{selector: selector, field: field, value: value}
 
+  @doc """
+  Execute a transaction
+  If the transaction returns one or more operations that implement `Derive.State.Ecto.DbOp`,
+  these will be committed as part of the transaction.
+  """
   def transaction(fun) when is_function(fun, 1),
     do: %Operation.Transaction{fun: fun}
 
