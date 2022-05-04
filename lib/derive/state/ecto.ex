@@ -19,6 +19,7 @@ defmodule Derive.State.Ecto do
   @doc """
   Commit a list of operations to disk within a transaction.
   """
+  @spec commit(t(), MultiOp.t()) :: MultiOp.t()
   def commit(%S{repo: repo} = state, %MultiOp{} = op) do
     operations =
       MultiOp.operations(op) ++

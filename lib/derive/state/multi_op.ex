@@ -30,10 +30,10 @@ defmodule Derive.State.MultiOp do
   or during a commit.
   """
   @type error ::
-          {:commit, inner_error()}
+          {:commit, commit_error()}
           | {:handle_event, EventOp.t()}
 
-  @type inner_error :: any()
+  @type commit_error() :: any()
 
   @doc """
   There are no operations, so committing this would be a no-op
@@ -90,7 +90,7 @@ defmodule Derive.State.MultiOp do
   @doc """
   This operation failed during the commit phase
   """
-  @spec commit_failed(MultiOp.t(), error()) :: MultiOp.t()
+  @spec commit_failed(MultiOp.t(), commit_error()) :: MultiOp.t()
   def commit_failed(%MultiOp{partition: partition} = multi, error) do
     %{
       multi
