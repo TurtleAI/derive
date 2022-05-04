@@ -241,7 +241,6 @@ defmodule DeriveEctoTest do
   end
 
   describe "error handling" do
-    @tag :focus
     test "a partition is halted if an error is raised in handle_event" do
       name = :partition_halted
 
@@ -287,6 +286,39 @@ defmodule DeriveEctoTest do
 
       # name hasn't changed
       assert %{name: "Pikachu"} = Repo.get(User, "99")
+    end
+
+    test "a partition skips over events in future updates to the event log" do
+      name = :partition_halted_skips_future_events
+
+      {:ok, event_log} = EventLog.start_link()
+      Derive.rebuild(UserReducer, source: event_log)
+
+      {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
+
+      events = [
+        %UserCreated{id: "1", user_id: "99", name: "Mondo Man"}
+      ]
+
+      EventLog.append(event_log, events)
+      Derive.await(name, events)
+
+      events = [
+        %UserRaiseHandleError{id: "2", user_id: "99", message: "bad stuff happened"},
+        %UserNameUpdated{id: "3", user_id: "99", name: "This should be skipped"}
+      ]
+
+      EventLog.append(event_log, events)
+      Derive.await(name, events)
+
+      events = [
+        %UserNameUpdated{id: "4", user_id: "99", name: "Duder ignore this too"}
+      ]
+
+      EventLog.append(event_log, events)
+      Derive.await(name, events)
+
+      assert %{name: "Mondo Man"} = Repo.get(User, "99")
     end
 
     test "a commit failing causes the partition to halt" do
