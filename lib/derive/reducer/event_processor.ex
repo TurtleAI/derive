@@ -1,5 +1,6 @@
 defmodule Derive.Reducer.EventProcessor do
   alias Derive.State.{EventOp, MultiOp}
+  alias Derive.Partition
   alias Derive.Timespan
 
   @type event :: Derive.EventLog.event()
@@ -19,7 +20,22 @@ defmodule Derive.Reducer.EventProcessor do
 
   @spec process_events([event()], MultiOp.t(), {event_handler(), commit_handler()}, [option()]) ::
           MultiOp.t()
-  def process_events(events, multi, {handle_event, commit}, opts \\ []) do
+  def process_events(
+        events,
+        %MultiOp{partition: %Partition{status: :error}} = multi,
+        {_handle_event, commit},
+        _opts
+      ) do
+    new_multi =
+      Enum.reduce(events, multi, fn e, acc ->
+        MultiOp.add(acc, EventOp.new(e, []))
+      end)
+      |> MultiOp.processed()
+
+    commit.(new_multi)
+  end
+
+  def process_events(events, multi, {handle_event, commit}, opts) do
     case reduce_events(events, multi, handle_event, opts) do
       %MultiOp{status: :processed} = multi ->
         # we only commit a multi if it has successfully been processed

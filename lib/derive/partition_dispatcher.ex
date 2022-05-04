@@ -127,30 +127,6 @@ defmodule Derive.PartitionDispatcher do
     do: {:noreply, state}
 
   def handle_cast(
-        {:dispatch_events, events, _logger},
-        %S{
-          partition: %Partition{status: :error},
-          pending_awaiters: pending_awaiters
-        } = state
-      ) do
-    cursor = Enum.map(events, fn %{id: id} -> id end) |> Enum.max()
-    # The awaiters that can be notified after these events get processed
-    {awaiters_to_notify, pending_awaiters_left} =
-      Enum.split_with(pending_awaiters, fn {_reply_to, event_id} ->
-        cursor >= event_id
-      end)
-
-    notify_awaiters(awaiters_to_notify)
-
-    new_state = %{
-      state
-      | pending_awaiters: pending_awaiters_left
-    }
-
-    {:noreply, new_state}
-  end
-
-  def handle_cast(
         {:dispatch_events, events, logger},
         %S{
           reducer: reducer,

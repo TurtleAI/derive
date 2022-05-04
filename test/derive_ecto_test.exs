@@ -195,7 +195,6 @@ defmodule DeriveEctoTest do
       assert :ok = Derive.await(name, [e1, e2])
     end
 
-    @tag :focus
     test "await when a handle_event fails" do
       name = :await_handle_event_fail
 
@@ -242,6 +241,7 @@ defmodule DeriveEctoTest do
   end
 
   describe "error handling" do
+    @tag :focus
     test "a partition is halted if an error is raised in handle_event" do
       name = :partition_halted
 
@@ -275,6 +275,15 @@ defmodule DeriveEctoTest do
       events = [%UserNameUpdated{id: "6", user_id: "99", name: "Super Pikachu"}]
       EventLog.append(event_log, events)
       Derive.await(name, events)
+
+      assert %Derive.Partition{cursor: "5", id: "55", status: :ok} =
+               UserReducer.get_partition("55")
+
+      assert %Derive.Partition{cursor: "6", id: "99", status: :error} =
+               UserReducer.get_partition("99")
+
+      assert %Derive.Partition{cursor: "6", status: :ok} =
+               UserReducer.get_partition(Derive.Dispatcher.global_partition_id())
 
       # name hasn't changed
       assert %{name: "Pikachu"} = Repo.get(User, "99")

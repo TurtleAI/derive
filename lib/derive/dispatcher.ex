@@ -6,7 +6,7 @@ defmodule Derive.Dispatcher do
   State is eventually consistent
   You can call `&Derive.Dispatcher.await/2` lets you wait for events to be finished processing.
 
-  `Derive.Dispatcher` doesn't do the actual processing itself, it forwards events
+  `Derive.Dispatcher` doesn't do any processing itself, it forwards events
   to processes defined by `Derive.PartitionDispatcher`
   """
 
@@ -48,7 +48,7 @@ defmodule Derive.Dispatcher do
   @type option :: dispatcher_option() | GenServer.option()
 
   # We maintain the cursor of a special partition with this name
-  @global_partition "$"
+  def global_partition_id, do: "$"
 
   @spec start_link([option]) :: {:ok, server()} | {:error, any()}
   def start_link(opts \\ []) do
@@ -106,7 +106,7 @@ defmodule Derive.Dispatcher do
 
   @impl true
   def handle_continue(:load_partition, %S{reducer: reducer} = state) do
-    partition = reducer.get_partition(@global_partition)
+    partition = reducer.get_partition(global_partition_id())
 
     GenServer.cast(self(), :catchup)
 
