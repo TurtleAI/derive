@@ -99,13 +99,13 @@ defmodule Derive.PartitionDispatcher do
         {:register_awaiter, reply_to, event},
         %S{
           reducer: reducer,
-          partition: %{status: status} = partition,
+          partition: partition,
           pending_awaiters: pending_awaiters
         } = state
       ) do
     # if there has been an error or if we've already processed the event,
     # await completes immediately
-    case status == :error || reducer.processed_event?(partition, event) do
+    case reducer.processed_event?(partition, event) do
       true ->
         # The event was already processed, so we can immediately reply :ok
         GenServer.reply(reply_to, :ok)
@@ -136,19 +136,7 @@ defmodule Derive.PartitionDispatcher do
       ) do
     multi = reducer.process_events(events, MultiOp.new(partition))
 
-    # log out what happened
-    case multi do
-      %MultiOp{status: :committed} = multi ->
-        Derive.Logger.committed(logger, multi)
-        multi
-
-      %MultiOp{status: :error, error: error} = multi ->
-        Logger.error(inspect(error))
-        multi
-
-      _ ->
-        :ok
-    end
+    log_multi(logger, multi)
 
     new_partition = multi.partition
 
@@ -172,6 +160,17 @@ defmodule Derive.PartitionDispatcher do
   @impl true
   def terminate(_, _state),
     do: :ok
+
+  defp log_multi(logger, %MultiOp{status: :committed} = multi) do
+    Derive.Logger.committed(logger, multi)
+    multi
+  end
+
+  defp log_multi(logger, %MultiOp{status: :error, error: error} = multi) do
+    Logger.error(inspect(error))
+    Derive.Logger.committed(logger, multi)
+    multi
+  end
 
   defp notify_awaiters(awaiters) do
     Enum.each(awaiters, fn {reply_to, _event_id} ->

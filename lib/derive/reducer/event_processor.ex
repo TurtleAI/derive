@@ -1,12 +1,11 @@
 defmodule Derive.Reducer.EventProcessor do
   alias Derive.State.{EventOp, MultiOp}
-  alias Derive.Partition
-  alias Derive.Timespan
+  alias Derive.{Partition, Timespan}
 
   @type event :: Derive.EventLog.event()
   @type operation :: Derive.Reducer.operation()
 
-  @type on_error :: :on_error | :halt
+  @type on_error :: :halt
 
   @type option :: {:on_error, on_error()}
 
@@ -20,21 +19,6 @@ defmodule Derive.Reducer.EventProcessor do
 
   @spec process_events([event()], MultiOp.t(), {event_handler(), commit_handler()}, [option()]) ::
           MultiOp.t()
-  def process_events(
-        events,
-        %MultiOp{partition: %Partition{status: :error}} = multi,
-        {_handle_event, commit},
-        _opts
-      ) do
-    new_multi =
-      Enum.reduce(events, multi, fn e, acc ->
-        MultiOp.add(acc, EventOp.new(e, []))
-      end)
-      |> MultiOp.processed()
-
-    commit.(new_multi)
-  end
-
   def process_events(events, multi, {handle_event, commit}, opts) do
     case reduce_events(events, multi, handle_event, opts) do
       %MultiOp{status: :processed} = multi ->
@@ -74,30 +58,40 @@ defmodule Derive.Reducer.EventProcessor do
   defp do_reduce([], %MultiOp{} = multi, _handle_event, _),
     do: multi
 
-  defp do_reduce([event | rest], multi, handle_event, on_error) do
+  defp do_reduce(
+         [event | rest],
+         %MultiOp{partition: %Partition{status: status}} = multi,
+         handle_event,
+         on_error
+       ) do
     timespan = Timespan.start()
 
     resp =
-      try do
-        ops = handle_event.(event)
-        {:ok, EventOp.new(event, ops, Timespan.stop(timespan))}
-      rescue
-        error ->
-          {:error, EventOp.error(event, error, Timespan.stop(timespan))}
+      case status do
+        # if there was an error at a previous moment, we don't want to call handle_event
+        # ever again for this partition
+        :error ->
+          {:skip, EventOp.skip(event, Timespan.stop(timespan))}
+
+        :ok ->
+          try do
+            ops = handle_event.(event)
+            {:ok, EventOp.new(event, ops, Timespan.stop(timespan))}
+          rescue
+            error ->
+              {:error, EventOp.error(event, error, Timespan.stop(timespan))}
+          end
       end
 
     case resp do
       {:ok, event_op} ->
         do_reduce(rest, MultiOp.add(multi, event_op), handle_event, on_error)
 
-      {:error, event_op} ->
-        case on_error do
-          :skip ->
-            do_reduce(rest, MultiOp.add(multi, event_op), handle_event, on_error)
+      {:skip, event_op} ->
+        do_reduce(rest, MultiOp.add(multi, event_op), handle_event, on_error)
 
-          :halt ->
-            MultiOp.failed_on_event(multi, event_op)
-        end
+      {:error, event_op} ->
+        do_reduce(rest, MultiOp.failed_on_event(multi, event_op), handle_event, on_error)
     end
   end
 end

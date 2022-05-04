@@ -78,12 +78,14 @@ defmodule Derive.State.MultiOp do
   This operation failed on a particular handle_event(event)
   """
   @spec failed_on_event(MultiOp.t(), EventOp.t()) :: MultiOp.t()
-  def failed_on_event(%MultiOp{partition: partition} = multi, event_op) do
+  def failed_on_event(%MultiOp{partition: partition} = multi, %EventOp{event: event} = op) do
+    new_partition = %{partition | status: :error, cursor: max(event.id, partition.cursor)}
+
     %{
       multi
       | status: :error,
-        partition: %{partition | status: :error},
-        error: {:handle_event, event_op}
+        partition: new_partition,
+        error: {:handle_event, op}
     }
   end
 

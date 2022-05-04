@@ -12,7 +12,7 @@ defmodule Derive.State.EventOp do
         }
   defstruct [:event, :operations, :status, :error, :timespan]
 
-  @type status() :: :ok | :error
+  @type status() :: :ok | :error | :skip
 
   def new(event, ops, timespan \\ nil) do
     %__MODULE__{
@@ -29,6 +29,15 @@ defmodule Derive.State.EventOp do
       event: event,
       operations: [],
       error: error,
+      timespan: timespan
+    }
+  end
+
+  def skip(event, timespan \\ nil) do
+    %__MODULE__{
+      status: :skip,
+      event: event,
+      operations: [],
       timespan: timespan
     }
   end
