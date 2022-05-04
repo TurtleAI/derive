@@ -49,16 +49,14 @@ defmodule Derive.Reducer do
   @callback handle_event(EventLog.event()) :: operation()
 
   @doc """
-  Execute the `handle_event` for all events and return a combined operation
-  that needs be committed for the state to update.
-  """
-  @callback reduce_events([EventLog.event()], Partition.t()) :: MultiOp.t()
+  Process all events. This typically means:
+  - Call handle_event(event) on all events
+  - Combine the operations
+  - Commit those operations in a single step
 
-  @doc """
-  Execute the operations that come from handle_event.
-  These events will be processed in batches.
+  Returns a new MultiOp that reflects the operation that was committed.
   """
-  @callback commit(MultiOp.t()) :: :ok
+  @callback process_events([EventLog.event()], MultiOp.t()) :: MultiOp.t()
 
   @doc """
   Whether the event has already been processed.

@@ -39,7 +39,7 @@ defmodule Derive.State.MultiOp do
   There are no operations, so committing this would be a no-op
   """
   def empty?(%MultiOp{operations: []}), do: true
-  def empty?(_), do: false
+  def empty?(%MultiOp{}), do: false
 
   @spec new(Derive.Partition.t()) :: Derive.State.MultiOp.t()
   def new(partition),

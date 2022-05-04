@@ -10,7 +10,7 @@ defimpl Derive.State.InMemory.Reduce, for: Derive.State.InMemory.Operation.Merge
     end)
   end
 
-  defp update_at(map, [type, id], update) when is_map(map) and is_function(update, 1) do
+  defp update_at(map, {type, id}, update) when is_map(map) and is_function(update, 1) do
     case map do
       %{^type => %{^id => record} = record_map} ->
         Map.put(map, type, Map.put(record_map, id, update.(record)))

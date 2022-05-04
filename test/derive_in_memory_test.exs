@@ -31,44 +31,50 @@ defmodule DeriveInMemoryTest do
 
     alias Derive.State.MultiOp
 
+    @impl true
     def partition(%{user_id: user_id}), do: user_id
 
     defp state, do: :users
 
+    @impl true
     def handle_event(%UserCreated{user_id: user_id, name: name, email: email}) do
-      merge([User, user_id], %User{id: user_id, name: name, email: email})
+      merge({User, user_id}, %User{id: user_id, name: name, email: email})
     end
 
     def handle_event(%UserNameUpdated{user_id: user_id, name: name}) do
-      merge([User, user_id], %{name: name})
+      merge({User, user_id}, %{name: name})
     end
 
     def handle_event(%UserEmailUpdated{user_id: user_id, email: email}) do
-      merge([User, user_id], %{email: email})
+      merge({User, user_id}, %{email: email})
     end
 
     def handle_event(%UserDeactivated{user_id: user_id}) do
-      delete([User, user_id])
+      delete({User, user_id})
     end
 
-    def reduce_events(events, partition) do
-      Derive.Reducer.EventProcessor.reduce_events(
+    @impl true
+    def process_events(events, multi) do
+      Derive.Reducer.EventProcessor.process_events(
         events,
-        MultiOp.new(partition),
-        &handle_event/1,
+        multi,
+        {&handle_event/1, &commit/1},
         on_error: :halt
       )
     end
 
+    @impl true
     def processed_event?(%{cursor: cursor}, %{id: id}),
       do: cursor >= id
 
     def commit(%MultiOp{} = op),
       do: Derive.State.InMemory.commit(state(), op)
 
+    @impl true
     def reset_state,
       do: Derive.State.InMemory.reset_state(state())
 
+    @impl true
     def get_partition(id) do
       %Derive.Partition{
         id: id,
@@ -77,6 +83,7 @@ defmodule DeriveInMemoryTest do
       }
     end
 
+    @impl true
     def set_partition(_partition), do: :ok
   end
 

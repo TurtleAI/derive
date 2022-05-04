@@ -158,7 +158,7 @@ defmodule Derive.PartitionDispatcher do
           pending_awaiters: pending_awaiters
         } = state
       ) do
-    multi = process_events(events, reducer, partition)
+    multi = reducer.process_events(events, MultiOp.new(partition))
 
     # log out what happened
     case multi do
@@ -201,16 +201,5 @@ defmodule Derive.PartitionDispatcher do
     Enum.each(awaiters, fn {reply_to, _event_id} ->
       GenServer.reply(reply_to, :ok)
     end)
-  end
-
-  defp process_events(events, reducer, partition) do
-    case reducer.reduce_events(events, partition) do
-      %MultiOp{status: :processed} = multi ->
-        # we only commit a multi if it has successfully been processed
-        reducer.commit(multi)
-
-      multi ->
-        multi
-    end
   end
 end

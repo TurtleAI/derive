@@ -45,22 +45,21 @@ defmodule Derive.EctoReducer do
       import Derive.State.Ecto.Operation
 
       @impl true
-      def reduce_events(events, partition) do
-        Derive.Reducer.EventProcessor.reduce_events(
+      def process_events(events, multi) do
+        Derive.Reducer.EventProcessor.process_events(
           events,
-          Derive.State.MultiOp.new(partition),
-          &handle_event/1,
+          multi,
+          {&handle_event/1, &commit/1},
           on_error: :halt
         )
       end
 
+      def commit(op),
+        do: Derive.State.Ecto.commit(@state, op)
+
       @impl true
       def processed_event?(%Derive.Partition{cursor: cursor}, %{id: id}),
         do: cursor >= id
-
-      @impl true
-      def commit(op),
-        do: Derive.State.Ecto.commit(@state, op)
 
       @impl true
       def reset_state,

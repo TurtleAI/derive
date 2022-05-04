@@ -1,7 +1,34 @@
 defmodule Derive.Reducer.EventProcessor do
-  alias Derive.State.MultiOp
-  alias Derive.State.EventOp
+  alias Derive.State.{EventOp, MultiOp}
   alias Derive.Timespan
+
+  @type event :: Derive.EventLog.event()
+  @type operation :: Derive.Reducer.operation()
+
+  @type on_error :: :on_error | :halt
+
+  @type option :: {:on_error, on_error()}
+
+  @type event_handler :: (event() -> operation())
+  @type commit_handler :: (MultiOp.t() -> MultiOp.t())
+
+  @doc """
+  Process events
+  """
+  @callback commit(MultiOp.t()) :: :ok
+
+  @spec process_events([event()], MultiOp.t(), {event_handler(), commit_handler()}, [option()]) ::
+          MultiOp.t()
+  def process_events(events, multi, {handle_event, commit}, opts \\ []) do
+    case reduce_events(events, multi, handle_event, opts) do
+      %MultiOp{status: :processed} = multi ->
+        # we only commit a multi if it has successfully been processed
+        commit.(multi)
+
+      multi ->
+        multi
+    end
+  end
 
   @doc """
   Execute the `handle_event` for all events and return a combined `Derive.State.MultiOp`
@@ -14,12 +41,13 @@ defmodule Derive.Reducer.EventProcessor do
   further processing or skip over the event.
   """
   @spec reduce_events(
-          [Derive.EventLog.event()],
-          Derive.State.MultiOp.t(),
-          Derive.Reducer.event_handler()
+          [event()],
+          MultiOp.t(),
+          Derive.Reducer.event_handler(),
+          [option()]
         ) ::
           Derive.State.MultiOp.t()
-  def reduce_events(events, multi, handle_event, opts \\ []) do
+  def reduce_events(events, multi, handle_event, opts) do
     on_error = Keyword.get(opts, :on_error, :halt)
     do_reduce(events, multi, handle_event, on_error)
   end
