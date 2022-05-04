@@ -190,6 +190,25 @@ defmodule DeriveEctoTest do
       Derive.await(name, [e1, e2])
 
       assert %{id: "22", name: "Real name"} = Repo.get(User, "22")
+
+      # A second await completes immediately
+      assert :ok = Derive.await(name, [e1, e2])
+    end
+
+    @tag :focus
+    test "await when a handle_event fails" do
+      name = :await_handle_event_fail
+
+      {:ok, event_log} = EventLog.start_link()
+      Derive.rebuild(UserReducer, source: event_log)
+
+      {:ok, _} = Derive.start_link(reducer: UserReducer, source: event_log, name: name)
+
+      e1 = %UserRaiseHandleError{id: "1", user_id: "ee"}
+
+      EventLog.append(event_log, [e1])
+
+      assert :ok = Derive.await(name, [e1])
     end
   end
 

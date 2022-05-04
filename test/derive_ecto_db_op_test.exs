@@ -49,7 +49,7 @@ defmodule DeriveEctoDbOpTest do
   end
 
   setup_all do
-    {:ok, _pid} = Repo.start_link()
+    Repo.start_link()
 
     state = %Derive.State.Ecto{repo: Repo, namespace: "db_op_test", models: [Person, Checkin]}
     Derive.State.Ecto.reset_state(state)
