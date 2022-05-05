@@ -16,10 +16,7 @@ defmodule Derive.EventLog.QueryEventLog do
   defstruct [:fetch, :count, :broadcaster]
 
   @type option ::
-          {:repo, Ecto.Repo.t()}
-          | {:table, binary()}
-          | {:event_types, [atom()]}
-          | {:fetch, fetch()}
+          {:fetch, fetch()}
           | {:count, count()}
           | GenServer.option()
 

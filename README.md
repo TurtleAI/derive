@@ -44,5 +44,5 @@ See the tests directory for now.
 - [x] Create a Derive.EctoReducer with reduced boilerplate
 - [x] Improved logging of operations, commits, etc
 - [x] Rename version to cursor
+- [x] Integrate with turtle-api
 - [ ] Shutdown Derive.PartitionDispatcher after a period of inactivity
-- [ ] Integrate with turtle-api
