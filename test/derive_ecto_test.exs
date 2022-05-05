@@ -168,6 +168,8 @@ defmodule DeriveEctoTest do
     assert sequential?(op1.timespan, op2.timespan)
 
     assert [%{name: "Similar"}, %{name: "Time"}] = [Repo.get(User, "s"), Repo.get(User, "t")]
+
+    Derive.stop(name)
   end
 
   describe "&Derive.await/2" do
@@ -193,6 +195,8 @@ defmodule DeriveEctoTest do
 
       # A second await completes immediately
       assert :ok = Derive.await(name, [e1, e2])
+
+      Derive.stop(name)
     end
 
     test "await when a handle_event fails" do
@@ -208,6 +212,8 @@ defmodule DeriveEctoTest do
       EventLog.append(event_log, [e1])
 
       assert :ok = Derive.await(name, [e1])
+
+      Derive.stop(name)
     end
   end
 
@@ -238,6 +244,8 @@ defmodule DeriveEctoTest do
     Derive.await(name, events)
 
     assert %{name: "Mango"} = Repo.get(User, "99")
+
+    Derive.stop(name)
   end
 
   describe "error handling" do
@@ -286,6 +294,8 @@ defmodule DeriveEctoTest do
 
       # name hasn't changed
       assert %{name: "Pikachu"} = Repo.get(User, "99")
+
+      Derive.stop(name)
     end
 
     test "a partition skips over events in future updates to the event log" do
@@ -319,6 +329,8 @@ defmodule DeriveEctoTest do
       Derive.await(name, events)
 
       assert %{name: "Mondo Man"} = Repo.get(User, "99")
+
+      Derive.stop(name)
     end
 
     test "a commit failing causes the partition to halt" do
@@ -359,6 +371,8 @@ defmodule DeriveEctoTest do
 
       # name hasn't changed
       assert %{name: "Pikachu"} = Repo.get(User, "99")
+
+      Derive.stop(name)
     end
   end
 
@@ -397,6 +411,8 @@ defmodule DeriveEctoTest do
     Derive.await(name, events)
 
     assert %{name: "John Smith"} = Repo.get(User, "j")
+
+    Derive.stop(name)
   end
 
   describe "&Derive.rebuild/2" do

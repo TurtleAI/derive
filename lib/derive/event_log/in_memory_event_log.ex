@@ -6,11 +6,13 @@ defmodule Derive.EventLog.InMemoryEventLog do
 
   use GenServer
 
+  alias Derive.Broadcaster
+
   @type t :: %__MODULE__{
-          events: Derive.EventLog.event(),
-          subscribers: [pid()]
+          broadcaster: Broadcaster.server(),
+          events: Derive.EventLog.event()
         }
-  defstruct events: [], subscribers: []
+  defstruct [:broadcaster, events: []]
 
   alias __MODULE__, as: S
 
@@ -28,28 +30,29 @@ defmodule Derive.EventLog.InMemoryEventLog do
   ### Server
 
   @impl true
-  def init(state),
-    do: {:ok, state}
+  def init(state) do
+    {:ok, broadcaster} = Broadcaster.start_link()
+    {:ok, %{state | broadcaster: broadcaster}}
+  end
 
   @impl true
   def handle_call(
         {:append, new_events},
         _from,
-        %S{subscribers: subscribers, events: events} = state
+        %S{broadcaster: broadcaster, events: events} = state
       ) do
-    notify_subscribers(subscribers, {:new_events, new_events})
+    Broadcaster.broadcast(broadcaster, {:new_events, new_events})
     {:reply, :ok, %{state | events: events ++ new_events}}
   end
 
-  def handle_call({:subscribe, subscriber}, {pid, _}, state) do
-    # If this subscriber process terminates, we want to monitor it and remove it
-    # from the list of subscribers so we aren't sending messages to dead processes
-    Process.monitor(pid)
-    {:reply, :ok, add_subscriber(state, subscriber)}
+  def handle_call({:subscribe, subscriber}, _from, %S{broadcaster: broadcaster} = state) do
+    Broadcaster.subscribe(broadcaster, subscriber)
+    {:reply, :ok, state}
   end
 
-  def handle_call({:unsubscribe, subscriber}, _from, state) do
-    {:reply, :ok, remove_subscriber(state, subscriber)}
+  def handle_call({:unsubscribe, subscriber}, _from, %S{broadcaster: broadcaster} = state) do
+    Broadcaster.unsubscribe(broadcaster, subscriber)
+    {:reply, :ok, state}
   end
 
   def handle_call({:fetch, {cursor, limit}}, _from, %S{events: events} = state) do
@@ -73,25 +76,6 @@ defmodule Derive.EventLog.InMemoryEventLog do
 
   def handle_info({:EXIT, _, :normal}, state),
     do: {:stop, :shutdown, state}
-
-  def handle_info({:DOWN, _ref, :process, pid, _}, state),
-    do: {:noreply, remove_subscriber(state, pid)}
-
-  defp notify_subscribers([], _events),
-    do: :ok
-
-  defp notify_subscribers([subscriber | rest], message) do
-    GenServer.cast(subscriber, message)
-    notify_subscribers(rest, message)
-  end
-
-  defp add_subscriber(%S{subscribers: subscribers} = state, subscriber) do
-    %{state | subscribers: subscribers ++ [subscriber]}
-  end
-
-  defp remove_subscriber(%S{subscribers: subscribers} = state, subscriber) do
-    %{state | subscribers: Enum.reject(subscribers, &(&1 == subscriber))}
-  end
 
   defp index_of_cursor(:start, _idx, _events),
     do: 0

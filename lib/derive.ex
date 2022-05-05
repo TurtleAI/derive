@@ -22,13 +22,15 @@ defmodule Derive do
   """
 
   @type option :: {:show_progress, boolean()} | Derive.Dispatcher.option()
-  @type server :: pid() | atom()
+  @type server :: Supervisor.supervisor()
 
   use Supervisor
 
   @spec start_link([option()]) :: {:ok, server()}
-  def start_link(opts \\ []),
-    do: Supervisor.start_link(__MODULE__, opts)
+  def start_link(opts \\ []) do
+    supervisor_opts = Keyword.take(opts, [:name])
+    Supervisor.start_link(__MODULE__, opts, supervisor_opts)
+  end
 
   ### Client
   @doc """
@@ -42,8 +44,8 @@ defmodule Derive do
   have been committed by `Derive.Reducer.commit/1`
   """
   @spec await(server(), [Derive.EventLog.event()]) :: :ok
-  def await(name, events),
-    do: Derive.Dispatcher.await(dispatcher_name(name), events)
+  def await(server, events),
+    do: Derive.Dispatcher.await(dispatcher_name(server), events)
 
   @doc """
   Rebuilds the state of a reducer.
@@ -91,22 +93,12 @@ defmodule Derive do
   end
 
   @doc """
-  Gracefully shutdown a derive process.
-  Completes once the process has been shut down
+  Gracefully shutdown a derive process and all of its children.
+  Completes synchronously, so blocks until the process is shut down
   """
-  @spec stop(server() | atom()) :: :ok
-  def stop(derive) when is_atom(derive),
-    do: stop(Process.whereis(derive))
-
-  def stop(pid) when is_pid(pid) do
-    Process.monitor(pid)
-    Process.exit(pid, :normal)
-
-    receive do
-      {:DOWN, _ref, :process, ^pid, _} ->
-        :ok
-    end
-  end
+  @spec stop(server()) :: :ok
+  def stop(server),
+    do: Supervisor.stop(server)
 
   ### Server
 
