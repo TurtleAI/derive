@@ -136,6 +136,31 @@ defmodule DeriveEctoTest do
     assert %{name: "John Wayne"} = Repo.get(User, "99")
   end
 
+  test "allow adding a source to be a child spec like {mod, opts} instead of an atom" do
+    {:ok, event_log} = EventLog.start_link()
+    Derive.rebuild(UserReducer, source: event_log)
+
+    name = :child_source
+    event_log_name = :child_source_log
+
+    {:ok, _} =
+      Derive.start_link(
+        reducer: UserReducer,
+        source: {EventLog, [name: event_log_name]},
+        name: name
+      )
+
+    EventLog.append(event_log_name, [
+      %UserCreated{id: "1", user_id: "d", name: "Didi"}
+    ])
+
+    Derive.await(name, [
+      %UserCreated{id: "1", user_id: "d", name: "Didi"}
+    ])
+
+    assert %{name: "Didi"} = Repo.get(User, "d")
+  end
+
   test "events are processed in parallel according to the partition" do
     name = :parallel
 

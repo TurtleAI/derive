@@ -45,4 +45,7 @@ See the tests directory for now.
 - [x] Improved logging of operations, commits, etc
 - [x] Rename version to cursor
 - [x] Integrate with turtle-api
+- [x] Allow event logs to become part of the Derive supervision tree (to minimize configuration)
 - [ ] Shutdown Derive.PartitionDispatcher after a period of inactivity
+- [ ] Test recovery in case of an unexpected shutdown
+- [ ] Make the code cursor agnostic

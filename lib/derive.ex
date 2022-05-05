@@ -107,24 +107,45 @@ defmodule Derive do
     {derive_opts, dispatcher_opts} = Keyword.split(opts, [:name])
 
     name = Keyword.fetch!(derive_opts, :name)
+    source = Keyword.fetch!(dispatcher_opts, :source)
+
+    {source_spec, source_server} = source_spec_and_server(source, source_name(name))
 
     dispatcher_opts =
       Keyword.merge(dispatcher_opts,
         name: dispatcher_name(name),
+        source: source_server,
         lookup_or_start: fn {reducer, partition} ->
           lookup_or_start(name, {reducer, partition})
         end
       )
 
-    children = [
-      {Registry, keys: :unique, name: registry_name(name)},
-      {Derive.Dispatcher, dispatcher_opts},
-      {DynamicSupervisor, strategy: :one_for_one, name: supervisor_name(name)}
-    ]
+    children =
+      source_spec ++
+        [
+          {Registry, keys: :unique, name: registry_name(name)},
+          {Derive.Dispatcher, dispatcher_opts},
+          {DynamicSupervisor, strategy: :one_for_one, name: supervisor_name(name)}
+        ]
 
     # :rest_for_one because if the dispatcher dies,
     # we want all of the `Derive.PartitionDispatcher` to die
     Supervisor.init(children, strategy: :rest_for_one)
+  end
+
+  # In some cases, we want the Derive process to spawn and supervise an
+  # event log rather than handling it externally
+  defp source_spec_and_server({mod, opts}, default_name) do
+    {[
+       %{
+         id: :source,
+         start: {mod, :start_link, [opts]}
+       }
+     ], Keyword.get(opts, :name, default_name)}
+  end
+
+  defp source_spec_and_server(source, _default_name) do
+    {[], source}
   end
 
   # Return the given `Derive.PartitionSupervisor` dispatcher for the given {reducer, partition} pair
@@ -150,6 +171,11 @@ defmodule Derive do
         end
     end
   end
+
+  # process of the source if this Derive process is responsible
+  # for spwaning it
+  defp source_name(name),
+    do: :"#{name}.Source"
 
   # process of a child process given the Derive process name
   defp registry_name(name),
