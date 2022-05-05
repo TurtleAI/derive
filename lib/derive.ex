@@ -32,6 +32,18 @@ defmodule Derive do
     Supervisor.start_link(__MODULE__, opts, supervisor_opts)
   end
 
+  def child_spec(opts) do
+    reducer = Keyword.fetch!(opts, :reducer)
+
+    %{
+      id: reducer,
+      start: {__MODULE__, :start_link, [opts]},
+      shutdown: 10_000,
+      restart: :permanent,
+      type: :worker
+    }
+  end
+
   ### Client
   @doc """
   Wait for all of the events to be processed by all of the matching partitions as defined by
@@ -136,12 +148,14 @@ defmodule Derive do
   # In some cases, we want the Derive process to spawn and supervise an
   # event log rather than handling it externally
   defp source_spec_and_server({mod, opts}, default_name) do
+    opts = Keyword.put_new(opts, :name, default_name)
+
     {[
        %{
          id: :source,
          start: {mod, :start_link, [opts]}
        }
-     ], Keyword.get(opts, :name, default_name)}
+     ], Keyword.fetch!(opts, :name)}
   end
 
   defp source_spec_and_server(source, _default_name) do
