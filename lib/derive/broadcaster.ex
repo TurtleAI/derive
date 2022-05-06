@@ -12,6 +12,7 @@ defmodule Derive.Broadcaster do
 
   @type server :: pid()
   @type subscriber :: pid()
+  @type message :: any()
 
   alias __MODULE__, as: S
 
@@ -28,8 +29,10 @@ defmodule Derive.Broadcaster do
   ### Client
 
   @doc """
-  Append a list of events to the event log
+  Broadcast a message to all of the subscribers asynchronously
+  Just like calling `GenServer.cast/2` but to all of the subscribers
   """
+  @spec broadcast(server(), message()) :: :ok
   def broadcast(server, message),
     do: GenServer.cast(server, {:broadcast, message})
 

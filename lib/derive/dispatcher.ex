@@ -119,10 +119,16 @@ defmodule Derive.Dispatcher do
         from,
         %S{reducer: reducer, lookup_or_start: lookup_or_start} = state
       ) do
-    partition = reducer.partition(event)
-    partition_dispatcher = lookup_or_start.({reducer, partition})
-    PartitionDispatcher.register_awaiter(partition_dispatcher, from, event)
-    {:noreply, state}
+    # if a partition goes to nil, we consider it processed since it'll never get processed
+    case reducer.partition(event) do
+      nil ->
+        {:reply, :ok, state}
+
+      partition ->
+        partition_dispatcher = lookup_or_start.({reducer, partition})
+        PartitionDispatcher.register_awaiter(partition_dispatcher, from, event)
+        {:noreply, state}
+    end
   end
 
   @impl true
@@ -165,25 +171,33 @@ defmodule Derive.Dispatcher do
          } = state
        ) do
     case Derive.EventLog.fetch(source, {cursor, batch_size}) do
-      {[], _} ->
+      {[], new_cursor} ->
         # done processing all events
-        Derive.Logger.log(logger, :caught_up)
+        Derive.Logger.log(logger, {:caught_up, new_cursor})
         {:done, state}
 
       {events, new_cursor} ->
-        events
-        |> events_by_partition_dispatcher(reducer, lookup_or_start)
-        |> Enum.map(fn {partition_dispatcher, events} ->
+        events_by_partition =
+          Enum.group_by(events, &reducer.partition/1)
+          |> Enum.reject(fn {partition, _events} ->
+            partition == nil
+          end)
+
+        events_by_partition_dispatcher =
+          for {partition, events} <- events_by_partition, into: %{} do
+            partition_dispatcher = lookup_or_start.({reducer, partition})
+            {partition_dispatcher, events}
+          end
+
+        Enum.each(events_by_partition_dispatcher, fn {partition_dispatcher, events} ->
           PartitionDispatcher.dispatch_events(partition_dispatcher, events, logger)
-          {partition_dispatcher, events}
         end)
+
         # We want to wait until all of the partitions have processed the events
         # before updating the cursor of this partition
-        |> Enum.each(fn {partition_dispatcher, events} ->
-          for e <- events do
-            PartitionDispatcher.await(partition_dispatcher, e)
-          end
-        end)
+        for {partition_dispatcher, events} <- events_by_partition_dispatcher, e <- events do
+          PartitionDispatcher.await(partition_dispatcher, e)
+        end
 
         new_partition = %{partition | cursor: new_cursor}
         reducer.set_partition(new_partition)
@@ -192,15 +206,6 @@ defmodule Derive.Dispatcher do
 
         # we have more events left to process
         {:continue, %{state | partition: new_partition}}
-    end
-  end
-
-  defp events_by_partition_dispatcher(events, reducer, lookup_or_start) do
-    events_by_partition = Enum.group_by(events, &reducer.partition/1)
-
-    for {partition, events} <- events_by_partition, partition != nil, into: %{} do
-      partition_dispatcher = lookup_or_start.({reducer, partition})
-      {partition_dispatcher, events}
     end
   end
 end

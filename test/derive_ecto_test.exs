@@ -45,6 +45,14 @@ defmodule DeriveEctoTest do
     defexception [:message]
   end
 
+  defmodule NotPartitioned do
+    defstruct [:id]
+  end
+
+  defmodule NotProcessed do
+    defstruct [:id, :user_id]
+  end
+
   defmodule UserReducer do
     use Derive.EctoReducer,
       repo: Repo,
@@ -56,6 +64,7 @@ defmodule DeriveEctoTest do
 
     @impl true
     def partition(%{user_id: user_id}), do: user_id
+    def partition(_), do: nil
 
     @impl true
     def handle_event(%UserCreated{user_id: user_id, name: name, email: email, sleep: sleep}) do
@@ -79,6 +88,10 @@ defmodule DeriveEctoTest do
 
     def handle_event(%UserMissingFieldUpdated{user_id: user_id}) do
       update({User, user_id}, missing_field: "stuff")
+    end
+
+    def handle_event(_) do
+      nil
     end
   end
 
@@ -233,6 +246,40 @@ defmodule DeriveEctoTest do
       {:ok, _} = Derive.start_link(reducer: UserReducer, source: event_log, name: name)
 
       e1 = %UserRaiseHandleError{id: "1", user_id: "ee"}
+
+      EventLog.append(event_log, [e1])
+
+      assert :ok = Derive.await(name, [e1])
+
+      Derive.stop(name)
+    end
+
+    test "when handle_event does nothing, await completes immediately" do
+      name = :await_handle_event_skipped
+
+      {:ok, event_log} = EventLog.start_link()
+      Derive.rebuild(UserReducer, source: event_log)
+
+      {:ok, _} = Derive.start_link(reducer: UserReducer, source: event_log, name: name)
+
+      e1 = %NotProcessed{id: "1", user_id: "ee"}
+
+      EventLog.append(event_log, [e1])
+
+      assert :ok = Derive.await(name, [e1])
+
+      Derive.stop(name)
+    end
+
+    test "when an event isn't partitioned, await completes immediately" do
+      name = :await_handle_partition_skipped
+
+      {:ok, event_log} = EventLog.start_link()
+      Derive.rebuild(UserReducer, source: event_log)
+
+      {:ok, _} = Derive.start_link(reducer: UserReducer, source: event_log, name: name)
+
+      e1 = %NotPartitioned{id: "1"}
 
       EventLog.append(event_log, [e1])
 
