@@ -14,10 +14,11 @@ defmodule Derive.PartitionDispatcher do
   @type t :: %__MODULE__{
           reducer: Reducer.t(),
           partition: Partition.t(),
-          pending_awaiters: [pending_awaiter()]
+          pending_awaiters: [pending_awaiter()],
+          timeout: timeout()
         }
 
-  defstruct [:reducer, :partition, :pending_awaiters]
+  defstruct [:reducer, :partition, :pending_awaiters, :timeout]
 
   @typedoc """
   A process which has called await, along with a version it is waiting for
@@ -25,16 +26,20 @@ defmodule Derive.PartitionDispatcher do
   """
   @type pending_awaiter :: {GenServer.from(), Reducer.cursor()}
 
+  @default_timeout 30_000
+
   def start_link(opts) do
     reducer = Keyword.fetch!(opts, :reducer)
     partition_id = Keyword.fetch!(opts, :partition)
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
 
     GenServer.start_link(
       __MODULE__,
       %S{
         reducer: reducer,
         partition: %Partition{id: partition_id},
-        pending_awaiters: []
+        pending_awaiters: [],
+        timeout: timeout
       },
       opts
     )
@@ -70,28 +75,35 @@ defmodule Derive.PartitionDispatcher do
   ### Server
 
   @impl true
-  def init(state) do
+  def init(%S{} = state) do
     Process.flag(:trap_exit, true)
     {:ok, state, {:continue, :load_partition}}
   end
 
   @impl true
-  def handle_continue(:load_partition, %S{reducer: reducer, partition: %{id: id}} = state) do
+  def handle_continue(
+        :load_partition,
+        %S{reducer: reducer, partition: %{id: id}, timeout: timeout} = state
+      ) do
     partition = reducer.get_partition(id)
-    {:noreply, %{state | partition: partition}}
+    new_state = %{state | partition: partition}
+    # Logger.info("#{reducer}: BOOT " <> inspect(partition))
+    {:noreply, new_state, timeout}
   end
 
   @impl true
-  def handle_info(:timeout, state),
-    do: {:stop, :normal, state}
+  def handle_info(:timeout, %S{} = state) do
+    # Logger.info("#{reducer}: SHUT DOWN " <> inspect(partition))
+    {:stop, :normal, state}
+  end
 
   def handle_info({:EXIT, _, :normal}, state),
     do: {:stop, :shutdown, state}
 
   @impl true
-  def handle_call({:await, event}, from, state) do
+  def handle_call({:await, event}, from, %S{timeout: timeout} = state) do
     register_awaiter(self(), from, event)
-    {:noreply, state}
+    {:noreply, state, timeout}
   end
 
   @impl true
@@ -100,7 +112,8 @@ defmodule Derive.PartitionDispatcher do
         %S{
           reducer: reducer,
           partition: partition,
-          pending_awaiters: pending_awaiters
+          pending_awaiters: pending_awaiters,
+          timeout: timeout
         } = state
       ) do
     # if there has been an error or if we've already processed the event,
@@ -109,7 +122,7 @@ defmodule Derive.PartitionDispatcher do
       true ->
         # The event was already processed, so we can immediately reply :ok
         GenServer.reply(reply_to, :ok)
-        {:noreply, state}
+        {:noreply, state, timeout}
 
       false ->
         # The event hasn't yet been processed, so we hold onto a reference to the caller
@@ -119,19 +132,20 @@ defmodule Derive.PartitionDispatcher do
           | pending_awaiters: [{reply_to, event.id} | pending_awaiters]
         }
 
-        {:noreply, new_state}
+        {:noreply, new_state, timeout}
     end
   end
 
-  def handle_cast({:dispatch_events, []}, state),
-    do: {:noreply, state}
+  def handle_cast({:dispatch_events, []}, %S{timeout: timeout} = state),
+    do: {:noreply, state, timeout}
 
   def handle_cast(
         {:dispatch_events, events, logger},
         %S{
           reducer: reducer,
           partition: %Partition{} = partition,
-          pending_awaiters: pending_awaiters
+          pending_awaiters: pending_awaiters,
+          timeout: timeout
         } = state
       ) do
     multi = reducer.process_events(events, MultiOp.new(partition))
@@ -154,7 +168,7 @@ defmodule Derive.PartitionDispatcher do
         partition: new_partition
     }
 
-    {:noreply, new_state}
+    {:noreply, new_state, timeout}
   end
 
   @impl true
