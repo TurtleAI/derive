@@ -107,7 +107,6 @@ defmodule DeriveEctoTest do
     # Setting the shared mode must be done only after checkout
 
     # For some reason, :auto causes some tests to lock up
-    # Ecto.Adapters.SQL.Sandbox.mode(Repo, :auto)
     Ecto.Adapters.SQL.Sandbox.mode(Repo, {:shared, self()})
 
     :ok
