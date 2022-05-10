@@ -86,4 +86,13 @@ defmodule Derive.Reducer do
       @behaviour Derive.Reducer
     end
   end
+
+  @doc """
+  Whether a module implements the `Derive.Reducer` behavior
+  """
+  @spec implemented?(atom()) :: boolean()
+  def implemented?(module) do
+    behaviours = Keyword.get(module.__info__(:attributes), :behaviour, [])
+    Enum.member?(behaviours, __MODULE__)
+  end
 end

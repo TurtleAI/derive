@@ -16,11 +16,11 @@ defmodule Derive.Reducer.EventProcessor do
   @type cursor_handler :: (event() -> cursor())
   @type commit_handler :: (MultiOp.t() -> MultiOp.t())
 
+  @callback commit(MultiOp.t()) :: :ok
+
   @doc """
   Process events
   """
-  @callback commit(MultiOp.t()) :: :ok
-
   @spec process_events(
           [event()],
           MultiOp.t(),
@@ -84,7 +84,7 @@ defmodule Derive.Reducer.EventProcessor do
           Logger.warn("Skipping over event #{event_cursor}. Already processed.")
           {:skip, EventOp.skip(event_cursor, event, Timespan.stop(timespan))}
 
-        # if there was an error at a previous moment, we don't want to call handle_event
+        # if there was an error for a previous event, we don't want to call handle_event
         # ever again for this partition
         status == :error ->
           {:skip, EventOp.skip(event_cursor, event, Timespan.stop(timespan))}
@@ -94,6 +94,8 @@ defmodule Derive.Reducer.EventProcessor do
             ops = handle_event.(event)
             {:ok, EventOp.new(event_cursor, event, ops, Timespan.stop(timespan))}
           rescue
+            # Due to a programmer error, the handle_event raised an exception
+            # We don't want this to bring down the app and instead handle this explicitly
             error ->
               {:error, EventOp.error(event_cursor, event, error, Timespan.stop(timespan))}
           end

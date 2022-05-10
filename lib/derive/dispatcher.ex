@@ -88,7 +88,7 @@ defmodule Derive.Dispatcher do
   ### Server
 
   @impl true
-  def init(%S{source: source, mode: mode, reducer: reducer} = state) do
+  def init(%S{source: source, mode: mode, reducer: reducer, logger: logger} = state) do
     Process.flag(:trap_exit, true)
 
     case mode do
@@ -97,6 +97,9 @@ defmodule Derive.Dispatcher do
         Derive.EventLog.subscribe(source, self())
 
       :rebuild ->
+        count = Derive.EventLog.count(source)
+        Derive.Logger.log(logger, {:rebuild_started, count})
+
         # reset the state before anything is loaded
         reducer.reset_state()
     end

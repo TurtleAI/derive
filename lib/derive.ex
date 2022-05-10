@@ -39,7 +39,7 @@ defmodule Derive do
       id: reducer,
       start: {__MODULE__, :start_link, [opts]},
       shutdown: 10_000,
-      restart: :permanent,
+      restart: :transient,
       type: :worker
     }
   end
@@ -81,12 +81,6 @@ defmodule Derive do
         mode: :rebuild,
         logger: rebuild_progress
       )
-
-    event_log = Keyword.fetch!(derive_opts, :source)
-
-    count = Derive.EventLog.count(event_log)
-
-    Derive.Logger.log(rebuild_progress, {:rebuild_started, count})
 
     {:ok, derive} = start_link(derive_opts)
 
