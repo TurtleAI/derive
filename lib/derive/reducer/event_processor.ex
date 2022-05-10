@@ -2,6 +2,8 @@ defmodule Derive.Reducer.EventProcessor do
   alias Derive.State.{EventOp, MultiOp}
   alias Derive.{Partition, Timespan}
 
+  require Logger
+
   @type event :: Derive.EventLog.event()
   @type cursor :: Derive.EventLog.cursor()
   @type operation :: Derive.Reducer.operation()
@@ -67,27 +69,33 @@ defmodule Derive.Reducer.EventProcessor do
 
   defp do_reduce(
          [event | rest],
-         %MultiOp{partition: %Partition{status: status}} = multi,
+         %MultiOp{partition: %Partition{status: status, cursor: cursor}} = multi,
          {handle_event, get_cursor},
          on_error
        ) do
     timespan = Timespan.start()
-    cursor = get_cursor.(event)
+    event_cursor = get_cursor.(event)
 
     resp =
-      case status do
+      cond do
+        # we have already processed the event
+        # likely due to an unexpected restart, we want to skip over this event
+        cursor >= event_cursor ->
+          Logger.warn("Skipping over event #{event_cursor}. Already processed.")
+          {:skip, EventOp.skip(event_cursor, event, Timespan.stop(timespan))}
+
         # if there was an error at a previous moment, we don't want to call handle_event
         # ever again for this partition
-        :error ->
-          {:skip, EventOp.skip(cursor, event, Timespan.stop(timespan))}
+        status == :error ->
+          {:skip, EventOp.skip(event_cursor, event, Timespan.stop(timespan))}
 
-        :ok ->
+        status == :ok ->
           try do
             ops = handle_event.(event)
-            {:ok, EventOp.new(cursor, event, ops, Timespan.stop(timespan))}
+            {:ok, EventOp.new(event_cursor, event, ops, Timespan.stop(timespan))}
           rescue
             error ->
-              {:error, EventOp.error(cursor, event, error, Timespan.stop(timespan))}
+              {:error, EventOp.error(event_cursor, event, error, Timespan.stop(timespan))}
           end
       end
 

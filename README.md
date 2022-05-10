@@ -52,5 +52,5 @@ See the tests directory for now.
 - [x] Shutdown Derive.PartitionDispatcher after a period of inactivity
 - [x] Pattern for sharing event logs between multiple Derive instances
 - [x] Make the code cursor agnostic
+- [x] Test recovery in case of an unexpected shutdown
 - [ ] mix derive.rebuild
-- [ ] Test recovery in case of an unexpected shutdown

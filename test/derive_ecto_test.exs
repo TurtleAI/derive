@@ -445,6 +445,39 @@ defmodule DeriveEctoTest do
 
       Derive.stop(name)
     end
+
+    test "events are skipped over if the processing succeeds, but the Dispatcher fails to update its pointer" do
+      name = :skip_over_processed_events
+
+      {:ok, event_log} = EventLog.start_link()
+      Derive.rebuild(UserReducer, source: event_log)
+
+      {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
+
+      events = [
+        %UserCreated{id: "3", user_id: "99", name: "Saiyan"},
+        %UserNameUpdated{id: "4", user_id: "99", name: "Supersaiyan"}
+      ]
+
+      EventLog.append(event_log, events)
+      Derive.await(name, events)
+
+      Derive.stop(name)
+
+      # We move the partition to some earlier value to simulate a shut-down before things are finished
+      UserReducer.set_partition(%Derive.Partition{
+        id: Derive.Dispatcher.global_partition_id(),
+        cursor: "2"
+      })
+
+      {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
+
+      events = [%UserNameUpdated{id: "5", user_id: "99", name: "Superdupersaiyan"}]
+      EventLog.append(event_log, events)
+      Derive.await(name, events)
+
+      assert %{name: "Superdupersaiyan"} = Repo.get(User, "99")
+    end
   end
 
   test "resuming a dispatcher after a server is restarted" do
