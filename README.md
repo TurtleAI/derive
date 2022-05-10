@@ -1,5 +1,7 @@
 # Derive
 
+**DISCLAIMER: This is an early project used internally at our company. We make no guarantees about its stability. Use at your own risk!**
+
 Derive provides the infrastructure to keep derived state up to date based on a source stream of events.
 This is commonly used for event sourcing or redux patterns.
 
@@ -48,5 +50,7 @@ See the tests directory for now.
 - [x] Allow event logs to become part of the Derive supervision tree (to minimize configuration)
 - [x] Allow awaiting events in Derive after a command is executed
 - [x] Shutdown Derive.PartitionDispatcher after a period of inactivity
+- [x] Pattern for sharing event logs between multiple Derive instances
+- [x] Make the code cursor agnostic
+- [ ] mix derive.rebuild
 - [ ] Test recovery in case of an unexpected shutdown
-- [ ] Make the code cursor agnostic

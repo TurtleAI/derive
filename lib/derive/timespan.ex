@@ -26,6 +26,9 @@ defmodule Derive.Timespan do
   def stop({tstart, nil}),
     do: {tstart, :erlang.timestamp()}
 
+  @doc """
+  The amount of time in microseconds that has elapsed for a timespan
+  """
   @spec elapsed(t()) :: integer()
   def elapsed({tstart, tend}),
     do: :timer.now_diff(tend, tstart)

@@ -16,6 +16,14 @@ defmodule Derive.EventLog do
   """
   @type event() :: any()
 
+  @typedoc """
+  An opaque value that indicates the position of an event in an event log
+
+  A cursor must have the following properties:
+  - It must be unique to the entire event log
+  - It must be in increasing order
+  - It must be stable, meaning a cursor should not change per event
+  """
   @type cursor() :: any()
 
   @type option :: {:cursor, cursor()} | {:batch_size, non_neg_integer()}

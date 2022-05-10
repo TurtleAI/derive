@@ -22,7 +22,7 @@ defmodule Derive.PartitionDispatcher do
 
   @typedoc """
   A process which has called await, along with a version it is waiting for
-  Once we have processed up to or past the cursor the awaiter will be notified
+  Once we have processed up to or past the target cursor the awaiter will be notified
   """
   @type pending_awaiter :: {GenServer.from(), Reducer.cursor()}
 
@@ -111,14 +111,15 @@ defmodule Derive.PartitionDispatcher do
         {:register_awaiter, reply_to, event},
         %S{
           reducer: reducer,
-          partition: partition,
+          partition: %Partition{cursor: cursor},
           pending_awaiters: pending_awaiters,
           timeout: timeout
         } = state
       ) do
+    event_cursor = reducer.get_cursor(event)
     # if there has been an error or if we've already processed the event,
     # await completes immediately
-    case reducer.processed_event?(partition, event) do
+    case cursor >= event_cursor do
       true ->
         # The event was already processed, so we can immediately reply :ok
         GenServer.reply(reply_to, :ok)
@@ -129,7 +130,7 @@ defmodule Derive.PartitionDispatcher do
         # At a later time, we will reply to these callers after we process the events
         new_state = %{
           state
-          | pending_awaiters: [{reply_to, event.id} | pending_awaiters]
+          | pending_awaiters: [{reply_to, event_cursor} | pending_awaiters]
         }
 
         {:noreply, new_state, timeout}
@@ -156,8 +157,8 @@ defmodule Derive.PartitionDispatcher do
 
     # The awaiters that can be notified after these events get processed
     {awaiters_to_notify, pending_awaiters_left} =
-      Enum.split_with(pending_awaiters, fn {_awaiter, event_id} ->
-        new_partition.cursor >= event_id
+      Enum.split_with(pending_awaiters, fn {_awaiter, target_cursor} ->
+        new_partition.cursor >= target_cursor
       end)
 
     notify_awaiters(awaiters_to_notify)

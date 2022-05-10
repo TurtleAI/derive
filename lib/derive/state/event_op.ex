@@ -4,28 +4,46 @@ defmodule Derive.State.EventOp do
   """
 
   @type t :: %__MODULE__{
-          event: Derive.EventLog.event(),
-          operations: Derive.Reducer.operation(),
+          cursor: cursor(),
+          event: event(),
+          operations: operations(),
           status: status(),
           error: any(),
           timespan: Derive.Timespan.t() | nil
         }
-  defstruct [:event, :operations, :status, :error, :timespan]
+  defstruct [:cursor, :event, :operations, :status, :error, :timespan]
+
+  @typedoc """
+  The cursor a partition would point to if this event was processed
+  """
+  @type cursor() :: Derive.EventLog.cursor()
+
+  @typedoc """
+  The event that is being processed
+  """
+  @type event() :: Derive.EventLog.event()
+
+  @typedoc """
+  The operations that were produced from calling `handle_event`
+  """
+  @type operations() :: [Derive.Reducer.operation()]
 
   @type status() :: :ok | :error | :skip
 
-  def new(event, ops, timespan \\ nil) do
+  def new(cursor, event, ops, timespan \\ nil) do
     %__MODULE__{
       status: :ok,
+      cursor: cursor,
       event: event,
       operations: List.wrap(ops),
       timespan: timespan
     }
   end
 
-  def error(event, error, timespan \\ nil) do
+  def error(cursor, event, error, timespan \\ nil) do
     %__MODULE__{
       status: :error,
+      cursor: cursor,
       event: event,
       operations: [],
       error: error,
@@ -33,9 +51,10 @@ defmodule Derive.State.EventOp do
     }
   end
 
-  def skip(event, timespan \\ nil) do
+  def skip(cursor, event, timespan \\ nil) do
     %__MODULE__{
       status: :skip,
+      cursor: cursor,
       event: event,
       operations: [],
       timespan: timespan

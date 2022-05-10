@@ -58,14 +58,14 @@ defmodule DeriveInMemoryTest do
       Derive.Reducer.EventProcessor.process_events(
         events,
         multi,
-        {&handle_event/1, &commit/1},
+        {&handle_event/1, &get_cursor/1, &commit/1},
         on_error: :halt
       )
     end
 
     @impl true
-    def processed_event?(%{cursor: cursor}, %{id: id}),
-      do: cursor >= id
+    def get_cursor(%{id: id}),
+      do: id
 
     def commit(%MultiOp{} = op),
       do: Derive.State.InMemory.commit(state(), op)
