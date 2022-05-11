@@ -6,15 +6,17 @@ defmodule Derive.State.MultiOp do
   Inspired by `Ecto.Multi` but generic to other types of operations.
   """
 
+  alias Derive.Partition
   alias Derive.State.{MultiOp, EventOp}
 
   @type t :: %__MODULE__{
-          partition: Derive.Partition.t(),
+          partition: Partition.t(),
+          initial_partition: Partition.t(),
           error: error() | nil,
           status: status(),
           operations: [EventOp.t()]
         }
-  defstruct [:partition, :error, status: :processing, operations: []]
+  defstruct [:partition, :initial_partition, :error, status: :processing, operations: []]
 
   @typedoc """
   When processing events, there are 3 stages
@@ -41,9 +43,9 @@ defmodule Derive.State.MultiOp do
   def empty?(%MultiOp{operations: []}), do: true
   def empty?(%MultiOp{}), do: false
 
-  @spec new(Derive.Partition.t()) :: Derive.State.MultiOp.t()
+  @spec new(Partition.t()) :: MultiOp.t()
   def new(partition),
-    do: %MultiOp{partition: partition}
+    do: %MultiOp{partition: partition, initial_partition: partition}
 
   @doc """
   Add an event operation that results from calling handle_event(event)

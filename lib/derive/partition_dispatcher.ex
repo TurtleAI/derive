@@ -61,7 +61,7 @@ defmodule Derive.PartitionDispatcher do
   """
   @spec await(pid(), Derive.EventLog.event()) :: :ok
   def await(server, event),
-    do: GenServer.call(server, {:await, event})
+    do: GenServer.call(server, {:await, event}, 30_000)
 
   @doc """
   Register an awaiter process that will be notified with `GenServer.reply(reply_to, :ok)`
@@ -87,7 +87,7 @@ defmodule Derive.PartitionDispatcher do
       ) do
     partition = reducer.get_partition(id)
     new_state = %{state | partition: partition}
-    # Logger.info("#{reducer}: BOOT " <> inspect(partition))
+    Logger.info("BOOT " <> Partition.to_string(partition))
     {:noreply, new_state, timeout}
   end
 
@@ -151,8 +151,7 @@ defmodule Derive.PartitionDispatcher do
       ) do
     multi = reducer.process_events(events, MultiOp.new(partition))
 
-    log_multi(logger, multi)
-
+    log_multi(state, logger, multi)
     new_partition = multi.partition
 
     # The awaiters that can be notified after these events get processed
@@ -176,13 +175,21 @@ defmodule Derive.PartitionDispatcher do
   def terminate(_, _state),
     do: :ok
 
-  defp log_multi(logger, %MultiOp{status: :committed} = multi) do
+  defp log_multi(_, logger, %MultiOp{status: :committed} = multi) do
     Derive.Logger.committed(logger, multi)
     multi
   end
 
-  defp log_multi(logger, %MultiOp{status: :error, error: error} = multi) do
-    Logger.error(inspect(error))
+  defp log_multi(
+         %S{} = state,
+         logger,
+         %MultiOp{status: :error, error: error, partition: partition} = multi
+       ) do
+    Logger.error("ERROR processing " <> Partition.to_string(partition) <> " " <> inspect(error))
+    IO.inspect(state, label: :state)
+    IO.inspect(multi, label: :error)
+    IO.puts("")
+
     Derive.Logger.committed(logger, multi)
     multi
   end

@@ -21,4 +21,8 @@ defmodule Derive.Partition do
   Originates from `Derive.Reducer.partition(...)`
   """
   @type id() :: binary()
+
+  def to_string(%__MODULE__{id: id, cursor: cursor, status: status}) do
+    "#{id}: #{cursor} [#{status}]"
+  end
 end

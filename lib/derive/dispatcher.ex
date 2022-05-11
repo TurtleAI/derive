@@ -81,7 +81,7 @@ defmodule Derive.Dispatcher do
     do: :ok
 
   def await(server, [event | rest]) do
-    GenServer.call(server, {:await, event})
+    GenServer.call(server, {:await, event}, 30_000)
     await(server, rest)
   end
 
@@ -113,7 +113,11 @@ defmodule Derive.Dispatcher do
 
     GenServer.cast(self(), :catchup)
 
-    {:noreply, %{state | partition: partition}}
+    loaded_state = %{state | partition: partition}
+
+    IO.inspect(loaded_state, label: :boot_dispatcher)
+
+    {:noreply, loaded_state}
   end
 
   @impl true

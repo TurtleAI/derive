@@ -69,7 +69,7 @@ defmodule Derive.Reducer.EventProcessor do
 
   defp do_reduce(
          [event | rest],
-         %MultiOp{partition: %Partition{status: status, cursor: cursor}} = multi,
+         %MultiOp{partition: %Partition{status: status, cursor: cursor} = partition} = multi,
          {handle_event, get_cursor},
          on_error
        ) do
@@ -81,7 +81,10 @@ defmodule Derive.Reducer.EventProcessor do
         # we have already processed the event
         # likely due to an unexpected restart, we want to skip over this event
         cursor >= event_cursor ->
-          Logger.warn("Skipping over event #{event_cursor}. Already processed.")
+          Logger.warn(
+            "Skipping over event #{event_cursor}. Already processed. - #{Partition.to_string(partition)}"
+          )
+
           {:skip, EventOp.skip(event_cursor, event, Timespan.stop(timespan))}
 
         # if there was an error for a previous event, we don't want to call handle_event
