@@ -16,10 +16,7 @@ defmodule Derive.Reducer.EventProcessorTest do
   test "processes events successfully" do
     state = create_state([])
 
-    handle_event = fn %{name: name} ->
-      name
-    end
-
+    handle_event = fn %{name: name} -> name end
     get_cursor = fn %{id: id} -> id end
 
     commit = fn multi ->
@@ -46,5 +43,38 @@ defmodule Derive.Reducer.EventProcessorTest do
     assert %{id: "x", cursor: "2", status: :ok} = multi.partition
 
     assert get_state(state) == ["bob", "jones"]
+  end
+
+  test "skip already processed events" do
+    state = create_state([])
+
+    handle_event = fn %{name: name} -> name end
+    get_cursor = fn %{id: id} -> id end
+
+    commit = fn multi ->
+      update_state(state, fn list ->
+        list ++ MultiOp.operations(multi)
+      end)
+
+      MultiOp.committed(multi)
+    end
+
+    events = [
+      %{id: "5", name: "bob"},
+      %{id: "6", name: "jones"},
+      %{id: "7", name: "bruce lee"}
+    ]
+
+    multi =
+      EventProcessor.process_events(
+        events,
+        MultiOp.new(%Partition{id: "x", cursor: "6", status: :ok}),
+        {handle_event, get_cursor, commit},
+        []
+      )
+
+    assert %{id: "x", cursor: "7", status: :ok} = multi.partition
+
+    assert get_state(state) == ["bruce lee"]
   end
 end
