@@ -15,13 +15,11 @@ defmodule Derive.Logger do
   def committed(server, multi),
     do: log(server, {:committed, multi})
 
-  @doc """
-  Fetch all of the multis in the order they were committed
-  """
-  def fetch(server),
-    do: GenServer.call(server, :fetch)
+  @spec append_logger(t(), server()) :: t()
+  def append_logger(loggers, l),
+    do: List.wrap(loggers) ++ [l]
 
-  @spec log(server(), any()) :: :ok
+  @spec log(t(), any()) :: :ok
   def log(nil, _),
     do: :ok
 
@@ -35,8 +33,8 @@ defmodule Derive.Logger do
     func.(message)
   end
 
-  def log([server | rest]) do
-    log(server)
-    log(rest)
+  def log([server | rest], message) do
+    log(server, message)
+    log(rest, message)
   end
 end

@@ -178,7 +178,7 @@ defmodule Derive.Dispatcher do
     case Derive.EventLog.fetch(source, {cursor, batch_size}) do
       {[], new_cursor} ->
         # done processing all events
-        Derive.Logger.log(logger, {:caught_up, new_cursor})
+        Derive.Logger.log(logger, {:caught_up, reducer, %{partition | cursor: new_cursor}})
         {:done, state}
 
       {events, new_cursor} ->

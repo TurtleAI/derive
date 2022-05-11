@@ -16,6 +16,13 @@ defmodule Derive.Logger.InMemoryLogger do
   def start_link(opts \\ []),
     do: GenServer.start_link(__MODULE__, %S{}, opts)
 
+  ### Client
+  @doc """
+  Fetch all of the multis in the order they were committed
+  """
+  def fetch(server),
+    do: GenServer.call(server, :fetch)
+
   ### Server
 
   @impl true

@@ -68,6 +68,8 @@ defmodule Derive do
   def rebuild(reducer, opts \\ []) do
     name = reducer
 
+    logger = Keyword.get(opts, :logger)
+
     {:ok, rebuild_progress} =
       case Keyword.get(opts, :show_progress, false) do
         true -> Derive.Logger.RebuildProgressLogger.start_link()
@@ -79,7 +81,7 @@ defmodule Derive do
         reducer: reducer,
         name: name,
         mode: :rebuild,
-        logger: rebuild_progress
+        logger: Derive.Logger.append_logger(logger, rebuild_progress)
       )
 
     {:ok, derive} = start_link(derive_opts)

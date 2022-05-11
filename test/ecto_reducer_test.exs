@@ -193,7 +193,7 @@ defmodule Derive.EctoReducerTest do
     Derive.await(name, events)
 
     event_ops_by_event =
-      Derive.Logger.fetch(logger)
+      Derive.Logger.InMemoryLogger.fetch(logger)
       |> Enum.flat_map(& &1.operations)
       |> Enum.group_by(& &1.event)
 

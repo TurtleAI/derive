@@ -3,43 +3,43 @@ defmodule Derive.Reducer.EventProcessor do
   Provides the process-agnostic logic for processing an ordered list of events.
   """
 
-  @type t :: %__MODULE__{
-          handle_event: event_handler(),
-          get_cursor: cursor_handler(),
-          commit: commit_handler(),
-          logger: Derive.Logger.t(),
-          on_error: on_error()
-        }
-  defstruct [:handle_event, :get_cursor, :commit, :logger, on_error: :halt]
+  defmodule Options do
+    @type t :: %__MODULE__{
+            handle_event: event_handler(),
+            get_cursor: cursor_handler(),
+            commit: commit_handler(),
+            logger: Derive.Logger.t(),
+            on_error: on_error()
+          }
+    defstruct [:handle_event, :get_cursor, :commit, :logger, on_error: :halt]
+
+    @typedoc """
+    Given an event, produce an operation for that event
+    """
+    @type event_handler :: (Derive.EventLog.event() -> Derive.Reducer.operation())
+
+    @typedoc """
+    For an event, return the cursor for that event
+    This function should be efficient and deterministic. Meaning, calling this
+    multiple times on the same event should return the same value.
+    """
+    @type cursor_handler :: (Derive.EventLog.event() -> Derive.EventLog.cursor())
+
+    @typedoc """
+    Commit all of the events produced by handle_event
+    """
+    @type commit_handler :: (MultiOp.t() -> MultiOp.t())
+
+    @typedoc """
+    What to do in case of an error in processing.
+    An error could happen during handle_event or commit.
+    """
+    @type on_error :: :halt
+  end
 
   @type event :: Derive.EventLog.event()
   @type cursor :: Derive.EventLog.cursor()
   @type operation :: Derive.Reducer.operation()
-
-  @typedoc """
-  What to do in case of an error in processing.
-  An error could happen during handle_event or commit.
-  """
-  @type on_error :: :halt
-
-  @type option :: {:on_error, on_error()}
-
-  @typedoc """
-  Given an event, produce an operation for that event
-  """
-  @type event_handler :: (event() -> operation())
-
-  @typedoc """
-  For an event, return the cursor for that event
-  This function should be efficient and deterministic. Meaning, calling this
-  multiple times on the same event should return the same value.
-  """
-  @type cursor_handler :: (event() -> cursor())
-
-  @typedoc """
-  Commit all of the events produced by handle_event
-  """
-  @type commit_handler :: (MultiOp.t() -> MultiOp.t())
 
   alias Derive.State.{EventOp, MultiOp}
   alias Derive.{Partition, Timespan}
@@ -54,13 +54,13 @@ defmodule Derive.Reducer.EventProcessor do
   @spec process_events(
           [event()],
           MultiOp.t(),
-          t()
+          Options.t()
         ) ::
           MultiOp.t()
   def process_events(
         events,
         multi,
-        %__MODULE__{commit: commit} = processor
+        %Options{commit: commit} = processor
       ) do
     case reduce_events(events, multi, processor) do
       %MultiOp{status: :processed} = multi ->
@@ -92,7 +92,7 @@ defmodule Derive.Reducer.EventProcessor do
   @spec reduce_events(
           [event()],
           MultiOp.t(),
-          t()
+          Options.t()
         ) ::
           Derive.State.MultiOp.t()
   def reduce_events([], %MultiOp{status: :processing} = multi, _processor),
@@ -105,7 +105,7 @@ defmodule Derive.Reducer.EventProcessor do
         [event | rest],
         %MultiOp{partition: %Partition{status: status, cursor: partition_cursor} = partition} =
           multi,
-        %__MODULE__{
+        %Options{
           handle_event: handle_event,
           get_cursor: get_cursor,
           logger: logger

@@ -3,6 +3,7 @@ defmodule Derive.Reducer.EventProcessorTest do
 
   alias Derive.Partition
   alias Derive.Reducer.EventProcessor
+  alias Derive.Reducer.EventProcessor.Options
   alias Derive.State.MultiOp
 
   def create_state(initial) do
@@ -39,7 +40,7 @@ defmodule Derive.Reducer.EventProcessorTest do
           %{id: "2", name: "jones"}
         ],
         MultiOp.new(%Partition{id: "x", cursor: :start, status: :ok}),
-        %EventProcessor{
+        %Options{
           handle_event: &handle_event/1,
           get_cursor: &get_cursor/1,
           commit: &commit(state, &1)
@@ -62,7 +63,7 @@ defmodule Derive.Reducer.EventProcessorTest do
           %{id: "7", name: "bruce lee"}
         ],
         MultiOp.new(%Partition{id: "x", cursor: "6", status: :ok}),
-        %EventProcessor{
+        %Options{
           handle_event: &handle_event/1,
           get_cursor: &get_cursor/1,
           commit: &commit(state, &1)
@@ -111,7 +112,7 @@ defmodule Derive.Reducer.EventProcessorTest do
           %{id: "4", name: "c"}
         ],
         MultiOp.new(%Partition{id: "x", cursor: :start, status: :ok}),
-        %EventProcessor{
+        %Options{
           handle_event: &handle_event/1,
           get_cursor: &get_cursor/1,
           commit: &commit(state, &1)
@@ -160,7 +161,7 @@ defmodule Derive.Reducer.EventProcessorTest do
           %{id: "2", name: "exception"}
         ],
         MultiOp.new(%Partition{id: "x", cursor: :start, status: :ok}),
-        %EventProcessor{
+        %Options{
           handle_event: &handle_event/1,
           get_cursor: &get_cursor/1,
           commit: fn multi -> error_commit.(state, multi) end
@@ -180,7 +181,7 @@ defmodule Derive.Reducer.EventProcessorTest do
           %{id: "2", name: "error"}
         ],
         MultiOp.new(%Partition{id: "x", cursor: :start, status: :ok}),
-        %EventProcessor{
+        %Options{
           handle_event: &handle_event/1,
           get_cursor: &get_cursor/1,
           commit: fn multi -> error_commit.(state, multi) end

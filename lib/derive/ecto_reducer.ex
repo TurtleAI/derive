@@ -49,7 +49,7 @@ defmodule Derive.EctoReducer do
         Derive.Reducer.EventProcessor.process_events(
           events,
           multi,
-          %Derive.Reducer.EventProcessor{
+          %Derive.Reducer.EventProcessor.Options{
             handle_event: &handle_event/1,
             get_cursor: &get_cursor/1,
             commit: &commit/1,
