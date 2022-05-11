@@ -1,4 +1,4 @@
-defmodule Derive.Logger.RebuildProgress do
+defmodule Derive.Logger.RebuildProgressLogger do
   @moduledoc """
   A server for listening to rebuild progress events
   and printing a progress bar and other status.
@@ -15,7 +15,7 @@ defmodule Derive.Logger.RebuildProgress do
         }
   defstruct processed: 0, total: 0, timespan: nil
 
-  alias Derive.Logger.RebuildProgress, as: S
+  alias Derive.Logger.RebuildProgressLogger, as: S
   alias Derive.Logger.Util.ProgressBar
 
   def start_link(opts \\ []),

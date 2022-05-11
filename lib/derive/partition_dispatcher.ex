@@ -9,8 +9,6 @@ defmodule Derive.PartitionDispatcher do
   alias Derive.{Partition, Reducer}
   alias Derive.State.MultiOp
 
-  require Logger
-
   @type t :: %__MODULE__{
           reducer: Reducer.t(),
           partition: Partition.t(),
@@ -25,6 +23,11 @@ defmodule Derive.PartitionDispatcher do
   Once we have processed up to or past the target cursor the awaiter will be notified
   """
   @type pending_awaiter :: {GenServer.from(), Reducer.cursor()}
+
+  @typedoc """
+  A function to lookup or start a function given a reducer and partition
+  """
+  @type lookup_or_start :: ({Reducer.t(), Partition.id()} -> pid())
 
   @default_timeout 30_000
 
@@ -185,12 +188,13 @@ defmodule Derive.PartitionDispatcher do
          logger,
          %MultiOp{status: :error, error: error, partition: partition} = multi
        ) do
-    Logger.error("ERROR processing " <> Partition.to_string(partition) <> " " <> inspect(error))
-    # IO.inspect(state, label: :state)
-    # IO.inspect(multi, label: :error)
-    # IO.puts("")
+    Derive.Logger.log(
+      logger,
+      {:error, "ERROR processing " <> Partition.to_string(partition) <> " " <> inspect(error)}
+    )
 
     Derive.Logger.committed(logger, multi)
+
     multi
   end
 

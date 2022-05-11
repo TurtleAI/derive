@@ -7,9 +7,10 @@ defmodule Derive.Reducer.EventProcessor do
           handle_event: event_handler(),
           get_cursor: cursor_handler(),
           commit: commit_handler(),
+          logger: Derive.Logger.t(),
           on_error: on_error()
         }
-  defstruct [:handle_event, :get_cursor, :commit, on_error: :halt]
+  defstruct [:handle_event, :get_cursor, :commit, :logger, on_error: :halt]
 
   @type event :: Derive.EventLog.event()
   @type cursor :: Derive.EventLog.cursor()
@@ -42,8 +43,6 @@ defmodule Derive.Reducer.EventProcessor do
 
   alias Derive.State.{EventOp, MultiOp}
   alias Derive.{Partition, Timespan}
-
-  require Logger
 
   @doc """
   Process events for a given list of events. This involves the following steps:
@@ -96,27 +95,22 @@ defmodule Derive.Reducer.EventProcessor do
           t()
         ) ::
           Derive.State.MultiOp.t()
-  def reduce_events(events, multi, %__MODULE__{
-        handle_event: handle_event,
-        get_cursor: get_cursor,
-        on_error: on_error
-      }) do
-    do_reduce(events, multi, {handle_event, get_cursor}, on_error)
-  end
-
-  defp do_reduce([], %MultiOp{status: :processing} = multi, _handlers, _),
+  def reduce_events([], %MultiOp{status: :processing} = multi, _processor),
     do: MultiOp.processed(multi)
 
-  defp do_reduce([], %MultiOp{} = multi, _handlers, _),
+  def reduce_events([], %MultiOp{} = multi, _processor),
     do: multi
 
-  defp do_reduce(
-         [event | rest],
-         %MultiOp{partition: %Partition{status: status, cursor: partition_cursor} = partition} =
-           multi,
-         {handle_event, get_cursor},
-         on_error
-       ) do
+  def reduce_events(
+        [event | rest],
+        %MultiOp{partition: %Partition{status: status, cursor: partition_cursor} = partition} =
+          multi,
+        %__MODULE__{
+          handle_event: handle_event,
+          get_cursor: get_cursor,
+          logger: logger
+        } = processor
+      ) do
     timespan = Timespan.start()
     event_cursor = get_cursor.(event)
 
@@ -125,8 +119,10 @@ defmodule Derive.Reducer.EventProcessor do
         # we have already processed the event
         # likely due to an unexpected restart, we want to skip over this event
         partition_cursor >= event_cursor ->
-          Logger.warn(
-            "Skipping over event #{event_cursor}. Already processed. - #{Partition.to_string(partition)}"
+          Derive.Logger.log(
+            logger,
+            {:warn,
+             "Skipping over event #{event_cursor}. Already processed. - #{Partition.to_string(partition)}"}
           )
 
           {:skip, EventOp.skip(event_cursor, event, Timespan.stop(timespan))}
@@ -150,14 +146,13 @@ defmodule Derive.Reducer.EventProcessor do
 
     case resp do
       {status, event_op} when status in [:ok, :skip] ->
-        do_reduce(rest, MultiOp.add(multi, event_op), {handle_event, get_cursor}, on_error)
+        reduce_events(rest, MultiOp.add(multi, event_op), processor)
 
       {:error, event_op} ->
-        do_reduce(
+        reduce_events(
           rest,
           MultiOp.failed_on_event(multi, event_op),
-          {handle_event, get_cursor},
-          on_error
+          processor
         )
     end
   end

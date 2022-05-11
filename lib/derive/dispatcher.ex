@@ -12,17 +12,17 @@ defmodule Derive.Dispatcher do
 
   use GenServer, restart: :transient
 
-  alias Derive.PartitionDispatcher
+  alias Derive.{PartitionDispatcher, Reducer}
 
   alias __MODULE__, as: S
 
   @type t :: %__MODULE__{
-          reducer: Derive.Reducer.t(),
+          reducer: Reducer.t(),
           batch_size: non_neg_integer(),
-          partition: Derive.Reducer.partition(),
-          lookup_or_start: function(),
+          partition: Reducer.partition(),
+          lookup_or_start: PartitionDispatcher.lookup_or_start(),
           mode: mode(),
-          logger: pid() | nil
+          logger: Derive.Logger.t()
         }
 
   defstruct [:reducer, :batch_size, :partition, :source, :lookup_or_start, :mode, :logger]
@@ -41,9 +41,9 @@ defmodule Derive.Dispatcher do
           {:reducer, Derive.Reducer.t()}
           | {:batch_size, non_neg_integer()}
           | {:partition, Derive.Reducer.partition()}
-          | {:lookup_or_start, function()}
+          | {:lookup_or_start, PartitionDispatcher.lookup_or_start()}
           | {:mode, mode()}
-          | {:logger, pid()}
+          | {:logger, Derive.Logger.t()}
 
   @type option :: dispatcher_option() | GenServer.option()
 

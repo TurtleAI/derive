@@ -136,7 +136,7 @@ defmodule Derive.Reducer.EventProcessorTest do
 
   test "stop processing events if there is a commit error" do
     error_commit = fn state, multi ->
-      ops = MultiOp.operations(multi) |> IO.inspect(label: :ops)
+      ops = MultiOp.operations(multi)
 
       cond do
         Enum.member?(ops, "exception") ->
