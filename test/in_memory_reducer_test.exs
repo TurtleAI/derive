@@ -1,4 +1,4 @@
-defmodule DeriveInMemoryTest do
+defmodule Derive.InMemoryReducerTest do
   use ExUnit.Case
   doctest Derive
 
@@ -58,8 +58,12 @@ defmodule DeriveInMemoryTest do
       Derive.Reducer.EventProcessor.process_events(
         events,
         multi,
-        {&handle_event/1, &get_cursor/1, &commit/1},
-        on_error: :halt
+        %Derive.Reducer.EventProcessor{
+          handle_event: &handle_event/1,
+          get_cursor: &get_cursor/1,
+          commit: &commit/1,
+          on_error: :halt
+        }
       )
     end
 

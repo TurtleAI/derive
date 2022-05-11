@@ -1,4 +1,4 @@
-defmodule DeriveEctoDbOpTest do
+defmodule Derive.State.Ecto.OperationTest do
   use ExUnit.Case
 
   import Derive.State.Ecto.Operation

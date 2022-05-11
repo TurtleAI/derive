@@ -1,38 +1,79 @@
 defmodule Derive.Reducer.EventProcessor do
-  alias Derive.State.{EventOp, MultiOp}
-  alias Derive.{Partition, Timespan}
+  @moduledoc """
+  Provides the process-agnostic logic for processing an ordered list of events.
+  """
 
-  require Logger
+  @type t :: %__MODULE__{
+          handle_event: event_handler(),
+          get_cursor: cursor_handler(),
+          commit: commit_handler(),
+          on_error: on_error()
+        }
+  defstruct [:handle_event, :get_cursor, :commit, on_error: :halt]
 
   @type event :: Derive.EventLog.event()
   @type cursor :: Derive.EventLog.cursor()
   @type operation :: Derive.Reducer.operation()
 
+  @typedoc """
+  What to do in case of an error in processing.
+  An error could happen during handle_event or commit.
+  """
   @type on_error :: :halt
 
   @type option :: {:on_error, on_error()}
 
+  @typedoc """
+  Given an event, produce an operation for that event
+  """
   @type event_handler :: (event() -> operation())
+
+  @typedoc """
+  For an event, return the cursor for that event
+  This function should be efficient and deterministic. Meaning, calling this
+  multiple times on the same event should return the same value.
+  """
   @type cursor_handler :: (event() -> cursor())
+
+  @typedoc """
+  Commit all of the events produced by handle_event
+  """
   @type commit_handler :: (MultiOp.t() -> MultiOp.t())
 
-  @callback commit(MultiOp.t()) :: :ok
+  alias Derive.State.{EventOp, MultiOp}
+  alias Derive.{Partition, Timespan}
+
+  require Logger
 
   @doc """
-  Process events
+  Process events for a given list of events. This involves the following steps:
+  - Call handle_event/1 for each event and collect the operations
+  - Commit those operations
+
+  In case of an error, processing may stop early
   """
   @spec process_events(
           [event()],
           MultiOp.t(),
-          {event_handler(), cursor_handler(), commit_handler()},
-          [option()]
+          t()
         ) ::
           MultiOp.t()
-  def process_events(events, multi, {handle_event, get_cursor, commit}, opts) do
-    case reduce_events(events, multi, {handle_event, get_cursor}, opts) do
+  def process_events(
+        events,
+        multi,
+        %__MODULE__{commit: commit} = processor
+      ) do
+    case reduce_events(events, multi, processor) do
       %MultiOp{status: :processed} = multi ->
         # we only commit a multi if it has successfully been processed
-        commit.(multi)
+        try do
+          commit.(multi)
+        rescue
+          # Due to a programmer error, commit raised an exception
+          # We don't want this to bring down the app and instead handle this explicitly
+          error ->
+            MultiOp.commit_failed(multi, error)
+        end
 
       multi ->
         multi
@@ -52,12 +93,14 @@ defmodule Derive.Reducer.EventProcessor do
   @spec reduce_events(
           [event()],
           MultiOp.t(),
-          {event_handler(), cursor_handler()},
-          [option()]
+          t()
         ) ::
           Derive.State.MultiOp.t()
-  def reduce_events(events, multi, {handle_event, get_cursor}, opts) do
-    on_error = Keyword.get(opts, :on_error, :halt)
+  def reduce_events(events, multi, %__MODULE__{
+        handle_event: handle_event,
+        get_cursor: get_cursor,
+        on_error: on_error
+      }) do
     do_reduce(events, multi, {handle_event, get_cursor}, on_error)
   end
 
@@ -69,7 +112,8 @@ defmodule Derive.Reducer.EventProcessor do
 
   defp do_reduce(
          [event | rest],
-         %MultiOp{partition: %Partition{status: status, cursor: cursor} = partition} = multi,
+         %MultiOp{partition: %Partition{status: status, cursor: partition_cursor} = partition} =
+           multi,
          {handle_event, get_cursor},
          on_error
        ) do
@@ -80,7 +124,7 @@ defmodule Derive.Reducer.EventProcessor do
       cond do
         # we have already processed the event
         # likely due to an unexpected restart, we want to skip over this event
-        cursor >= event_cursor ->
+        partition_cursor >= event_cursor ->
           Logger.warn(
             "Skipping over event #{event_cursor}. Already processed. - #{Partition.to_string(partition)}"
           )

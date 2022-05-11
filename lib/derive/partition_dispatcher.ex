@@ -87,7 +87,7 @@ defmodule Derive.PartitionDispatcher do
       ) do
     partition = reducer.get_partition(id)
     new_state = %{state | partition: partition}
-    Logger.info("BOOT " <> Partition.to_string(partition))
+    # Logger.info("BOOT " <> Partition.to_string(partition))
     {:noreply, new_state, timeout}
   end
 
@@ -181,14 +181,14 @@ defmodule Derive.PartitionDispatcher do
   end
 
   defp log_multi(
-         %S{} = state,
+         %S{} = _state,
          logger,
          %MultiOp{status: :error, error: error, partition: partition} = multi
        ) do
     Logger.error("ERROR processing " <> Partition.to_string(partition) <> " " <> inspect(error))
-    IO.inspect(state, label: :state)
-    IO.inspect(multi, label: :error)
-    IO.puts("")
+    # IO.inspect(state, label: :state)
+    # IO.inspect(multi, label: :error)
+    # IO.puts("")
 
     Derive.Logger.committed(logger, multi)
     multi

@@ -115,8 +115,6 @@ defmodule Derive.Dispatcher do
 
     loaded_state = %{state | partition: partition}
 
-    IO.inspect(loaded_state, label: :boot_dispatcher)
-
     {:noreply, loaded_state}
   end
 

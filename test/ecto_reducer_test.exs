@@ -1,4 +1,4 @@
-defmodule DeriveEctoTest do
+defmodule Derive.EctoReducerTest do
   use ExUnit.Case
 
   alias Derive.EventLog.InMemoryEventLog, as: EventLog
@@ -404,9 +404,7 @@ defmodule DeriveEctoTest do
       Derive.stop(name)
     end
 
-    test "a commit failing causes the partition to halt" do
-      # a copy of the previous test except this failure happens on commit
-
+    test "a commit failing with no correlation to the event causes the partition to halt" do
       name = :commit_failed
 
       {:ok, event_log} = EventLog.start_link()

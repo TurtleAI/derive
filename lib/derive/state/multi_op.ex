@@ -55,7 +55,7 @@ defmodule Derive.State.MultiOp do
         %MultiOp{partition: partition, operations: operations} = multi,
         %EventOp{cursor: cursor} = op
       ) do
-    new_partition = %{partition | cursor: cursor}
+    new_partition = %{partition | cursor: max(cursor, partition.cursor)}
     new_operations = [op | operations]
     %{multi | partition: new_partition, operations: new_operations}
   end
