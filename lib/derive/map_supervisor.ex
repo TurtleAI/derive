@@ -4,17 +4,22 @@ defmodule Derive.MapSupervisor do
   are identified by a key.
   """
 
-  use DynamicSupervisor
+  use Supervisor
 
-  def start_link(opts) do
-    DynamicSupervisor.start_link(__MODULE__, :ok, opts)
-  end
+  @type option :: Supervisor.option()
+  @type supervisor :: Supervisor.supervisor()
 
-  @doc """
-  The child_spec for a Registry to register child processes for this supervisor
+  @typedoc """
+  The key
   """
-  def registry_child_spec(name),
-    do: {Registry, keys: :unique, name: name}
+  @type key :: any()
+
+  @spec start_link([option]) :: {:ok, supervisor()}
+  def start_link(opts \\ []) do
+    unless opts[:name], do: raise(ArgumentError, "expected :name option")
+
+    Supervisor.start_link(__MODULE__, opts)
+  end
 
   @doc """
   Start a child process or return an existing one by the given key
@@ -23,11 +28,13 @@ defmodule Derive.MapSupervisor do
   """
   @spec start_child(
           Supervisor.supervisor(),
-          Registry.registry(),
-          any(),
+          term(),
           {module(), keyword()}
         ) :: pid()
-  def start_child(supervisor, registry, key, {mod, opts}) do
+  def start_child(supervisor, key, {mod, opts}) do
+    registry = registry_name(supervisor)
+    dynamic_supervisor = dynamic_supervisor_name(supervisor)
+
     case Registry.lookup(registry, key) do
       [{pid, _}] ->
         pid
@@ -36,15 +43,27 @@ defmodule Derive.MapSupervisor do
         via = {:via, Registry, {registry, key}}
         opts = Keyword.put(opts, :name, via)
 
-        case DynamicSupervisor.start_child(supervisor, {mod, opts}) do
+        case DynamicSupervisor.start_child(dynamic_supervisor, {mod, opts}) do
           {:ok, pid} -> pid
           {:error, {:already_started, pid}} -> pid
         end
     end
   end
 
-  @impl true
-  def init(:ok) do
-    DynamicSupervisor.init(strategy: :one_for_one)
+  def init(opts) do
+    name = Keyword.fetch!(opts, :name)
+
+    children = [
+      {Registry, keys: :unique, name: registry_name(name)},
+      {DynamicSupervisor, strategy: :one_for_one, name: dynamic_supervisor_name(name)}
+    ]
+
+    Supervisor.init(children, strategy: :one_for_all)
   end
+
+  defp registry_name(name),
+    do: :"#{name}.Registy"
+
+  defp dynamic_supervisor_name(name),
+    do: :"#{name}.DynamicSupervisor"
 end

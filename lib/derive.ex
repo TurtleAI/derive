@@ -157,7 +157,6 @@ defmodule Derive do
           # - If a process hasn't been started, it'll be started and returned.
           MapSupervisor.start_child(
             supervisor_name(name),
-            registry_name(name),
             {reducer, partition},
             {PartitionDispatcher, [reducer: reducer, partition: partition]}
           )
@@ -168,7 +167,6 @@ defmodule Derive do
       source_spec ++
         [
           {Dispatcher, dispatcher_opts},
-          MapSupervisor.registry_child_spec(registry_name(name)),
           {MapSupervisor, name: supervisor_name(name)}
         ]
 
@@ -198,10 +196,6 @@ defmodule Derive do
   # for spwaning it
   defp source_name(name),
     do: :"#{name}.Source"
-
-  # process of a child process given the Derive process name
-  defp registry_name(name),
-    do: :"#{name}.Registy"
 
   # process of the dynamic supervisor for Derive.PartitionDispatcher
   # given the Derive process name
