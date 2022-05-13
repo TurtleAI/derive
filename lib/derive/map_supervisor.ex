@@ -9,11 +9,6 @@ defmodule Derive.MapSupervisor do
   @type option :: Supervisor.option()
   @type supervisor :: Supervisor.supervisor()
 
-  @typedoc """
-  The key
-  """
-  @type key :: any()
-
   @spec start_link([option]) :: {:ok, supervisor()}
   def start_link(opts \\ []) do
     unless opts[:name], do: raise(ArgumentError, "expected :name option")
@@ -32,14 +27,14 @@ defmodule Derive.MapSupervisor do
           {module(), keyword()}
         ) :: pid()
   def start_child(supervisor, key, {mod, opts}) do
-    registry = registry_name(supervisor)
-    dynamic_supervisor = dynamic_supervisor_name(supervisor)
+    registry = supervisor
 
     case Registry.lookup(registry, key) do
       [{pid, _}] ->
         pid
 
       [] ->
+        {:ok, dynamic_supervisor} = Registry.meta(registry, :dynamic_supervisor)
         via = {:via, Registry, {registry, key}}
         opts = Keyword.put(opts, :name, via)
 
@@ -52,18 +47,13 @@ defmodule Derive.MapSupervisor do
 
   def init(opts) do
     name = Keyword.fetch!(opts, :name)
+    dynamic_supervisor = :"#{name}.DynamicSupervisor"
 
     children = [
-      {Registry, keys: :unique, name: registry_name(name)},
-      {DynamicSupervisor, strategy: :one_for_one, name: dynamic_supervisor_name(name)}
+      {Registry, keys: :unique, name: name, meta: [dynamic_supervisor: dynamic_supervisor]},
+      {DynamicSupervisor, strategy: :one_for_one, name: dynamic_supervisor}
     ]
 
     Supervisor.init(children, strategy: :one_for_all)
   end
-
-  defp registry_name(name),
-    do: :"#{name}.Registy"
-
-  defp dynamic_supervisor_name(name),
-    do: :"#{name}.DynamicSupervisor"
 end
