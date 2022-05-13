@@ -1,6 +1,6 @@
 defmodule Derive do
   @moduledoc """
-  Derive keeps a derived state in sync with an event log based on the behavior  in `Derive.Reducer`.
+  Derive keeps a derived state in sync with an event log based on the behavior in `Derive.Reducer`.
 
   Once the process has been started, it will automatically catch up to the latest version
   derived state.
@@ -127,6 +127,9 @@ defmodule Derive do
   @doc """
   Whether the Derive instance is alive
   """
+  def alive?(server) when is_pid(server),
+    do: Process.alive?(server)
+
   def alive?(server),
     do: Process.whereis(server) != nil
 
@@ -146,16 +149,25 @@ defmodule Derive do
         name: dispatcher_name(name),
         source: source_server,
         lookup_or_start: fn {reducer, partition} ->
-          lookup_or_start(name, {reducer, partition})
+          # Return the given `Derive.PartitionSupervisor` dispatcher for the given {reducer, partition} pair
+          # Processes are lazily started.
+          # - If a process is already alive, we will return the existing process.
+          # - If a process hasn't been started, it'll be started and returned.
+          Derive.MapSupervisor.start_child(
+            supervisor_name(name),
+            registry_name(name),
+            {reducer, partition},
+            {Derive.PartitionDispatcher, [reducer: reducer, partition: partition]}
+          )
         end
       )
 
     children =
       source_spec ++
         [
-          {Registry, keys: :unique, name: registry_name(name)},
           {Derive.Dispatcher, dispatcher_opts},
-          {DynamicSupervisor, strategy: :one_for_one, name: supervisor_name(name)}
+          Derive.MapSupervisor.registry_spec(registry_name(name)),
+          {Derive.MapSupervisor, name: supervisor_name(name)}
         ]
 
     # :rest_for_one because if the dispatcher dies,
@@ -178,30 +190,6 @@ defmodule Derive do
 
   defp source_spec_and_server(source, _default_name) do
     {[], source}
-  end
-
-  # Return the given `Derive.PartitionSupervisor` dispatcher for the given {reducer, partition} pair
-  # Processes are lazily started.
-  # - If a process is already alive, we will return the existing process.
-  # - If a process hasn't been started, it'll be started and returned.
-  defp lookup_or_start(name, {reducer, partition}) do
-    key = {reducer, partition}
-
-    case Registry.lookup(registry_name(name), key) do
-      [{pid, _}] ->
-        pid
-
-      [] ->
-        via = {:via, Registry, {registry_name(name), key}}
-
-        case DynamicSupervisor.start_child(
-               supervisor_name(name),
-               {Derive.PartitionDispatcher, [reducer: reducer, partition: partition, name: via]}
-             ) do
-          {:ok, pid} -> pid
-          {:error, {:already_started, pid}} -> pid
-        end
-    end
   end
 
   # process of the source if this Derive process is responsible
