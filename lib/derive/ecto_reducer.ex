@@ -32,6 +32,7 @@ defmodule Derive.EctoReducer do
     repo = Keyword.fetch!(opts, :repo)
     namespace = Keyword.fetch!(opts, :namespace)
     models = Keyword.fetch!(opts, :models)
+    version = Keyword.get(opts, :version, "1")
 
     quote do
       @behaviour Derive.Reducer
@@ -39,7 +40,8 @@ defmodule Derive.EctoReducer do
       @state %Derive.State.Ecto{
         repo: unquote(repo),
         namespace: unquote(namespace),
-        models: unquote(models)
+        models: unquote(models),
+        version: unquote(version)
       }
 
       import Derive.State.Ecto.Operation
@@ -68,6 +70,10 @@ defmodule Derive.EctoReducer do
       @impl true
       def reset_state,
         do: Derive.State.Ecto.reset_state(@state)
+
+      @impl true
+      def needs_rebuild?,
+        do: Derive.State.Ecto.needs_rebuild?(@state)
 
       @impl true
       def get_partition(id),

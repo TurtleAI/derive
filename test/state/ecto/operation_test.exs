@@ -1,9 +1,9 @@
 defmodule Derive.State.Ecto.OperationTest do
   use ExUnit.Case
 
-  import Derive.State.Ecto.Operation
-
   alias DeriveTestRepo, as: Repo
+
+  import Derive.State.Ecto.Operation
 
   defmodule Person do
     use Derive.State.Ecto.Model

@@ -12,7 +12,7 @@ defmodule Derive.Dispatcher do
 
   use GenServer, restart: :transient
 
-  alias Derive.{PartitionDispatcher, Reducer}
+  alias Derive.{Partition, PartitionDispatcher, Reducer}
 
   alias __MODULE__, as: S
 
@@ -38,17 +38,14 @@ defmodule Derive.Dispatcher do
   @type server :: pid() | atom()
 
   @type dispatcher_option ::
-          {:reducer, Derive.Reducer.t()}
+          {:reducer, Reducer.t()}
           | {:batch_size, non_neg_integer()}
-          | {:partition, Derive.Reducer.partition()}
+          | {:partition, Reducer.partition()}
           | {:lookup_or_start, PartitionDispatcher.lookup_or_start()}
           | {:mode, mode()}
           | {:logger, Derive.Logger.t()}
 
   @type option :: dispatcher_option() | GenServer.option()
-
-  # We maintain the cursor of a special partition with this name
-  def global_partition_id, do: "$"
 
   @spec start_link([option]) :: {:ok, server()} | {:error, any()}
   def start_link(opts \\ []) do
@@ -109,7 +106,7 @@ defmodule Derive.Dispatcher do
 
   @impl true
   def handle_continue(:load_partition, %S{reducer: reducer} = state) do
-    partition = reducer.get_partition(global_partition_id())
+    partition = reducer.get_partition(Partition.global_id())
 
     GenServer.cast(self(), :catchup)
 

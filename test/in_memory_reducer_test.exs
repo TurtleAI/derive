@@ -79,6 +79,10 @@ defmodule Derive.InMemoryReducerTest do
       do: Derive.State.InMemory.reset_state(state())
 
     @impl true
+    def needs_rebuild?,
+      do: false
+
+    @impl true
     def get_partition(id) do
       %Derive.Partition{
         id: id,

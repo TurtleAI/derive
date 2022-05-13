@@ -4,6 +4,7 @@ defmodule Derive.EctoReducerTest do
   alias Derive.EventLog.InMemoryEventLog, as: EventLog
   alias DeriveTestRepo, as: Repo
   alias Derive.Timespan
+  alias Derive.Partition
 
   defmodule User do
     use Derive.State.Ecto.Model
@@ -361,7 +362,7 @@ defmodule Derive.EctoReducerTest do
                UserReducer.get_partition("99")
 
       assert %Derive.Partition{cursor: "6", status: :ok} =
-               UserReducer.get_partition(Derive.Dispatcher.global_partition_id())
+               UserReducer.get_partition(Partition.global_id())
 
       # name hasn't changed
       assert %{name: "Pikachu"} = Repo.get(User, "99")
@@ -464,7 +465,7 @@ defmodule Derive.EctoReducerTest do
 
       # We move the partition to some earlier value to simulate a shut-down before things are finished
       UserReducer.set_partition(%Derive.Partition{
-        id: Derive.Dispatcher.global_partition_id(),
+        id: Partition.global_id(),
         cursor: "2"
       })
 

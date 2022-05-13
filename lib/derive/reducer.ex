@@ -71,6 +71,8 @@ defmodule Derive.Reducer do
   """
   @callback reset_state() :: :ok
 
+  @callback needs_rebuild?() :: boolean()
+
   @doc """
   Get the current overall partition record
   """

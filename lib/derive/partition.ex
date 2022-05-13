@@ -25,4 +25,19 @@ defmodule Derive.Partition do
   def to_string(%__MODULE__{id: id, cursor: cursor, status: status}) do
     "#{id}: #{cursor} [#{status}]"
   end
+
+  @doc """
+  The reserved id for a partition record that keeps track of overall
+  state for all the partitions within a reducer
+  """
+  def global_id, do: "$"
+
+  @doc """
+  The reserved id for a partition record that keeps track of a version
+  of the reducer/state combination.
+
+  If this partition doesn't match what is configured in the reducer,
+  a rebuild is needed.
+  """
+  def version_id, do: "$version"
 end
