@@ -10,7 +10,10 @@ defmodule Derive.MapSupervisor do
     DynamicSupervisor.start_link(__MODULE__, :ok, opts)
   end
 
-  def registry_spec(name),
+  @doc """
+  The child_spec for a Registry to register child processes for this supervisor
+  """
+  def registry_child_spec(name),
     do: {Registry, keys: :unique, name: name}
 
   @doc """

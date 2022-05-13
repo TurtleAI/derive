@@ -26,6 +26,8 @@ defmodule Derive do
 
   use Supervisor
 
+  alias Derive.{Dispatcher, Dispatcher, PartitionDispatcher, MapSupervisor, EventLog}
+
   @spec start_link([option()]) :: {:ok, server()}
   def start_link(opts \\ []) do
     supervisor_opts = Keyword.take(opts, [:name])
@@ -55,14 +57,14 @@ defmodule Derive do
   Events are not considered processed until *all* operations produced by `Derive.Reducer.handle_event/1`
   have been committed by `Derive.Reducer.commit/1`
   """
-  @spec await(server(), [Derive.EventLog.event()]) :: :ok
+  @spec await(server(), [EventLog.event()]) :: :ok
   def await(server, events),
-    do: Derive.Dispatcher.await(dispatcher_name(server), events)
+    do: Dispatcher.await(dispatcher_name(server), events)
 
   @doc """
   Wait for all the events to be processed by all Derive processes
   """
-  @spec await_many([server()], [Derive.EventLog.event()]) :: :ok
+  @spec await_many([server()], [EventLog.event()]) :: :ok
   def await_many([], _events),
     do: :ok
 
@@ -153,11 +155,11 @@ defmodule Derive do
           # Processes are lazily started.
           # - If a process is already alive, we will return the existing process.
           # - If a process hasn't been started, it'll be started and returned.
-          Derive.MapSupervisor.start_child(
+          MapSupervisor.start_child(
             supervisor_name(name),
             registry_name(name),
             {reducer, partition},
-            {Derive.PartitionDispatcher, [reducer: reducer, partition: partition]}
+            {PartitionDispatcher, [reducer: reducer, partition: partition]}
           )
         end
       )
@@ -165,9 +167,9 @@ defmodule Derive do
     children =
       source_spec ++
         [
-          {Derive.Dispatcher, dispatcher_opts},
-          Derive.MapSupervisor.registry_spec(registry_name(name)),
-          {Derive.MapSupervisor, name: supervisor_name(name)}
+          {Dispatcher, dispatcher_opts},
+          MapSupervisor.registry_child_spec(registry_name(name)),
+          {MapSupervisor, name: supervisor_name(name)}
         ]
 
     # :rest_for_one because if the dispatcher dies,
