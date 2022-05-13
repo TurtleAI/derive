@@ -19,7 +19,7 @@ defmodule Derive.Logger.DevLogger do
     do: Logger.warn(inspect(message))
 
   def log({:caught_up, reducer, %Partition{cursor: cursor}}) do
-    Logger.warn("#{mod_to_string(reducer)}: ALL CAUGHT UP TO #{cursor}")
+    Logger.info("#{mod_to_string(reducer)}: ALL CAUGHT UP TO #{cursor}")
   end
 
   def log(_message),

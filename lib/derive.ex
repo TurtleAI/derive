@@ -60,6 +60,18 @@ defmodule Derive do
     do: Derive.Dispatcher.await(dispatcher_name(server), events)
 
   @doc """
+  Wait for all the events to be processed by all Derive processes
+  """
+  @spec await_many([server()], [Derive.EventLog.event()]) :: :ok
+  def await_many([], _events),
+    do: :ok
+
+  def await_many([server | rest], events) do
+    await(server, events)
+    await_many(rest, events)
+  end
+
+  @doc """
   Rebuilds the state of a reducer.
   This means the state will get reset to its initial state,
   Then all events from the event source will get reprocessed until the state is caught up again
@@ -104,9 +116,19 @@ defmodule Derive do
   Gracefully shutdown a derive process and all of its children.
   Completes synchronously, so blocks until the process is shut down
   """
-  @spec stop(server()) :: :ok
-  def stop(server),
-    do: Supervisor.stop(server)
+  @spec stop(server()) :: :ok | :already_stopped
+  def stop(server) do
+    case alive?(server) do
+      true -> Supervisor.stop(server)
+      false -> :already_stopped
+    end
+  end
+
+  @doc """
+  Whether the Derive instance is alive
+  """
+  def alive?(server),
+    do: Process.whereis(server) != nil
 
   ### Server
 
