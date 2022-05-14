@@ -1,7 +1,6 @@
 defmodule Derive.Logger.Util.ProgressBar do
   @moduledoc """
-  Data structure that represents a progress bar
-  and its status
+  A structure that represents a progress bar and a way to render it.
   """
 
   defstruct [:value, :total, :status, width: 50]

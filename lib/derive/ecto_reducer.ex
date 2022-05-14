@@ -8,7 +8,8 @@ defmodule Derive.EctoReducer do
         use Derive.EctoReducer,
           repo: Repo,
           namespace: "user_reducer",
-          models: [User]
+          models: [User],
+          version: "1.2"
 
         @impl true
         def partition(%{user_id: user_id}), do: user_id

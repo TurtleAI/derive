@@ -22,7 +22,7 @@ defmodule Derive.MapSupervisor do
   - If the process doesn't exist for the key, it will be created with config in {mod, opts}
   """
   @spec start_child(
-          Supervisor.supervisor(),
+          supervisor(),
           term(),
           {module(), keyword()}
         ) :: pid()
@@ -45,6 +45,7 @@ defmodule Derive.MapSupervisor do
     end
   end
 
+  @impl true
   def init(opts) do
     name = Keyword.fetch!(opts, :name)
     dynamic_supervisor = :"#{name}.DynamicSupervisor"

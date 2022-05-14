@@ -8,7 +8,7 @@ defmodule Derive.State.EventOp do
           event: event(),
           operations: operations(),
           status: status(),
-          error: any(),
+          error: term(),
           timespan: Derive.Timespan.t() | nil
         }
   defstruct [:cursor, :event, :operations, :status, :error, :timespan]

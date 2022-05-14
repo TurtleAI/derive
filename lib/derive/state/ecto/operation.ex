@@ -72,7 +72,7 @@ defmodule Derive.State.Ecto.Operation do
   def replace(record),
     do: %Operation.Replace{record: record}
 
-  @spec array_push_uniq(selector(), field_name(), any()) :: operation()
+  @spec array_push_uniq(selector(), field_name(), term()) :: operation()
   def array_push_uniq(selector, field, values) do
     %Operation.ArrayPush{
       unique: true,
@@ -82,7 +82,7 @@ defmodule Derive.State.Ecto.Operation do
     }
   end
 
-  @spec array_delete(selector(), field_name(), any()) :: operation()
+  @spec array_delete(selector(), field_name(), term()) :: operation()
   def array_delete(selector, field, value),
     do: %Operation.ArrayDelete{selector: selector, field: field, value: value}
 

@@ -47,7 +47,7 @@ defmodule Derive.Dispatcher do
 
   @type option :: dispatcher_option() | GenServer.option()
 
-  @spec start_link([option]) :: {:ok, server()} | {:error, any()}
+  @spec start_link([option]) :: {:ok, server()} | {:error, term()}
   def start_link(opts \\ []) do
     {dispatcher_opts, genserver_opts} = Keyword.split(opts, Map.keys(__struct__()))
 

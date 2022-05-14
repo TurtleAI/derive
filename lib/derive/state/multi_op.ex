@@ -35,7 +35,7 @@ defmodule Derive.State.MultiOp do
           {:commit, commit_error()}
           | {:handle_event, EventOp.t()}
 
-  @type commit_error() :: any()
+  @type commit_error() :: term()
 
   @doc """
   There are no operations, so committing this would be a no-op

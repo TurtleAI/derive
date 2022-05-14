@@ -20,7 +20,7 @@ defmodule Derive.Reducer do
 
   `Derive.Reducer.commit/1` will define how a batch of operations should be committed.
   """
-  @type operation() :: any()
+  @type operation() :: term()
 
   @type event() :: EventLog.event()
 
@@ -28,10 +28,6 @@ defmodule Derive.Reducer do
   The cursor pointing to a last event processed
   """
   @type cursor() :: EventLog.cursor()
-
-  @type error_mode() :: :skip | :halt
-
-  @type event_handler() :: (EventLog.event() -> operation() | nil)
 
   @doc """
   Events within the same partition are processed in order.
@@ -71,6 +67,10 @@ defmodule Derive.Reducer do
   """
   @callback reset_state() :: :ok
 
+  @doc """
+  Whether the state of the reducer needs to be rebuilt.
+  This can happen if the state is invalidated manually or if the version is updated.
+  """
   @callback needs_rebuild?() :: boolean()
 
   @doc """

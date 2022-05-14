@@ -14,7 +14,7 @@ defmodule Derive.EventLog do
   @typedoc """
   A generic struct that represents an event.
   """
-  @type event() :: any()
+  @type event() :: term()
 
   @typedoc """
   An opaque value that indicates the position of an event in an event log
@@ -24,7 +24,7 @@ defmodule Derive.EventLog do
   - It must be in increasing order
   - It must be stable, meaning a cursor should not change per event
   """
-  @type cursor() :: any()
+  @type cursor() :: term()
 
   @type option :: {:cursor, cursor()} | {:batch_size, non_neg_integer()}
 

@@ -1,7 +1,13 @@
 defmodule Derive.Logger do
   @moduledoc """
-  A logger is a generic process or function that can receive
-  log messages related to a Derive process
+  A logger is a generic process or function that receives
+  log messages for a Derive process and handle them appropriately.
+
+  There are specific implementations such as:
+  - The `Derive.Logger.RebuildProgressLogger` is a logger that shows a progress bar when rebuild a reducer
+  - The `Derive.Logger.DevLogger` prints out log messages in dev mode
+
+  The application interacts with the loggers through this module.
   """
 
   ### Client
@@ -19,7 +25,7 @@ defmodule Derive.Logger do
   def append_logger(loggers, l),
     do: List.wrap(loggers) ++ [l]
 
-  @spec log(t(), any()) :: :ok
+  @spec log(t(), term()) :: :ok
   def log(nil, _),
     do: :ok
 

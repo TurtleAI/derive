@@ -12,7 +12,7 @@ defmodule Derive.Broadcaster do
 
   @type server :: pid()
   @type subscriber :: pid()
-  @type message :: any()
+  @type message :: term()
 
   alias __MODULE__, as: S
 
