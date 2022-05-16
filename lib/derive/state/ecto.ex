@@ -48,7 +48,10 @@ defmodule Derive.State.Ecto do
       try do
         {:ok, get_partition(state, Partition.version_id())}
       catch
-        :error, %Postgrex.Error{postgres: %{code: :undefined_table}} ->
+        # in some cases, the partition table doesn't exist yet
+        # in that case, we want to return true
+        :error, %Postgrex.Error{postgres: %{code: code}}
+        when code in [:undefined_table, :undefined_column] ->
           {:error, :missing_table}
       end
 

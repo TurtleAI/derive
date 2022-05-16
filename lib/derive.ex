@@ -28,10 +28,19 @@ defmodule Derive do
 
   alias Derive.{Dispatcher, Dispatcher, PartitionDispatcher, MapSupervisor, EventLog}
 
-  @spec start_link([option()]) :: {:ok, server()}
+  @spec start_link([option()]) :: {:ok, server()} | {:error, term()}
   def start_link(opts \\ []) do
-    supervisor_opts = Keyword.take(opts, [:name])
-    Supervisor.start_link(__MODULE__, opts, supervisor_opts)
+    unless opts[:reducer], do: raise(ArgumentError, "expected :reducer; option")
+
+    reducer = Keyword.fetch!(opts, :reducer)
+    mode = Keyword.get(opts, :mode, :catchup)
+
+    if reducer.needs_rebuild?() && mode != :rebuild do
+      {:error, {:needs_rebuild, reducer}}
+    else
+      supervisor_opts = Keyword.take(opts, [:name])
+      Supervisor.start_link(__MODULE__, opts, supervisor_opts)
+    end
   end
 
   def child_spec(opts) do

@@ -477,6 +477,16 @@ defmodule Derive.EctoReducerTest do
 
       assert %{name: "Superdupersaiyan"} = Repo.get(User, "99")
     end
+
+    test "a process fails to start if a rebuild is needed" do
+      name = :test_rebuild_needed
+
+      {:ok, event_log} = EventLog.start_link()
+
+      # The tables haven't been created yet, so trying to start a Derive process would fail
+      assert {:error, {:needs_rebuild, UserReducer}} =
+               Derive.start_link(name: name, reducer: UserReducer, source: event_log)
+    end
   end
 
   test "resuming a dispatcher after a server is restarted" do
