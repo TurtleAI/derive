@@ -485,7 +485,12 @@ defmodule Derive.EctoReducerTest do
 
       # The tables haven't been created yet, so trying to start a Derive process would fail
       assert {:error, {:needs_rebuild, UserReducer}} =
-               Derive.start_link(name: name, reducer: UserReducer, source: event_log)
+               Derive.start_link(
+                 name: name,
+                 reducer: UserReducer,
+                 source: event_log,
+                 validate_version: true
+               )
     end
   end
 

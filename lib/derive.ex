@@ -21,7 +21,10 @@ defmodule Derive do
     For an in-memory implementation, it's simply a state change.
   """
 
-  @type option :: {:show_progress, boolean()} | Derive.Dispatcher.option()
+  @type option ::
+          {:show_progress, boolean()}
+          | {:validate_version, boolean()}
+          | Derive.Dispatcher.option()
   @type server :: Supervisor.supervisor()
 
   use Supervisor
@@ -30,12 +33,21 @@ defmodule Derive do
 
   @spec start_link([option()]) :: {:ok, server()} | {:error, term()}
   def start_link(opts \\ []) do
-    unless opts[:reducer], do: raise(ArgumentError, "expected :reducer; option")
+    unless opts[:reducer], do: raise(ArgumentError, "expected :reducer option")
 
     reducer = Keyword.fetch!(opts, :reducer)
     mode = Keyword.get(opts, :mode, :catchup)
 
-    if reducer.needs_rebuild?() && mode != :rebuild do
+    # In dev and prod mode, by default, we'd like to validate that the reducer
+    # version matches what is currently in the database to avoid subtle errors.
+    #
+    # For example, part of the state could have been built with an older reducer version
+    # and the rest of the state can be built with a newer version.
+    #
+    # In test mode, we disable this by default to make testing easier
+    validate_version = Keyword.get(opts, :validate_version, Mix.env() != :test)
+
+    if validate_version && reducer.needs_rebuild?() && mode != :rebuild do
       {:error, {:needs_rebuild, reducer}}
     else
       supervisor_opts = Keyword.take(opts, [:name])
