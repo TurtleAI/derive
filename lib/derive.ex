@@ -1,5 +1,5 @@
 defmodule Derive do
-  @moduledoc """
+  @moduledoc ~S"""
   Derive keeps a derived state in sync with an event log based on the behavior in `Derive.Reducer`.
 
   Once the process has been started, it will automatically catch up to the latest version
@@ -150,6 +150,7 @@ defmodule Derive do
   @doc """
   Whether the Derive instance is alive
   """
+  @spec alive?(server()) :: boolean()
   def alive?(server) when is_pid(server),
     do: Process.alive?(server)
 

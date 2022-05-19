@@ -73,6 +73,20 @@ defmodule Derive.State.EctoTest do
     EctoState.clear_state(@state)
   end
 
+  describe "get/set partitions" do
+    test "can set and get back a partition" do
+      EctoState.init_state(@state)
+
+      EctoState.set_partition(@state, %Partition{id: "x", status: :ok, cursor: "1"})
+      %Partition{id: "x", status: :ok, cursor: "1"} = EctoState.get_partition(@state, "x")
+
+      EctoState.set_partition(@state, %Partition{id: "y", status: :error, error: %{"type" => "handle_error", "message" => "foo foo"}, cursor: "2"})
+      %Partition{id: "y", status: :error, cursor: "2", error: %{"type" => "handle_error", "message" => "foo foo"}} = EctoState.get_partition(@state, "y")
+
+      EctoState.clear_state(@state)
+    end
+  end
+
   describe "versioning" do
     test "the state defaults to 1" do
       EctoState.init_state(@state)

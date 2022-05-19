@@ -6,15 +6,18 @@ defmodule Derive.Partition do
   @type t :: %__MODULE__{
           id: id(),
           cursor: Derive.Reducer.cursor(),
-          status: status()
+          status: status(),
+          error: error() | nil
         }
-  defstruct [:id, :cursor, :status]
+  defstruct [:id, :cursor, :status, :error]
 
   @typedoc """
   If the status of a partition is :ok, it is in an active state and can keep catching up
   If the status is :error, there was an error and no further processing is allowed
   """
   @type status() :: :ok | :error
+
+  @type error() :: term()
 
   @typedoc """
   The id of the partition. Can be any string.

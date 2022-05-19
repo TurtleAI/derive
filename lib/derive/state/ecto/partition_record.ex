@@ -9,11 +9,33 @@ defmodule Derive.State.Ecto.PartitionRecord do
 
   use Derive.State.Ecto.Model
 
+  alias Derive.Partition
+
   @primary_key {:id, :string, [autogenerate: false]}
   schema "partitions" do
-    field(:cursor, :string)
-    field(:status, Ecto.Enum, values: [ok: 1, error: 2])
+    field :cursor, :string
+    field :status, Ecto.Enum, values: [ok: 1, error: 2]
+    field :error, :map
   end
+
+  def from_partition(%Partition{id: id, cursor: cursor, status: status, error: error}) do
+    %__MODULE__{id: id, cursor: cursor, status: status, error: encode_error(error)}
+  end
+
+  def to_partition(%__MODULE__{id: id, cursor: cursor, status: status, error: error}) do
+    %Partition{
+      id: id,
+      cursor: cursor,
+      status: status,
+      error: decode_error(error)
+    }
+  end
+
+  defp encode_error(nil), do: nil
+  defp encode_error(error), do: error
+
+  defp decode_error(nil), do: nil
+  defp decode_error(error), do: error
 
   # Because we can't create a migration with a dynamic table name using create table(...),
   # we implement the raw up_sql/down_sql implementations instead
@@ -23,6 +45,7 @@ defmodule Derive.State.Ecto.PartitionRecord do
     #   add(:id, :string, size: 32, primary_key: true)
     #   add(:cursor, :string, size: 32)
     #   add(:status, :integer, null: false, default: 1)
+    #   add(:meta, :map)
     # end
 
     [
@@ -30,7 +53,8 @@ defmodule Derive.State.Ecto.PartitionRecord do
       CREATE TABLE #{table} (
         id character varying(32) PRIMARY KEY,
         cursor character varying(32),
-        status integer NOT NULL DEFAULT 1
+        status integer NOT NULL DEFAULT 1,
+        error jsonb
       );
       """
     ]

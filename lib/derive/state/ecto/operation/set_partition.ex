@@ -10,23 +10,29 @@ defmodule Derive.State.Ecto.Operation.SetPartition do
   """
 
   defstruct [:table, :partition]
+
+  @type t :: %__MODULE__{
+    table: binary(),
+    partition: Derive.Partition.t()
+  }
 end
 
 defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.SetPartition do
+  alias Ecto.Multi
+
   alias Derive.State.Ecto.PartitionRecord
 
   def to_multi(
         %Derive.State.Ecto.Operation.SetPartition{
           table: table,
-          partition: %{id: id, cursor: cursor, status: status}
+          partition: partition
         },
         index
       ) do
-    record =
-      %PartitionRecord{id: id, cursor: cursor, status: status}
+    record = PartitionRecord.from_partition(partition)
       |> Ecto.put_meta(source: table)
 
-    Ecto.Multi.insert(Ecto.Multi.new(), index, record,
+    Multi.insert(Multi.new(), index, record,
       returning: false,
       on_conflict: {:replace_all_except, [:id]},
       conflict_target: [:id]
