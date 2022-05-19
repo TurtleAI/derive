@@ -3,8 +3,9 @@ defmodule Derive.EctoReducerTest do
 
   alias Derive.EventLog.InMemoryEventLog, as: EventLog
   alias DeriveTestRepo, as: Repo
-  alias Derive.Timespan
-  alias Derive.Partition
+  alias Derive.{Timespan, Partition}
+  alias Derive.State.MultiOp
+  alias Derive.Logger.InMemoryLogger
 
   defmodule User do
     use Derive.State.Ecto.Model
@@ -195,7 +196,10 @@ defmodule Derive.EctoReducerTest do
 
     event_ops_by_event =
       Derive.Logger.InMemoryLogger.fetch(logger)
-      |> Enum.flat_map(& &1.operations)
+      |> Enum.flat_map(fn
+        {:committed, %MultiOp{operations: operations}} -> operations
+        _ -> []
+      end)
       |> Enum.group_by(& &1.event)
 
     [op1, op2, op3] = Enum.map(events, fn e -> hd(Map.get(event_ops_by_event, e)) end)
@@ -327,7 +331,9 @@ defmodule Derive.EctoReducerTest do
       {:ok, event_log} = EventLog.start_link()
       Derive.rebuild(UserReducer, source: event_log)
 
-      {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
+      {:ok, logger} = InMemoryLogger.start_link()
+
+      {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log, logger: logger)
 
       event = %UserCreated{id: "1", user_id: "99", name: "Pikachu"}
 
@@ -368,6 +374,45 @@ defmodule Derive.EctoReducerTest do
       assert %{name: "Pikachu"} = Repo.get(User, "99")
 
       Derive.stop(name)
+
+      # the error log shows up
+      [failed_multi] = InMemoryLogger.fetch(logger)
+      |> Enum.flat_map(fn
+        {:error, {:multi_op, multi}} -> [multi]
+        _ -> []
+      end)
+
+      assert %Derive.State.MultiOp{
+        initial_partition: %Derive.Partition{cursor: "1", id: "99", status: :ok},
+        partition: %Derive.Partition{cursor: "4", id: "99", status: :error},
+        error: {:handle_event,
+         %Derive.State.EventOp{
+           cursor: "3",
+           error: %Derive.EctoReducerTest.UserError{message: "bad stuff happened"},
+           event: %Derive.EctoReducerTest.UserRaiseHandleError{
+             id: "3",
+             message: "bad stuff happened",
+             user_id: "99"
+           },
+           operations: [],
+           status: :error,
+         }},
+        operations: [
+          # we failed on event 3, so this following event gets skipped
+          %Derive.State.EventOp{
+            cursor: "4",
+            error: nil,
+            event: %Derive.EctoReducerTest.UserNameUpdated{
+              id: "4",
+              name: "Raichu",
+              user_id: "99"
+            },
+            operations: [],
+            status: :skip
+          }
+        ],
+        status: :error
+      } = failed_multi
     end
 
     test "a partition skips over events in future updates to the event log" do

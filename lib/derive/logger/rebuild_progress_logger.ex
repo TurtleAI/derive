@@ -8,6 +8,8 @@ defmodule Derive.Logger.RebuildProgressLogger do
 
   alias Derive.Timespan
 
+  require Logger
+
   @type t :: %__MODULE__{
           processed: non_neg_integer(),
           total: non_neg_integer(),
@@ -91,6 +93,16 @@ defmodule Derive.Logger.RebuildProgressLogger do
     {:noreply, %{state | timespan: Timespan.stop(timespan)}}
   end
 
-  def handle_cast({:log, _msg}, state),
-    do: {:noreply, state}
+  def handle_cast({:log, message}, state) do
+    handle_log(message)
+    {:noreply, state}
+  end
+
+  defp handle_log({:error, {:multi_op, multi}}) do
+    Logger.error(multi)
+  end
+
+  defp handle_log(_) do
+    :ok
+  end
 end

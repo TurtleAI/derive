@@ -186,15 +186,12 @@ defmodule Derive.PartitionDispatcher do
   defp log_multi(
          %S{} = _state,
          logger,
-         %MultiOp{status: :error, error: error, partition: partition} = multi
+         %MultiOp{status: :error} = multi
        ) do
     Derive.Logger.log(
       logger,
-      {:error, "ERROR processing " <> Partition.to_string(partition) <> " " <> inspect(error)}
+      {:error, {:multi_op, multi}}
     )
-
-    Derive.Logger.committed(logger, multi)
-
     multi
   end
 

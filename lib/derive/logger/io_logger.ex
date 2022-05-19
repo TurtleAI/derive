@@ -1,6 +1,6 @@
-defmodule Derive.Logger.DevLogger do
+defmodule Derive.Logger.IOLogger do
   @moduledoc """
-  A function-based logger for use in development mode.
+  A function-based logger for use in development and production mode.
   """
 
   require Logger

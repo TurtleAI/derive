@@ -5,7 +5,7 @@ defmodule Derive.Logger do
 
   There are specific implementations such as:
   - The `Derive.Logger.RebuildProgressLogger` is a logger that shows a progress bar when rebuild a reducer
-  - The `Derive.Logger.DevLogger` prints out log messages in dev mode
+  - The `Derive.Logger.IOLogger` prints out log messages in dev mode
 
   The application interacts with the loggers through this module.
   """

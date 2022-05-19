@@ -53,4 +53,5 @@ See the tests directory for now.
 - [x] Pattern for sharing event logs between multiple Derive instances
 - [x] Make the code cursor agnostic
 - [x] Test recovery in case of an unexpected shutdown
+- [ ] Log errors for partitions in the database
 - [ ] Support use cases like email notifications

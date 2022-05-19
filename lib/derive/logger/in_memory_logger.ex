@@ -7,9 +7,9 @@ defmodule Derive.Logger.InMemoryLogger do
   use GenServer
 
   @type t :: %__MODULE__{
-          multis: [Derive.State.MultiOp.t()]
+          messages: [any()]
         }
-  defstruct multis: []
+  defstruct messages: []
 
   alias __MODULE__, as: S
 
@@ -33,18 +33,17 @@ defmodule Derive.Logger.InMemoryLogger do
   def handle_call(
         :fetch,
         _from,
-        %S{multis: multis} = state
+        %S{messages: messages} = state
       ) do
-    {:reply, Enum.reverse(multis), state}
+    {:reply, Enum.reverse(messages), state}
   end
 
   @impl true
   def handle_cast(
-        {:log, {:committed, multi_op}},
-        %S{multis: multis} = state
+        {:log, message},
+        %S{messages: messages} = state
       ) do
-    new_multis = [multi_op | multis]
-    {:noreply, %{state | multis: new_multis}}
+    {:noreply, %{state | messages: [message | messages]}}
   end
 
   @impl true
