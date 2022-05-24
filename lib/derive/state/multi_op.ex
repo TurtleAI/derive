@@ -6,7 +6,7 @@ defmodule Derive.State.MultiOp do
   Inspired by `Ecto.Multi` but generic to other types of operations.
   """
 
-  alias Derive.Partition
+  alias Derive.{Partition, PartitionError}
   alias Derive.State.{MultiOp, EventOp}
 
   @type t :: %__MODULE__{
@@ -80,8 +80,22 @@ defmodule Derive.State.MultiOp do
   This operation failed on a particular handle_event(event)
   """
   @spec failed_on_event(MultiOp.t(), EventOp.t()) :: MultiOp.t()
-  def failed_on_event(%MultiOp{partition: partition} = multi, %EventOp{cursor: cursor} = op) do
-    new_partition = %{partition | status: :error, cursor: max(cursor, partition.cursor)}
+  def failed_on_event(
+        %MultiOp{partition: partition} = multi,
+        %EventOp{cursor: cursor, error: error} = op
+      ) do
+    partition_error = %PartitionError{
+      type: :handle_event,
+      cursor: partition.cursor,
+      message: inspect(error)
+    }
+
+    new_partition = %Partition{
+      partition
+      | status: :error,
+        cursor: max(cursor, partition.cursor),
+        error: partition_error
+    }
 
     %{
       multi
@@ -96,10 +110,22 @@ defmodule Derive.State.MultiOp do
   """
   @spec commit_failed(MultiOp.t(), commit_error()) :: MultiOp.t()
   def commit_failed(%MultiOp{partition: partition} = multi, error) do
+    partition_error = %PartitionError{
+      type: :commit,
+      cursor: partition.cursor,
+      message: inspect(error)
+    }
+
+    new_partition = %Partition{
+      partition
+      | status: :error,
+        error: partition_error
+    }
+
     %{
       multi
       | status: :error,
-        partition: %{partition | status: :error},
+        partition: new_partition,
         error: {:commit, error}
     }
   end
@@ -110,8 +136,8 @@ defmodule Derive.State.MultiOp do
   """
   @spec operations(MultiOp.t()) :: [EventOp.t()]
   def operations(%MultiOp{operations: operations}) do
-    Enum.flat_map(Enum.reverse(operations), fn
-      %EventOp{operations: ops} -> ops
-    end)
+    operations
+    |> Enum.reverse()
+    |> Enum.flat_map(fn %EventOp{operations: ops} -> ops end)
   end
 end

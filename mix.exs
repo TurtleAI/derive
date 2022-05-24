@@ -20,6 +20,7 @@ defmodule Derive.MixProject do
   defp deps do
     [
       {:ecto_sql, "~> 3.8.1"},
+      {:jason, "~> 1.3"},
       {:postgrex, "~> 0.16.2"}
     ]
   end

@@ -109,7 +109,7 @@ defmodule Derive.Reducer.EventProcessor do
           handle_event: handle_event,
           get_cursor: get_cursor,
           logger: logger
-        } = processor
+        } = options
       ) do
     timespan = Timespan.start()
     event_cursor = get_cursor.(event)
@@ -146,13 +146,13 @@ defmodule Derive.Reducer.EventProcessor do
 
     case resp do
       {status, event_op} when status in [:ok, :skip] ->
-        reduce_events(rest, MultiOp.add(multi, event_op), processor)
+        reduce_events(rest, MultiOp.add(multi, event_op), options)
 
       {:error, event_op} ->
         reduce_events(
           rest,
           MultiOp.failed_on_event(multi, event_op),
-          processor
+          options
         )
     end
   end

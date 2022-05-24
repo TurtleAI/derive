@@ -73,12 +73,8 @@ defmodule Derive.State.Ecto do
           status: :ok
         }
 
-      %PartitionRecord{id: id, cursor: cursor, status: status} ->
-        %Partition{
-          id: id,
-          cursor: cursor,
-          status: status
-        }
+      %PartitionRecord{} = record ->
+        PartitionRecord.to_partition(record)
     end
   end
 

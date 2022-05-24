@@ -4,7 +4,7 @@ defmodule Derive.State.EctoTest do
   alias DeriveTestRepo, as: Repo
 
   alias Derive.State.Ecto, as: EctoState
-  alias Derive.Partition
+  alias Derive.{Partition, PartitionError}
 
   defmodule Fruit do
     use Derive.State.Ecto.Model
@@ -71,6 +71,31 @@ defmodule Derive.State.EctoTest do
     EctoState.reset_state(@state)
     assert {:ok, []} = get_rows()
     EctoState.clear_state(@state)
+  end
+
+  describe "get/set partitions" do
+    test "can set and get back a partition" do
+      EctoState.init_state(@state)
+
+      EctoState.set_partition(@state, %Partition{id: "x", status: :ok, cursor: "1"})
+      %Partition{id: "x", status: :ok, cursor: "1"} = EctoState.get_partition(@state, "x")
+
+      EctoState.set_partition(@state, %Partition{
+        id: "y",
+        status: :error,
+        error: %PartitionError{type: :handle_event, message: "foo foo", cursor: "1"},
+        cursor: "2"
+      })
+
+      %Partition{
+        id: "y",
+        status: :error,
+        cursor: "2",
+        error: %PartitionError{type: :handle_event, message: "foo foo", cursor: "1"}
+      } = EctoState.get_partition(@state, "y")
+
+      EctoState.clear_state(@state)
+    end
   end
 
   describe "versioning" do
