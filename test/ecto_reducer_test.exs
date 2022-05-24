@@ -500,6 +500,19 @@ defmodule Derive.EctoReducerTest do
       assert %{name: "Pikachu"} = Repo.get(User, "99")
 
       Derive.stop(name)
+
+      assert %Derive.Partition{
+               cursor: "6",
+               error: %Derive.PartitionError{
+                 cursor: "4",
+                 message: "%Ecto.QueryError{" <> error,
+                 type: :commit
+               },
+               id: "99",
+               status: :error
+             } = UserReducer.get_partition("99")
+
+      assert String.contains?(error, "missing_field")
     end
 
     test "events are skipped over if the processing succeeds, but the Dispatcher fails to update its pointer" do

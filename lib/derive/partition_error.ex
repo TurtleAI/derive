@@ -14,7 +14,7 @@ defmodule Derive.PartitionError do
   If the status of a partition is :ok, it is in an active state and can keep catching up
   If the status is :error, there was an error and no further processing is allowed
   """
-  @type type() :: :handle_event
+  @type type() :: :handle_event | :commit
 
   @typedoc """
   The cursor at which the error occurred.

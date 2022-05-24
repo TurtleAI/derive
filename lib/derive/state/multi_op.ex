@@ -110,10 +110,22 @@ defmodule Derive.State.MultiOp do
   """
   @spec commit_failed(MultiOp.t(), commit_error()) :: MultiOp.t()
   def commit_failed(%MultiOp{partition: partition} = multi, error) do
+    partition_error = %PartitionError{
+      type: :commit,
+      cursor: partition.cursor,
+      message: inspect(error)
+    }
+
+    new_partition = %Partition{
+      partition
+      | status: :error,
+        error: partition_error
+    }
+
     %{
       multi
       | status: :error,
-        partition: %{partition | status: :error},
+        partition: new_partition,
         error: {:commit, error}
     }
   end
