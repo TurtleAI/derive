@@ -5,6 +5,7 @@ defmodule Derive.Reducer.EventProcessorTest do
   alias Derive.Reducer.EventProcessor
   alias Derive.Reducer.EventProcessor.Options
   alias Derive.State.MultiOp
+  alias Derive.Error.{HandleEventError, CommitError}
 
   def create_state(initial) do
     {:ok, pid} = Agent.start_link(fn -> initial end)
@@ -119,7 +120,7 @@ defmodule Derive.Reducer.EventProcessorTest do
         }
       )
 
-    assert %MultiOp{status: :error, error: {:handle_event, event_op}} = multi
+    assert %MultiOp{status: :error, error: %HandleEventError{operation: event_op}} = multi
 
     assert %Derive.State.EventOp{
              cursor: "3",
@@ -168,7 +169,7 @@ defmodule Derive.Reducer.EventProcessorTest do
         }
       )
 
-    assert %MultiOp{status: :error, error: {:commit, error}} = multi
+    assert %MultiOp{status: :error, error: %CommitError{error: error}} = multi
     assert %TestCommitError{message: "exception!"} = error
 
     # when a commit gracefully fails
@@ -188,7 +189,7 @@ defmodule Derive.Reducer.EventProcessorTest do
         }
       )
 
-    assert %MultiOp{status: :error, error: {:commit, error}} = multi
+    assert %MultiOp{status: :error, error: %CommitError{error: error}} = multi
     assert %TestCommitError{message: "error!"} = error
   end
 end

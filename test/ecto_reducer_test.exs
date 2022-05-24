@@ -4,6 +4,7 @@ defmodule Derive.EctoReducerTest do
   alias Derive.EventLog.InMemoryEventLog, as: EventLog
   alias DeriveTestRepo, as: Repo
   alias Derive.{Timespan, Partition}
+  alias Derive.Error.{HandleEventError, CommitError}
   alias Derive.State.MultiOp
   alias Derive.Logger.InMemoryLogger
 
@@ -119,6 +120,14 @@ defmodule Derive.EctoReducerTest do
 
   def sequential?(t1, t2),
     do: Timespan.overlaps?(t1, t2) == false
+
+  def failed_multis(logger) do
+    InMemoryLogger.fetch(logger)
+    |> Enum.flat_map(fn
+      {:error, {:multi_op, multi}} -> [multi]
+      _ -> []
+    end)
+  end
 
   test "insert a user" do
     name = :insert_a_user
@@ -377,12 +386,7 @@ defmodule Derive.EctoReducerTest do
       Derive.stop(name)
 
       # the error log shows up
-      [failed_multi] =
-        InMemoryLogger.fetch(logger)
-        |> Enum.flat_map(fn
-          {:error, {:multi_op, multi}} -> [multi]
-          _ -> []
-        end)
+      [failed_multi] = failed_multis(logger)
 
       assert %Derive.State.MultiOp{
                initial_partition: %Derive.Partition{cursor: "1", id: "99", status: :ok},
@@ -396,19 +400,19 @@ defmodule Derive.EctoReducerTest do
                    message: "%Derive.EctoReducerTest.UserError{message: \"bad stuff happened\"}"
                  }
                },
-               error:
-                 {:handle_event,
-                  %Derive.State.EventOp{
-                    cursor: "3",
-                    error: %Derive.EctoReducerTest.UserError{message: "bad stuff happened"},
-                    event: %Derive.EctoReducerTest.UserRaiseHandleError{
-                      id: "3",
-                      message: "bad stuff happened",
-                      user_id: "99"
-                    },
-                    operations: [],
-                    status: :error
-                  }},
+               error: %HandleEventError{
+                 operation: %Derive.State.EventOp{
+                   cursor: "3",
+                   error: %Derive.EctoReducerTest.UserError{message: "bad stuff happened"},
+                   event: %Derive.EctoReducerTest.UserRaiseHandleError{
+                     id: "3",
+                     message: "bad stuff happened",
+                     user_id: "99"
+                   },
+                   operations: [],
+                   status: :error
+                 }
+               },
                operations: [
                  # we failed on event 3, so this following event gets skipped
                  %Derive.State.EventOp{
@@ -460,6 +464,51 @@ defmodule Derive.EctoReducerTest do
       assert %{name: "Mondo Man"} = Repo.get(User, "99")
 
       Derive.stop(name)
+    end
+
+    @tag :focus
+    test "a commit failing due to a constraint violation" do
+      name = :constraint_violation
+
+      {:ok, event_log} = EventLog.start_link()
+      Derive.rebuild(UserReducer, source: event_log)
+
+      {:ok, logger} = InMemoryLogger.start_link()
+
+      {:ok, _} =
+        Derive.start_link(name: name, reducer: UserReducer, source: event_log, logger: logger)
+
+      events = [
+        %UserCreated{id: "1", user_id: "m", name: "Mondo Man"},
+        %UserCreated{id: "2", user_id: "m", name: "Mondo Manner"}
+      ]
+
+      EventLog.append(event_log, events)
+      Derive.await(name, events)
+
+      assert %Partition{
+               cursor: "2",
+               error: %Derive.PartitionError{
+                 cursor: "2",
+                 message: _,
+                 type: :commit
+               },
+               id: "m",
+               status: :error
+             } = UserReducer.get_partition("m")
+
+      [multi] = failed_multis(logger)
+
+      assert %MultiOp{
+               status: :error,
+               error: %CommitError{
+                 error: [
+                   id:
+                     {"has already been taken",
+                      [constraint: :unique, constraint_name: "users_pkey"]}
+                 ]
+               }
+             } = multi
     end
 
     test "a commit failing with no correlation to the event causes the partition to halt" do

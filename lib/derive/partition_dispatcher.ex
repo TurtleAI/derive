@@ -192,7 +192,6 @@ defmodule Derive.PartitionDispatcher do
       logger,
       {:error, {:multi_op, multi}}
     )
-    multi
   end
 
   defp notify_awaiters(awaiters) do

@@ -8,6 +8,7 @@ defmodule Derive.State.MultiOp do
 
   alias Derive.{Partition, PartitionError}
   alias Derive.State.{MultiOp, EventOp}
+  alias Derive.Error.{HandleEventError, CommitError}
 
   @type t :: %__MODULE__{
           partition: Partition.t(),
@@ -31,9 +32,7 @@ defmodule Derive.State.MultiOp do
   An operation can fail when processing an event (calling handle_event)
   or during a commit.
   """
-  @type error ::
-          {:commit, commit_error()}
-          | {:handle_event, EventOp.t()}
+  @type error :: HandleEventError.t() | CommitError.t()
 
   @type commit_error() :: term()
 
@@ -101,15 +100,15 @@ defmodule Derive.State.MultiOp do
       multi
       | status: :error,
         partition: new_partition,
-        error: {:handle_event, op}
+        error: %HandleEventError{operation: op}
     }
   end
 
   @doc """
   This operation failed during the commit phase
   """
-  @spec commit_failed(MultiOp.t(), commit_error()) :: MultiOp.t()
-  def commit_failed(%MultiOp{partition: partition} = multi, error) do
+  @spec commit_failed(MultiOp.t(), commit_error(), EventOp.t() | nil) :: MultiOp.t()
+  def commit_failed(%MultiOp{partition: partition} = multi, error, event_op \\ nil) do
     partition_error = %PartitionError{
       type: :commit,
       cursor: partition.cursor,
@@ -126,7 +125,7 @@ defmodule Derive.State.MultiOp do
       multi
       | status: :error,
         partition: new_partition,
-        error: {:commit, error}
+        error: %CommitError{error: error, operation: event_op}
     }
   end
 
@@ -139,5 +138,28 @@ defmodule Derive.State.MultiOp do
     operations
     |> Enum.reverse()
     |> Enum.flat_map(fn %EventOp{operations: ops} -> ops end)
+  end
+
+  @doc """
+  Get an event operation based on the index of the operation
+  """
+  @spec find_event_op_by_index(MultiOp.t(), integer()) :: EventOp.t()
+  def find_event_op_by_index(%MultiOp{operations: operations}, index) do
+    operations
+    |> Enum.reverse()
+    |> do_find_event_op_by_index(index)
+  end
+
+  defp do_find_event_op_by_index([], _index),
+    do: nil
+
+  defp do_find_event_op_by_index([%EventOp{operations: operations} = event_op | rest], index) do
+    op_count = Enum.count(operations)
+
+    if index < op_count do
+      event_op
+    else
+      do_find_event_op_by_index(rest, index - op_count)
+    end
   end
 end

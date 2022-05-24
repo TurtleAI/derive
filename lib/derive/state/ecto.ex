@@ -22,24 +22,48 @@ defmodule Derive.State.Ecto do
   Commit a list of operations to disk within a transaction.
   """
   @spec commit(t(), MultiOp.t()) :: MultiOp.t()
-  def commit(%S{repo: repo} = state, %MultiOp{} = op) do
+  def commit(%S{repo: repo} = state, %MultiOp{partition: partition} = multi_op) do
     operations =
-      MultiOp.operations(op) ++
+      MultiOp.operations(multi_op) ++
         [
           %Derive.State.Ecto.Operation.SetPartition{
             table: partition_table(state),
-            partition: op.partition
+            partition: partition
           }
         ]
 
-    multi = operations_to_multi(Ecto.Multi.new(), 1, operations)
+    multi = operations_to_multi(Ecto.Multi.new(), 0, operations)
 
+    case safe_transaction(repo, multi) do
+      {:ok, _changes} ->
+        MultiOp.committed(multi_op)
+
+      {:error, failed_operation_index, %Ecto.Changeset{errors: errors}, _changes_so_far} ->
+        failed_event_op = MultiOp.find_event_op_by_index(multi_op, failed_operation_index)
+        multi_op = MultiOp.commit_failed(multi_op, errors, failed_event_op)
+        set_partition(state, multi_op.partition)
+        multi_op
+
+      {:exception, error} ->
+        multi_op = MultiOp.commit_failed(multi_op, error)
+        set_partition(state, multi_op.partition)
+        multi_op
+    end
+  end
+
+  # Execute a transaction but capture an exception and return it as an exception tuple
+  # This allows to explicitly handle an error without crashing the process
+  @spec safe_transaction(module(), Ecto.Multi.t()) ::
+          {:ok, any}
+          | {:error, any}
+          | {:error, Ecto.Multi.name(), any, %{Ecto.Multi.name() => any}}
+          | {:exception, any()}
+  defp safe_transaction(repo, multi) do
     try do
       repo.transaction(multi)
-      MultiOp.committed(op)
     rescue
       error ->
-        MultiOp.commit_failed(op, error)
+        {:exception, error}
     end
   end
 
@@ -80,7 +104,7 @@ defmodule Derive.State.Ecto do
 
   def set_partition(%S{repo: repo} = state, partition) do
     multi =
-      operations_to_multi(Ecto.Multi.new(), 1, [
+      operations_to_multi(Ecto.Multi.new(), 0, [
         %Derive.State.Ecto.Operation.SetPartition{
           table: partition_table(state),
           partition: partition
