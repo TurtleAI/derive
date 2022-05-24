@@ -9,7 +9,7 @@ defmodule Derive.State.Ecto.PartitionRecord do
 
   use Derive.State.Ecto.Model
 
-  alias Derive.Partition
+  alias Derive.{Partition, PartitionError}
 
   @primary_key {:id, :string, [autogenerate: false]}
   schema "partitions" do
@@ -32,10 +32,16 @@ defmodule Derive.State.Ecto.PartitionRecord do
   end
 
   defp encode_error(nil), do: nil
-  defp encode_error(error), do: error
+
+  defp encode_error(%PartitionError{type: type, message: message, cursor: cursor}) do
+    %{"type" => type, "message" => message, "cursor" => cursor}
+  end
 
   defp decode_error(nil), do: nil
-  defp decode_error(error), do: error
+
+  defp decode_error(%{"type" => type, "message" => message, "cursor" => cursor}) do
+    %PartitionError{type: String.to_atom(type), message: message, cursor: cursor}
+  end
 
   # Because we can't create a migration with a dynamic table name using create table(...),
   # we implement the raw up_sql/down_sql implementations instead

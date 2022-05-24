@@ -4,7 +4,7 @@ defmodule Derive.State.EctoTest do
   alias DeriveTestRepo, as: Repo
 
   alias Derive.State.Ecto, as: EctoState
-  alias Derive.Partition
+  alias Derive.{Partition, PartitionError}
 
   defmodule Fruit do
     use Derive.State.Ecto.Model
@@ -80,8 +80,19 @@ defmodule Derive.State.EctoTest do
       EctoState.set_partition(@state, %Partition{id: "x", status: :ok, cursor: "1"})
       %Partition{id: "x", status: :ok, cursor: "1"} = EctoState.get_partition(@state, "x")
 
-      EctoState.set_partition(@state, %Partition{id: "y", status: :error, error: %{"type" => "handle_error", "message" => "foo foo"}, cursor: "2"})
-      %Partition{id: "y", status: :error, cursor: "2", error: %{"type" => "handle_error", "message" => "foo foo"}} = EctoState.get_partition(@state, "y")
+      EctoState.set_partition(@state, %Partition{
+        id: "y",
+        status: :error,
+        error: %PartitionError{type: :handle_event, message: "foo foo", cursor: "1"},
+        cursor: "2"
+      })
+
+      %Partition{
+        id: "y",
+        status: :error,
+        cursor: "2",
+        error: %PartitionError{type: :handle_event, message: "foo foo", cursor: "1"}
+      } = EctoState.get_partition(@state, "y")
 
       EctoState.clear_state(@state)
     end

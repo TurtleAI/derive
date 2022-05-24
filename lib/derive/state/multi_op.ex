@@ -6,7 +6,7 @@ defmodule Derive.State.MultiOp do
   Inspired by `Ecto.Multi` but generic to other types of operations.
   """
 
-  alias Derive.Partition
+  alias Derive.{Partition, PartitionError}
   alias Derive.State.{MultiOp, EventOp}
 
   @type t :: %__MODULE__{
@@ -84,13 +84,13 @@ defmodule Derive.State.MultiOp do
         %MultiOp{partition: partition} = multi,
         %EventOp{cursor: cursor, error: error} = op
       ) do
-    partition_error = %{
-      "type" => "handle_event",
-      "cursor" => partition.cursor,
-      "message" => inspect(error)
+    partition_error = %PartitionError{
+      type: :handle_event,
+      cursor: partition.cursor,
+      message: inspect(error)
     }
 
-    new_partition = %{
+    new_partition = %Partition{
       partition
       | status: :error,
         cursor: max(cursor, partition.cursor),

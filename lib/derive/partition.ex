@@ -17,7 +17,7 @@ defmodule Derive.Partition do
   """
   @type status() :: :ok | :error
 
-  @type error() :: term()
+  @type error() :: Derive.PartitionError.t()
 
   @typedoc """
   The id of the partition. Can be any string.
