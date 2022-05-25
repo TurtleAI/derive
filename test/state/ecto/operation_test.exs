@@ -48,10 +48,34 @@ defmodule Derive.State.Ecto.OperationTest do
     def down, do: drop_if_exists(table(:checkins))
   end
 
+  defmodule FriendRequest do
+    use Derive.State.Ecto.Model
+
+    @primary_key false
+    schema "friend_requests" do
+      field(:user_id, :string, primary_key: true)
+      field(:friend_id, :string, primary_key: true)
+    end
+
+    def up do
+      create table(:friend_requests, primary_key: false) do
+        add(:user_id, :string, size: 32, primary_key: true)
+        add(:friend_id, :string, size: 32, primary_key: true)
+      end
+    end
+
+    def down, do: drop_if_exists(table(:friend_requests))
+  end
+
   setup_all do
     Repo.start_link()
 
-    state = %Derive.State.Ecto{repo: Repo, namespace: "db_op_test", models: [Person, Checkin]}
+    state = %Derive.State.Ecto{
+      repo: Repo,
+      namespace: "db_op_test",
+      models: [Person, Checkin, FriendRequest]
+    }
+
     Derive.State.Ecto.reset_state(state)
 
     :ok
@@ -155,6 +179,19 @@ defmodule Derive.State.Ecto.OperationTest do
 
       assert %{user_id: "a", location_id: "x", timestamp: ~U[2023-12-12T15:00:00Z]} =
                Repo.get_by(Checkin, user_id: "a", location_id: "x")
+    end
+
+    test "pk with no other fields" do
+      # when no other fields are present, we should prevent a stray replace statement
+      commit([
+        replace(%FriendRequest{
+          user_id: "a",
+          friend_id: "b"
+        })
+      ])
+
+      assert %{user_id: "a", friend_id: "b"} =
+               Repo.get_by(FriendRequest, user_id: "a", friend_id: "b")
     end
   end
 

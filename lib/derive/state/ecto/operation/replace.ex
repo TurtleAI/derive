@@ -19,11 +19,20 @@ defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.Replace do
         name
       ) do
     conflict_target = type.__schema__(:primary_key)
+    fields = type.__schema__(:fields)
+
+    on_conflict =
+      cond do
+        # if there are no additional fields, we don't need to do anything
+        # {:replace_all_except, []}
+        conflict_target == fields -> :nothing
+        true -> {:replace_all_except, conflict_target}
+      end
 
     Ecto.Multi.insert(Ecto.Multi.new(), name, record,
       returning: false,
-      on_conflict: {:replace_all_except, conflict_target},
-      conflict_target: conflict_target
+      conflict_target: conflict_target,
+      on_conflict: on_conflict
     )
   end
 end
