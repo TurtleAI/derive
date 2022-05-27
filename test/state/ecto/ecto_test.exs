@@ -77,10 +77,10 @@ defmodule Derive.State.EctoTest do
     test "can set and get back a partition" do
       EctoState.init_state(@state)
 
-      EctoState.set_partition(@state, %Partition{id: "x", status: :ok, cursor: "1"})
-      %Partition{id: "x", status: :ok, cursor: "1"} = EctoState.get_partition(@state, "x")
+      EctoState.save_partition(@state, %Partition{id: "x", status: :ok, cursor: "1"})
+      %Partition{id: "x", status: :ok, cursor: "1"} = EctoState.load_partition(@state, "x")
 
-      EctoState.set_partition(@state, %Partition{
+      EctoState.save_partition(@state, %Partition{
         id: "y",
         status: :error,
         error: %PartitionError{type: :handle_event, message: "foo foo", cursor: "1"},
@@ -92,7 +92,7 @@ defmodule Derive.State.EctoTest do
         status: :error,
         cursor: "2",
         error: %PartitionError{type: :handle_event, message: "foo foo", cursor: "1"}
-      } = EctoState.get_partition(@state, "y")
+      } = EctoState.load_partition(@state, "y")
 
       EctoState.clear_state(@state)
     end
@@ -101,7 +101,7 @@ defmodule Derive.State.EctoTest do
   describe "versioning" do
     test "the state defaults to 1" do
       EctoState.init_state(@state)
-      assert %Partition{cursor: "1"} = EctoState.get_partition(@state, Partition.version_id())
+      assert %Partition{cursor: "1"} = EctoState.load_partition(@state, Partition.version_id())
       EctoState.clear_state(@state)
     end
 
@@ -109,7 +109,7 @@ defmodule Derive.State.EctoTest do
       state = %{@state | version: "1.1"}
       EctoState.init_state(%{state | version: "1.1"})
 
-      assert %Partition{cursor: "1.1"} = EctoState.get_partition(state, Partition.version_id())
+      assert %Partition{cursor: "1.1"} = EctoState.load_partition(state, Partition.version_id())
 
       assert EctoState.needs_rebuild?(state) == false
       assert EctoState.needs_rebuild?(%{state | version: "1.2"}) == true

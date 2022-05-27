@@ -41,12 +41,12 @@ defmodule Derive.State.Ecto do
       {:error, failed_operation_index, %Ecto.Changeset{errors: errors}, _changes_so_far} ->
         failed_event_op = MultiOp.find_event_op_by_index(multi_op, failed_operation_index)
         multi_op = MultiOp.commit_failed(multi_op, errors, failed_event_op)
-        set_partition(state, multi_op.partition)
+        save_partition(state, multi_op.partition)
         multi_op
 
       {:exception, error} ->
         multi_op = MultiOp.commit_failed(multi_op, error)
-        set_partition(state, multi_op.partition)
+        save_partition(state, multi_op.partition)
         multi_op
     end
   end
@@ -70,7 +70,7 @@ defmodule Derive.State.Ecto do
   def needs_rebuild?(%S{version: target_version} = state) do
     resp =
       try do
-        {:ok, get_partition(state, Partition.version_id())}
+        {:ok, load_partition(state, Partition.version_id())}
       catch
         # in some cases, the partition table doesn't exist yet
         # in that case, we want to return true
@@ -88,7 +88,7 @@ defmodule Derive.State.Ecto do
     end
   end
 
-  def get_partition(%S{repo: repo} = state, partition_id) do
+  def load_partition(%S{repo: repo} = state, partition_id) do
     case repo.get({partition_table(state), PartitionRecord}, partition_id) do
       nil ->
         %Partition{
@@ -102,7 +102,7 @@ defmodule Derive.State.Ecto do
     end
   end
 
-  def set_partition(%S{repo: repo} = state, partition) do
+  def save_partition(%S{repo: repo} = state, partition) do
     multi =
       operations_to_multi(Ecto.Multi.new(), 0, [
         %Derive.State.Ecto.Operation.SetPartition{
@@ -135,7 +135,7 @@ defmodule Derive.State.Ecto do
     models = [{PartitionRecord, partition_table(state)} | models]
     for model <- models, do: init_model(model, repo)
 
-    set_partition(state, %Partition{id: Partition.version_id(), cursor: version, status: :ok})
+    save_partition(state, %Partition{id: Partition.version_id(), cursor: version, status: :ok})
   end
 
   defp clear_model(model, repo) when is_atom(model) do

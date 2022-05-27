@@ -88,7 +88,7 @@ defmodule Derive.PartitionDispatcher do
         :load_partition,
         %S{reducer: reducer, partition: %{id: id}, timeout: timeout} = state
       ) do
-    partition = reducer.get_partition(id)
+    partition = reducer.load_partition(id)
     new_state = %{state | partition: partition}
     # Logger.info("BOOT " <> Partition.to_string(partition))
     {:noreply, new_state, timeout}

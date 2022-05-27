@@ -53,7 +53,7 @@ defmodule Derive.NotifierTest do
     end
 
     @impl true
-    def get_partition(id) do
+    def load_partition(id) do
       %Derive.Partition{
         id: id,
         cursor: "0",
@@ -62,7 +62,7 @@ defmodule Derive.NotifierTest do
     end
 
     @impl true
-    def set_partition(_partition), do: :ok
+    def save_partition(_partition), do: :ok
   end
 
   setup do

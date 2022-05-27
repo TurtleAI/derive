@@ -74,14 +74,17 @@ defmodule Derive.Reducer do
   @callback needs_rebuild?() :: boolean()
 
   @doc """
-  Get the current overall partition record
+  Load the partition from where it is persisted.
+  For example can be in Postgres, in memory, or elsewhere.
+  This will be called at the start of a process booting.
   """
-  @callback get_partition(Partition.id()) :: Partition.t()
+  @callback load_partition(Partition.id()) :: Partition.t()
 
   @doc """
-  Persist the partition record
+  Persist a partition.
+  This may be called liberally such as every time it is updated in memory.
   """
-  @callback set_partition(Derive.Partition.t()) :: :ok
+  @callback save_partition(Derive.Partition.t()) :: :ok
 
   defmacro __using__(_options) do
     quote do
