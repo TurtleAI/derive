@@ -37,6 +37,7 @@ defmodule Derive.EctoReducer do
 
     quote do
       @behaviour Derive.Reducer
+      @behaviour Derive.ReducerState
 
       @state %Derive.State.Ecto{
         repo: unquote(repo),
@@ -77,12 +78,12 @@ defmodule Derive.EctoReducer do
         do: Derive.State.Ecto.needs_rebuild?(@state)
 
       @impl true
-      def get_partition(id),
-        do: Derive.State.Ecto.get_partition(@state, id)
+      def load_partition(id),
+        do: Derive.State.Ecto.load_partition(@state, id)
 
       @impl true
-      def set_partition(partition),
-        do: Derive.State.Ecto.set_partition(@state, partition)
+      def save_partition(partition),
+        do: Derive.State.Ecto.save_partition(@state, partition)
     end
   end
 end

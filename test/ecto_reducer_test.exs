@@ -372,13 +372,13 @@ defmodule Derive.EctoReducerTest do
       Derive.await(name, events)
 
       assert %Derive.Partition{cursor: "5", id: "55", status: :ok} =
-               UserReducer.get_partition("55")
+               UserReducer.load_partition("55")
 
       assert %Derive.Partition{cursor: "6", id: "99", status: :error} =
-               UserReducer.get_partition("99")
+               UserReducer.load_partition("99")
 
       assert %Derive.Partition{cursor: "6", status: :ok} =
-               UserReducer.get_partition(Partition.global_id())
+               UserReducer.load_partition(Partition.global_id())
 
       # name hasn't changed
       assert %{name: "Pikachu"} = Repo.get(User, "99")
@@ -495,7 +495,7 @@ defmodule Derive.EctoReducerTest do
                },
                id: "m",
                status: :error
-             } = UserReducer.get_partition("m")
+             } = UserReducer.load_partition("m")
 
       [multi] = failed_multis(logger)
 
@@ -559,7 +559,7 @@ defmodule Derive.EctoReducerTest do
                },
                id: "99",
                status: :error
-             } = UserReducer.get_partition("99")
+             } = UserReducer.load_partition("99")
 
       assert String.contains?(error, "missing_field")
     end
@@ -583,7 +583,7 @@ defmodule Derive.EctoReducerTest do
       Derive.stop(name)
 
       # We move the partition to some earlier value to simulate a shut-down before things are finished
-      UserReducer.set_partition(%Derive.Partition{
+      UserReducer.save_partition(%Derive.Partition{
         id: Partition.global_id(),
         cursor: "2"
       })

@@ -106,7 +106,7 @@ defmodule Derive.Dispatcher do
 
   @impl true
   def handle_continue(:load_partition, %S{reducer: reducer} = state) do
-    partition = reducer.get_partition(Partition.global_id())
+    partition = reducer.load_partition(Partition.global_id())
 
     GenServer.cast(self(), :catchup)
 
@@ -202,7 +202,7 @@ defmodule Derive.Dispatcher do
         end
 
         new_partition = %{partition | cursor: new_cursor}
-        reducer.set_partition(new_partition)
+        reducer.save_partition(new_partition)
 
         Derive.Logger.log(logger, {:events_processed, Enum.count(events)})
 

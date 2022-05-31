@@ -60,9 +60,9 @@ defmodule Derive.Reducer.EventProcessor do
   def process_events(
         events,
         multi,
-        %Options{commit: commit} = processor
+        %Options{commit: commit} = options
       ) do
-    case reduce_events(events, multi, processor) do
+    case reduce_events(events, multi, options) do
       %MultiOp{status: :processed} = multi ->
         # we only commit a multi if it has successfully been processed
         try do
@@ -95,10 +95,10 @@ defmodule Derive.Reducer.EventProcessor do
           Options.t()
         ) ::
           Derive.State.MultiOp.t()
-  def reduce_events([], %MultiOp{status: :processing} = multi, _processor),
+  def reduce_events([], %MultiOp{status: :processing} = multi, _options),
     do: MultiOp.processed(multi)
 
-  def reduce_events([], %MultiOp{} = multi, _processor),
+  def reduce_events([], %MultiOp{} = multi, _options),
     do: multi
 
   def reduce_events(
