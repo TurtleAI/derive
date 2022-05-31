@@ -26,6 +26,7 @@ defmodule Derive.InMemoryReducerTest do
 
   defmodule UserReducer do
     use Derive.Reducer
+    use Derive.ReducerState
 
     import Derive.State.InMemory.Operation
 

@@ -62,18 +62,6 @@ defmodule Derive.Reducer do
   @callback get_cursor(event()) :: cursor()
 
   @doc """
-  Reset the state so we can start processing from the first event
-  This operation should reset the state in *all* partitions
-  """
-  @callback reset_state() :: :ok
-
-  @doc """
-  Whether the state of the reducer needs to be rebuilt.
-  This can happen if the state is invalidated manually or if the version is updated.
-  """
-  @callback needs_rebuild?() :: boolean()
-
-  @doc """
   Load the partition from where it is persisted.
   For example can be in Postgres, in memory, or elsewhere.
   This will be called at the start of a process booting.

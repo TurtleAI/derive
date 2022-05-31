@@ -34,7 +34,7 @@ defmodule Derive.NotifierTest do
     def partition(%{user_id: user_id}), do: user_id
 
     @impl true
-    def handle_event(%UserCreated{user_id: user_id, name: name, email: email}) do
+    def handle_event(%UserCreated{user_id: user_id, name: name}) do
       %Email{to: user_id, message: "Hi welcome #{name}"}
     end
 
@@ -42,6 +42,7 @@ defmodule Derive.NotifierTest do
       %Email{to: user_id, message: "Hi you changed your name to #{name}"}
     end
 
+    @impl true
     def commit(%MultiOp{} = op) do
       emails = Derive.State.MultiOp.operations(op)
 
@@ -53,16 +54,8 @@ defmodule Derive.NotifierTest do
     end
 
     @impl true
-    def load_partition(id) do
-      %Derive.Partition{
-        id: id,
-        cursor: "0",
-        status: :ok
-      }
-    end
-
-    @impl true
-    def save_partition(_partition), do: :ok
+    def load_partition_cursor(_id),
+      do: "0"
   end
 
   setup do

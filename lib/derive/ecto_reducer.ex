@@ -37,6 +37,7 @@ defmodule Derive.EctoReducer do
 
     quote do
       @behaviour Derive.Reducer
+      @behaviour Derive.ReducerState
 
       @state %Derive.State.Ecto{
         repo: unquote(repo),
