@@ -12,14 +12,14 @@ defmodule Derive.Dispatcher do
 
   use GenServer, restart: :transient
 
-  alias Derive.{Partition, PartitionDispatcher, Reducer}
+  alias Derive.{Partition, PartitionDispatcher, Reducer, EventBatch}
 
   alias __MODULE__, as: S
 
   @type t :: %__MODULE__{
           reducer: Reducer.t(),
           batch_size: non_neg_integer(),
-          partition: Reducer.partition(),
+          partition: Derive.Partition.t(),
           lookup_or_start: PartitionDispatcher.lookup_or_start(),
           mode: mode(),
           logger: Derive.Logger.t()
@@ -179,25 +179,29 @@ defmodule Derive.Dispatcher do
         {:done, state}
 
       {events, new_cursor} ->
-        events_by_partition =
+        events_by_partition_id =
           Enum.group_by(events, &reducer.partition/1)
           |> Enum.reject(fn {partition, _events} ->
             partition == nil
           end)
 
-        events_by_partition_dispatcher =
-          for {partition, events} <- events_by_partition, into: %{} do
-            partition_dispatcher = lookup_or_start.({reducer, partition})
+        events_by_partition_id_dispatcher =
+          for {partition_id, events} <- events_by_partition_id, into: %{} do
+            partition_dispatcher = lookup_or_start.({reducer, partition_id})
             {partition_dispatcher, events}
           end
 
-        Enum.each(events_by_partition_dispatcher, fn {partition_dispatcher, events} ->
-          PartitionDispatcher.dispatch_events(partition_dispatcher, events, logger)
+        Enum.each(events_by_partition_id_dispatcher, fn {partition_dispatcher, events} ->
+          PartitionDispatcher.dispatch_events(partition_dispatcher, %EventBatch{
+            events: events,
+            logger: logger,
+            global_partition: partition
+          })
         end)
 
         # We want to wait until all of the partitions have processed the events
         # before updating the cursor of this partition
-        for {partition_dispatcher, events} <- events_by_partition_dispatcher, e <- events do
+        for {partition_dispatcher, events} <- events_by_partition_id_dispatcher, e <- events do
           PartitionDispatcher.await(partition_dispatcher, e)
         end
 
