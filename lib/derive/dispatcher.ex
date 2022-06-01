@@ -194,8 +194,7 @@ defmodule Derive.Dispatcher do
         Enum.each(events_by_partition_id_dispatcher, fn {partition_dispatcher, events} ->
           PartitionDispatcher.dispatch_events(partition_dispatcher, %EventBatch{
             events: events,
-            logger: logger,
-            global_partition: partition
+            logger: logger
           })
         end)
 
