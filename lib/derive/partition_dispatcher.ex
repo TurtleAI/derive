@@ -24,11 +24,6 @@ defmodule Derive.PartitionDispatcher do
   """
   @type pending_awaiter :: {GenServer.from(), Reducer.cursor()}
 
-  @typedoc """
-  A function to lookup or start a function given a reducer and partition
-  """
-  @type lookup_or_start :: ({Reducer.t(), Partition.id()} -> pid())
-
   @default_timeout 30_000
 
   def start_link(opts) do

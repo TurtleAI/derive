@@ -21,15 +21,12 @@ defmodule Derive do
     For an in-memory implementation, it's simply a state change.
   """
 
-  @type option ::
-          {:show_progress, boolean()}
-          | {:validate_version, boolean()}
-          | Derive.Dispatcher.option()
+  @type option :: Derive.Options.option()
   @type server :: Supervisor.supervisor()
 
   use Supervisor
 
-  alias Derive.{Dispatcher, Dispatcher, PartitionDispatcher, MapSupervisor, EventLog}
+  alias Derive.{Dispatcher, Dispatcher, PartitionSupervisor, EventLog}
 
   @spec start_link([option()]) :: {:ok, server()} | {:error, term()}
   def start_link(opts \\ []) do
@@ -160,38 +157,31 @@ defmodule Derive do
   ### Server
 
   def init(opts) do
-    # besides :name, all options are forwarded to the dispatcher
-    {derive_opts, dispatcher_opts} = Keyword.split(opts, [:name])
+    derive_opts = %Derive.Options{
+      reducer: Keyword.fetch!(opts, :reducer),
+      name: Keyword.fetch!(opts, :name),
+      mode: Keyword.get(opts, :mode, :catchup),
+      batch_size: Keyword.get(opts, :batch_size, 100),
+      source: Keyword.fetch!(opts, :source),
+      logger: Keyword.get(opts, :logger)
+    }
 
-    reducer = Keyword.fetch!(dispatcher_opts, :reducer)
-    name = Keyword.fetch!(derive_opts, :name)
-    source = Keyword.fetch!(dispatcher_opts, :source)
+    {source_spec, source_server} = spec_and_server(derive_opts.name, :source, derive_opts.source)
 
-    {source_spec, source_server} = spec_and_server(name, :source, source)
+    derive_opts = %{derive_opts | source: source_server}
 
-    dispatcher_opts =
-      Keyword.merge(dispatcher_opts,
-        name: child_process(name, :dispatcher),
-        source: source_server,
-        lookup_or_start: fn {reducer, partition} ->
-          # Return the given `Derive.PartitionSupervisor` dispatcher for the given {reducer, partition} pair
-          # Processes are lazily started.
-          # - If a process is already alive, we will return the existing process.
-          # - If a process hasn't been started, it'll be started and returned.
-          MapSupervisor.start_child(
-            child_process(name, :supervisor),
-            {reducer, partition},
-            {PartitionDispatcher, [reducer: reducer, partition: partition]}
-          )
-        end
-      )
+    dispatcher_opts = [
+      name: child_process(derive_opts.name, :dispatcher),
+      options: derive_opts,
+      partition_supervisor: child_process(derive_opts.name, :supervisor)
+    ]
 
     children =
-      reducer.child_specs(name) ++
-        source_spec ++
+      source_spec ++
+        derive_opts.reducer.child_specs(derive_opts.name) ++
         [
           {Dispatcher, dispatcher_opts},
-          {MapSupervisor, name: child_process(name, :supervisor)}
+          {Derive.MapSupervisor, name: child_process(derive_opts.name, :supervisor)}
         ]
 
     # :rest_for_one because if the dispatcher dies,
