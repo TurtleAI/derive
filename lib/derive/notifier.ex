@@ -25,10 +25,10 @@ defmodule Derive.Notifier do
       end
   """
 
-  @doc """
-  When booting, get the cursor to start at for a given partition.
-  """
-  @callback load_partition_cursor(Derive.Partition.id()) :: Derive.Reducer.cursor()
+  # @doc """
+  # When booting, get the cursor to start at for a given partition.
+  # """
+  # @callback load_partition_cursor(Derive.Partition.id()) :: Derive.Reducer.cursor()
 
   @doc """
   For a given event, return a operation that should be run as a result.
@@ -40,7 +40,7 @@ defmodule Derive.Notifier do
 
   defmacro __using__(_opts) do
     quote do
-      @behaviour Derive.Reducer
+      use Derive.Reducer
       @behaviour Derive.Notifier
 
       @impl true
@@ -60,18 +60,6 @@ defmodule Derive.Notifier do
       @impl true
       def get_cursor(%{id: id}),
         do: id
-
-      @impl true
-      def load_partition(id) do
-        %Derive.Partition{
-          id: id,
-          cursor: load_partition_cursor(id),
-          status: :ok
-        }
-      end
-
-      @impl true
-      def save_partition(_partition), do: :ok
     end
   end
 end

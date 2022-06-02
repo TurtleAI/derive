@@ -54,8 +54,19 @@ defmodule Derive.NotifierTest do
     end
 
     @impl true
-    def load_partition_cursor(_id),
-      do: "0"
+    def load_partition(id),
+      do: Derive.State.InMemory.PartitionRepo.load_partition(:partitions, id)
+
+    @impl true
+    def save_partition(partition),
+      do: Derive.State.InMemory.PartitionRepo.save_partition(:partitions, partition)
+
+    @impl true
+    def child_specs(_derive_name) do
+      [
+        {Derive.State.InMemory.PartitionRepo, name: :partitions}
+      ]
+    end
   end
 
   setup do

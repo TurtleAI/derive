@@ -80,7 +80,7 @@ defmodule Derive do
   """
   @spec await(server(), [EventLog.event()]) :: :ok
   def await(server, events),
-    do: Dispatcher.await(dispatcher_name(server), events)
+    do: Dispatcher.await(child_process(server, :dispatcher), events)
 
   @doc """
   Wait for all the events to be processed by all Derive processes
@@ -121,7 +121,7 @@ defmodule Derive do
 
     {:ok, derive} = start_link(derive_opts)
 
-    dispatcher = Process.whereis(dispatcher_name(name))
+    dispatcher = Process.whereis(child_process(name, :dispatcher))
     Process.monitor(dispatcher)
 
     # In :rebuild mode, the dispatcher will shut down when
@@ -163,14 +163,15 @@ defmodule Derive do
     # besides :name, all options are forwarded to the dispatcher
     {derive_opts, dispatcher_opts} = Keyword.split(opts, [:name])
 
+    reducer = Keyword.fetch!(dispatcher_opts, :reducer)
     name = Keyword.fetch!(derive_opts, :name)
     source = Keyword.fetch!(dispatcher_opts, :source)
 
-    {source_spec, source_server} = source_spec_and_server(source, source_name(name))
+    {source_spec, source_server} = spec_and_server(name, :source, source)
 
     dispatcher_opts =
       Keyword.merge(dispatcher_opts,
-        name: dispatcher_name(name),
+        name: child_process(name, :dispatcher),
         source: source_server,
         lookup_or_start: fn {reducer, partition} ->
           # Return the given `Derive.PartitionSupervisor` dispatcher for the given {reducer, partition} pair
@@ -178,7 +179,7 @@ defmodule Derive do
           # - If a process is already alive, we will return the existing process.
           # - If a process hasn't been started, it'll be started and returned.
           MapSupervisor.start_child(
-            supervisor_name(name),
+            child_process(name, :supervisor),
             {reducer, partition},
             {PartitionDispatcher, [reducer: reducer, partition: partition]}
           )
@@ -186,10 +187,11 @@ defmodule Derive do
       )
 
     children =
-      source_spec ++
+      reducer.child_specs(name) ++
+        source_spec ++
         [
           {Dispatcher, dispatcher_opts},
-          {MapSupervisor, name: supervisor_name(name)}
+          {MapSupervisor, name: child_process(name, :supervisor)}
         ]
 
     # :rest_for_one because if the dispatcher dies,
@@ -199,32 +201,22 @@ defmodule Derive do
 
   # In some cases, we want the Derive process to spawn and supervise an
   # event log rather than handling it externally
-  defp source_spec_and_server({mod, opts}, default_name) do
-    opts = Keyword.put_new(opts, :name, default_name)
+  defp spec_and_server(derive_name, child_id, {mod, opts}) do
+    default_child_process_name = child_process(derive_name, child_id)
+    opts = Keyword.put_new(opts, :name, default_child_process_name)
 
-    {[
-       %{
-         id: :source,
-         start: {mod, :start_link, [opts]}
-       }
-     ], Keyword.fetch!(opts, :name)}
+    child_spec = %{
+      id: child_id,
+      start: {mod, :start_link, [opts]}
+    }
+
+    {[child_spec], Keyword.fetch!(opts, :name)}
   end
 
-  defp source_spec_and_server(source, _default_name) do
-    {[], source}
+  defp spec_and_server(_id, _default_name, source),
+    do: {[], source}
+
+  defp child_process(derive_name, child_id) do
+    :"#{derive_name}.#{child_id}"
   end
-
-  # process of the source if this Derive process is responsible
-  # for spwaning it
-  defp source_name(name),
-    do: :"#{name}.Source"
-
-  # process of the dynamic supervisor for Derive.PartitionDispatcher
-  # given the Derive process name
-  defp supervisor_name(name),
-    do: :"#{name}.Supervisor"
-
-  # process of the `Derive.Dispatcher`
-  defp dispatcher_name(name),
-    do: :"#{name}.Dispatcher"
 end

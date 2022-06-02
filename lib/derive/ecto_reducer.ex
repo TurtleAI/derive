@@ -36,7 +36,7 @@ defmodule Derive.EctoReducer do
     version = Keyword.get(opts, :version, "1")
 
     quote do
-      @behaviour Derive.Reducer
+      use Derive.Reducer
       @behaviour Derive.ReducerState
 
       @state %Derive.State.Ecto{

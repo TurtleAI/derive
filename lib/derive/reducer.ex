@@ -74,9 +74,18 @@ defmodule Derive.Reducer do
   """
   @callback save_partition(Derive.Partition.t()) :: :ok
 
+  @doc """
+  Optional children to include as part of the Derive supervision tree.
+  Only used for advanced cases and specialized implementations of `Derive.Reducer`
+  """
+  @callback child_specs(atom()) :: [Supervisor.child_spec()]
+
   defmacro __using__(_options) do
     quote do
       @behaviour Derive.Reducer
+
+      def child_specs(_), do: []
+      defoverridable child_specs: 1
     end
   end
 
