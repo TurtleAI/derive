@@ -54,4 +54,5 @@ See the tests directory for now.
 - [x] Make the code cursor agnostic
 - [x] Test recovery in case of an unexpected shutdown
 - [x] Log errors for partitions in the database
-- [ ] Support use cases like email notifications
+- [x] Support use cases like email notifications
+- [ ] Error handling for Derive.Notifier failures

@@ -30,7 +30,7 @@ defmodule Derive.Notifier do
   @doc """
   When booting, get the cursor for the global partition to resume operations
   """
-  @callback load_initial_cursor() :: Derive.Reducer.cursor()
+  @callback load_initial_cursor(Derive.Options.t()) :: Derive.Reducer.cursor()
 
   @doc """
   For a given event, return a operation that should be run as a result.
@@ -79,12 +79,12 @@ defmodule Derive.Notifier do
       end
 
       @impl true
-      def child_specs(%Derive.Options{name: name}) do
+      def child_specs(%Derive.Options{name: name} = options) do
         [
           {Derive.State.InMemory.PartitionRepo,
            name: :"#{name}.partition_repo",
            load_initial_partitions: fn ->
-             Derive.Notifier.partition_map(load_initial_cursor())
+             Derive.Notifier.partition_map(load_initial_cursor(options))
            end}
         ]
       end

@@ -54,7 +54,7 @@ defmodule Derive.NotifierTest do
     end
 
     @impl true
-    def load_initial_cursor,
+    def load_initial_cursor(_),
       do: Agent.get(:cursor, fn x -> x end)
   end
 
