@@ -84,7 +84,7 @@ defmodule Derive.InMemoryReducerTest do
       do: false
 
     @impl true
-    def load_partition(id) do
+    def load_partition(_, id) do
       %Derive.Partition{
         id: id,
         cursor: 0,
@@ -93,7 +93,7 @@ defmodule Derive.InMemoryReducerTest do
     end
 
     @impl true
-    def save_partition(_partition), do: :ok
+    def save_partition(_, _partition), do: :ok
   end
 
   test "processes events from an empty event log" do

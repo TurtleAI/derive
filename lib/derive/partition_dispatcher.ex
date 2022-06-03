@@ -6,17 +6,17 @@ defmodule Derive.PartitionDispatcher do
   use GenServer, restart: :transient
 
   alias __MODULE__, as: S
-  alias Derive.{Partition, Reducer, EventBatch}
+  alias Derive.{Partition, Reducer, EventBatch, Options}
   alias Derive.State.MultiOp
 
   @type t :: %__MODULE__{
-          reducer: Reducer.t(),
+          options: Options.t(),
           partition: Partition.t(),
           pending_awaiters: [pending_awaiter()],
           timeout: timeout()
         }
 
-  defstruct [:reducer, :partition, :pending_awaiters, :timeout]
+  defstruct [:options, :partition, :pending_awaiters, :timeout]
 
   @typedoc """
   A process which has called await, along with a version it is waiting for
@@ -27,14 +27,14 @@ defmodule Derive.PartitionDispatcher do
   @default_timeout 30_000
 
   def start_link(opts) do
-    reducer = Keyword.fetch!(opts, :reducer)
+    options = Keyword.fetch!(opts, :options)
     partition_id = Keyword.fetch!(opts, :partition)
     timeout = Keyword.get(opts, :timeout, @default_timeout)
 
     GenServer.start_link(
       __MODULE__,
       %S{
-        reducer: reducer,
+        options: options,
         partition: %Partition{id: partition_id},
         pending_awaiters: [],
         timeout: timeout
@@ -81,9 +81,10 @@ defmodule Derive.PartitionDispatcher do
   @impl true
   def handle_continue(
         :load_partition,
-        %S{reducer: reducer, partition: %{id: id}, timeout: timeout} = state
+        %S{options: %Options{reducer: reducer} = options, partition: %{id: id}, timeout: timeout} =
+          state
       ) do
-    partition = reducer.load_partition(id)
+    partition = reducer.load_partition(options, id)
     new_state = %{state | partition: partition}
     # Logger.info("BOOT " <> Partition.to_string(partition))
     {:noreply, new_state, timeout}
@@ -108,7 +109,7 @@ defmodule Derive.PartitionDispatcher do
   def handle_cast(
         {:register_awaiter, reply_to, event},
         %S{
-          reducer: reducer,
+          options: %Options{reducer: reducer},
           partition: %Partition{cursor: cursor},
           pending_awaiters: pending_awaiters,
           timeout: timeout
@@ -141,7 +142,7 @@ defmodule Derive.PartitionDispatcher do
   def handle_cast(
         {:dispatch_events, %EventBatch{events: events, logger: logger}},
         %S{
-          reducer: reducer,
+          options: %Options{reducer: reducer},
           partition: %Partition{} = partition,
           pending_awaiters: pending_awaiters,
           timeout: timeout

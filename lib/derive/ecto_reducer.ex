@@ -78,11 +78,11 @@ defmodule Derive.EctoReducer do
         do: Derive.State.Ecto.needs_rebuild?(@state)
 
       @impl true
-      def load_partition(id),
+      def load_partition(_, id),
         do: Derive.State.Ecto.load_partition(@state, id)
 
       @impl true
-      def save_partition(partition),
+      def save_partition(_, partition),
         do: Derive.State.Ecto.save_partition(@state, partition)
     end
   end

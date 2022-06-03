@@ -24,12 +24,12 @@ defmodule Derive.PartitionSupervisor do
   - If a process is already alive, we will return the existing process.
   - If a process hasn't been started, it'll be started and returned.
   """
-  @spec start_child(server(), {Reducer.t(), Partition.id()}) :: pid()
-  def start_child(server, {reducer, partition}) do
+  @spec start_child(server(), {Derive.Options.t(), Partition.id()}) :: pid()
+  def start_child(server, {options, partition}) do
     Derive.MapSupervisor.start_child(
       server,
-      {reducer, partition},
-      {Derive.PartitionDispatcher, [reducer: reducer, partition: partition]}
+      {options.reducer, partition},
+      {Derive.PartitionDispatcher, [options: options, partition: partition]}
     )
   end
 end

@@ -81,8 +81,8 @@ defmodule Derive.Dispatcher do
   end
 
   @impl true
-  def handle_continue(:load_partition, %S{options: %Options{reducer: reducer}} = state) do
-    partition = reducer.load_partition(Partition.global_id())
+  def handle_continue(:load_partition, %S{options: %Options{reducer: reducer} = options} = state) do
+    partition = reducer.load_partition(options, Partition.global_id())
 
     GenServer.cast(self(), :catchup)
 
@@ -95,8 +95,10 @@ defmodule Derive.Dispatcher do
   def handle_call(
         {:await, event},
         from,
-        %S{partition_supervisor: partition_supervisor, options: %Options{reducer: reducer}} =
-          state
+        %S{
+          partition_supervisor: partition_supervisor,
+          options: %Options{reducer: reducer} = option
+        } = state
       ) do
     # if a partition goes to nil, we consider it processed since it'll never get processed
     case reducer.partition(event) do
@@ -105,7 +107,7 @@ defmodule Derive.Dispatcher do
 
       partition ->
         partition_dispatcher =
-          PartitionSupervisor.start_child(partition_supervisor, {reducer, partition})
+          PartitionSupervisor.start_child(partition_supervisor, {option, partition})
 
         PartitionDispatcher.register_awaiter(partition_dispatcher, from, event)
         {:noreply, state}
@@ -145,12 +147,13 @@ defmodule Derive.Dispatcher do
          %S{
            partition: %Derive.Partition{cursor: cursor} = partition,
            partition_supervisor: partition_supervisor,
-           options: %Options{
-             reducer: reducer,
-             source: source,
-             batch_size: batch_size,
-             logger: logger
-           }
+           options:
+             %Options{
+               reducer: reducer,
+               source: source,
+               batch_size: batch_size,
+               logger: logger
+             } = options
          } = state
        ) do
     case Derive.EventLog.fetch(source, {cursor, batch_size}) do
@@ -171,7 +174,7 @@ defmodule Derive.Dispatcher do
             partition_dispatcher =
               Derive.PartitionSupervisor.start_child(
                 partition_supervisor,
-                {reducer, partition_id}
+                {options, partition_id}
               )
 
             {partition_dispatcher, events}
@@ -191,7 +194,7 @@ defmodule Derive.Dispatcher do
         end
 
         new_partition = %{partition | cursor: new_cursor}
-        reducer.save_partition(new_partition)
+        reducer.save_partition(options, new_partition)
 
         Derive.Logger.log(logger, {:events_processed, Enum.count(events)})
 

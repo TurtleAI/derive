@@ -66,19 +66,19 @@ defmodule Derive.Reducer do
   For example can be in Postgres, in memory, or elsewhere.
   This will be called at the start of a process booting.
   """
-  @callback load_partition(Partition.id()) :: Partition.t()
+  @callback load_partition(Derive.Options.t(), Partition.id()) :: Partition.t()
 
   @doc """
   Persist a partition.
   This may be called liberally such as every time it is updated in memory.
   """
-  @callback save_partition(Derive.Partition.t()) :: :ok
+  @callback save_partition(Derive.Options.t(), Derive.Partition.t()) :: :ok
 
   @doc """
   Optional children to include as part of the Derive supervision tree.
   Only used for advanced cases and specialized implementations of `Derive.Reducer`
   """
-  @callback child_specs(atom()) :: [Supervisor.child_spec()]
+  @callback child_specs(Derive.Options.t()) :: [Supervisor.child_spec()]
 
   defmacro __using__(_options) do
     quote do

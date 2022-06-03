@@ -26,7 +26,7 @@ defmodule Derive do
 
   use Supervisor
 
-  alias Derive.{Dispatcher, Dispatcher, PartitionSupervisor, EventLog}
+  alias Derive.{Dispatcher, Dispatcher, EventLog}
 
   @spec start_link([option()]) :: {:ok, server()} | {:error, term()}
   def start_link(opts \\ []) do
@@ -178,7 +178,7 @@ defmodule Derive do
 
     children =
       source_spec ++
-        derive_opts.reducer.child_specs(derive_opts.name) ++
+        derive_opts.reducer.child_specs(derive_opts) ++
         [
           {Dispatcher, dispatcher_opts},
           {Derive.MapSupervisor, name: child_process(derive_opts.name, :supervisor)}
