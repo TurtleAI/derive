@@ -54,25 +54,15 @@ defmodule Derive.NotifierTest do
     end
 
     @impl true
-    def load_partition(_opts, id),
-      do: Derive.State.InMemory.PartitionRepo.load_partition(:partitions, id)
-
-    @impl true
-    def save_partition(_opts, partition),
-      do: Derive.State.InMemory.PartitionRepo.save_partition(:partitions, partition)
-
-    @impl true
-    def child_specs(_opts) do
-      [
-        {Derive.State.InMemory.PartitionRepo, name: :partitions}
-      ]
-    end
+    def load_initial_cursor,
+      do: Agent.get(:cursor, fn x -> x end)
   end
 
   setup do
     {:ok, email_server} = EmailServer.start_link(:emails)
+    {:ok, cursor} = Agent.start_link(fn -> "0" end, name: :cursor)
 
-    {:ok, %{email_server: email_server}}
+    {:ok, %{email_server: email_server, cursor: cursor}}
   end
 
   test "sends notifications", %{email_server: email_server} do
@@ -100,34 +90,29 @@ defmodule Derive.NotifierTest do
     Derive.stop(name)
   end
 
-  # @tag :focus
-  # test "skips over already sent notifications", %{email_server: email_server} do
-  #   name = :skip_notifications
+  test "skips over already sent notifications", %{email_server: email_server, cursor: cursor} do
+    name = :skip_notifications
 
-  #   {:ok, event_log} = EventLog.start_link()
+    Agent.update(cursor, fn _ -> "1" end)
 
-  #   {:ok, _} = Derive.start_link(reducer: UserNotifier, source: event_log, name: name)
+    {:ok, event_log} = EventLog.start_link()
 
-  #   Derive.State.InMemory.PartitionRepo.save_partition(:partitions, %Partition{
-  #     id: Partition.global_id(),
-  #     cursor: "10",
-  #     status: :ok
-  #   })
+    {:ok, _} = Derive.start_link(reducer: UserNotifier, source: event_log, name: name)
 
-  #   EventLog.append(event_log, [
-  #     %UserCreated{id: "1", user_id: 99, name: "John"},
-  #     %UserNameUpdated{id: "2", user_id: 99, name: "Pikachu"}
-  #   ])
+    EventLog.append(event_log, [
+      %UserCreated{id: "1", user_id: 99, name: "John"},
+      %UserNameUpdated{id: "2", user_id: 99, name: "Pikachu"}
+    ])
 
-  #   Derive.await(name, [
-  #     %UserCreated{id: "1", user_id: 99, name: "John"},
-  #     %UserNameUpdated{id: "2", user_id: 99, name: "Pikachu"}
-  #   ])
+    Derive.await(name, [
+      %UserCreated{id: "1", user_id: 99, name: "John"},
+      %UserNameUpdated{id: "2", user_id: 99, name: "Pikachu"}
+    ])
 
-  #   assert [
-  #            %Derive.NotifierTest.Email{message: "Hi you changed your name to Pikachu", to: 99}
-  #          ] = EmailServer.get_emails(email_server)
+    assert [
+             %Derive.NotifierTest.Email{message: "Hi you changed your name to Pikachu", to: 99}
+           ] = EmailServer.get_emails(email_server)
 
-  #   Derive.stop(name)
-  # end
+    Derive.stop(name)
+  end
 end

@@ -8,16 +8,21 @@ defmodule Derive.State.InMemory.PartitionRepo do
   alias Derive.Partition
 
   @type t :: %__MODULE__{
-          partitions: %{Partition.id() => Partition.t()}
+          partitions: partition_map(),
+          load_initial_partitions: (() -> partition_map())
         }
-  defstruct partitions: %{}
+  defstruct partitions: %{}, load_initial_partitions: nil
 
   @type server :: pid()
 
+  @type partition_map :: %{Partition.id() => Partition.t()}
+
   alias __MODULE__, as: S
 
-  def start_link(opts \\ []),
-    do: GenServer.start_link(__MODULE__, %S{}, opts)
+  def start_link(opts \\ []) do
+    load_initial_partitions = Keyword.get(opts, :load_initial_partitions)
+    GenServer.start_link(__MODULE__, %S{load_initial_partitions: load_initial_partitions}, opts)
+  end
 
   ### Client
 
@@ -39,7 +44,21 @@ defmodule Derive.State.InMemory.PartitionRepo do
 
   @impl true
   def init(state) do
-    {:ok, state}
+    {:ok, state, {:continue, :load}}
+  end
+
+  @impl true
+  def handle_continue(
+        :load,
+        %S{load_initial_partitions: load_initial_partitions} = state
+      ) do
+    case load_initial_partitions do
+      nil ->
+        {:noreply, state}
+
+      load ->
+        {:noreply, %{state | partitions: load.()}}
+    end
   end
 
   @impl true

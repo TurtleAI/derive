@@ -25,10 +25,12 @@ defmodule Derive.Notifier do
       end
   """
 
-  # @doc """
-  # When booting, get the cursor to start at for a given partition.
-  # """
-  # @callback load_partition_cursor(Derive.Partition.id()) :: Derive.Reducer.cursor()
+  alias Derive.Partition
+
+  @doc """
+  When booting, get the cursor for the global partition to resume operations
+  """
+  @callback load_initial_cursor() :: Derive.Reducer.cursor()
 
   @doc """
   For a given event, return a operation that should be run as a result.
@@ -37,6 +39,11 @@ defmodule Derive.Notifier do
   How the operation is processed depends on the sink.
   """
   @callback commit(Derive.State.MultiOp.t()) :: Derive.State.MultiOp.t()
+
+  @doc false
+  def partition_map(cursor) do
+    %{Partition.global_id() => %Partition{id: Partition.global_id(), status: :ok, cursor: cursor}}
+  end
 
   defmacro __using__(_opts) do
     quote do
@@ -60,6 +67,27 @@ defmodule Derive.Notifier do
       @impl true
       def get_cursor(%{id: id}),
         do: id
+
+      @impl true
+      def load_partition(%Derive.Options{name: name}, id) do
+        Derive.State.InMemory.PartitionRepo.load_partition(:"#{name}.partition_repo", id)
+      end
+
+      @impl true
+      def save_partition(%Derive.Options{name: name}, partition) do
+        Derive.State.InMemory.PartitionRepo.save_partition(:"#{name}.partition_repo", partition)
+      end
+
+      @impl true
+      def child_specs(%Derive.Options{name: name}) do
+        [
+          {Derive.State.InMemory.PartitionRepo,
+           name: :"#{name}.partition_repo",
+           load_initial_partitions: fn ->
+             Derive.Notifier.partition_map(load_initial_cursor())
+           end}
+        ]
+      end
     end
   end
 end
