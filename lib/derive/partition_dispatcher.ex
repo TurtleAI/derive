@@ -6,17 +6,17 @@ defmodule Derive.PartitionDispatcher do
   use GenServer, restart: :transient
 
   alias __MODULE__, as: S
-  alias Derive.{Partition, Reducer}
+  alias Derive.{Partition, Reducer, EventBatch, Options}
   alias Derive.State.MultiOp
 
   @type t :: %__MODULE__{
-          reducer: Reducer.t(),
+          options: Options.t(),
           partition: Partition.t(),
           pending_awaiters: [pending_awaiter()],
           timeout: timeout()
         }
 
-  defstruct [:reducer, :partition, :pending_awaiters, :timeout]
+  defstruct [:options, :partition, :pending_awaiters, :timeout]
 
   @typedoc """
   A process which has called await, along with a version it is waiting for
@@ -24,22 +24,17 @@ defmodule Derive.PartitionDispatcher do
   """
   @type pending_awaiter :: {GenServer.from(), Reducer.cursor()}
 
-  @typedoc """
-  A function to lookup or start a function given a reducer and partition
-  """
-  @type lookup_or_start :: ({Reducer.t(), Partition.id()} -> pid())
-
   @default_timeout 30_000
 
   def start_link(opts) do
-    reducer = Keyword.fetch!(opts, :reducer)
+    options = Keyword.fetch!(opts, :options)
     partition_id = Keyword.fetch!(opts, :partition)
     timeout = Keyword.get(opts, :timeout, @default_timeout)
 
     GenServer.start_link(
       __MODULE__,
       %S{
-        reducer: reducer,
+        options: options,
         partition: %Partition{id: partition_id},
         pending_awaiters: [],
         timeout: timeout
@@ -54,9 +49,9 @@ defmodule Derive.PartitionDispatcher do
   Asynchronously dispatch events to get processed and committed
   To wait for the events to get processed, use `&Derive.PartitionDispatcher.await/2`
   """
-  @spec dispatch_events(pid(), [Derive.EventLog.event()], pid() | nil) :: :ok
-  def dispatch_events(server, events, logger),
-    do: GenServer.cast(server, {:dispatch_events, events, logger})
+  @spec dispatch_events(pid(), EventBatch.t()) :: :ok
+  def dispatch_events(server, event_batch),
+    do: GenServer.cast(server, {:dispatch_events, event_batch})
 
   @doc """
   Wait until an event has been processed
@@ -86,9 +81,10 @@ defmodule Derive.PartitionDispatcher do
   @impl true
   def handle_continue(
         :load_partition,
-        %S{reducer: reducer, partition: %{id: id}, timeout: timeout} = state
+        %S{options: %Options{reducer: reducer} = options, partition: %{id: id}, timeout: timeout} =
+          state
       ) do
-    partition = reducer.load_partition(id)
+    partition = reducer.load_partition(options, id)
     new_state = %{state | partition: partition}
     # Logger.info("BOOT " <> Partition.to_string(partition))
     {:noreply, new_state, timeout}
@@ -113,7 +109,7 @@ defmodule Derive.PartitionDispatcher do
   def handle_cast(
         {:register_awaiter, reply_to, event},
         %S{
-          reducer: reducer,
+          options: %Options{reducer: reducer},
           partition: %Partition{cursor: cursor},
           pending_awaiters: pending_awaiters,
           timeout: timeout
@@ -140,13 +136,13 @@ defmodule Derive.PartitionDispatcher do
     end
   end
 
-  def handle_cast({:dispatch_events, []}, %S{timeout: timeout} = state),
+  def handle_cast({:dispatch_events, %EventBatch{events: []}}, %S{timeout: timeout} = state),
     do: {:noreply, state, timeout}
 
   def handle_cast(
-        {:dispatch_events, events, logger},
+        {:dispatch_events, %EventBatch{events: events, logger: logger}},
         %S{
-          reducer: reducer,
+          options: %Options{reducer: reducer},
           partition: %Partition{} = partition,
           pending_awaiters: pending_awaiters,
           timeout: timeout

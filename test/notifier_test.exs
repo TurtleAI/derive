@@ -54,14 +54,15 @@ defmodule Derive.NotifierTest do
     end
 
     @impl true
-    def load_partition_cursor(_id),
-      do: "0"
+    def load_initial_cursor,
+      do: Agent.get(:cursor, fn x -> x end)
   end
 
   setup do
     {:ok, email_server} = EmailServer.start_link(:emails)
+    {:ok, cursor} = Agent.start_link(fn -> "0" end, name: :cursor)
 
-    {:ok, %{email_server: email_server}}
+    {:ok, %{email_server: email_server, cursor: cursor}}
   end
 
   test "sends notifications", %{email_server: email_server} do
@@ -83,6 +84,32 @@ defmodule Derive.NotifierTest do
 
     assert [
              %Derive.NotifierTest.Email{message: "Hi welcome John", to: 99},
+             %Derive.NotifierTest.Email{message: "Hi you changed your name to Pikachu", to: 99}
+           ] = EmailServer.get_emails(email_server)
+
+    Derive.stop(name)
+  end
+
+  test "skips over already sent notifications", %{email_server: email_server, cursor: cursor} do
+    name = :skip_notifications
+
+    Agent.update(cursor, fn _ -> "1" end)
+
+    {:ok, event_log} = EventLog.start_link()
+
+    {:ok, _} = Derive.start_link(reducer: UserNotifier, source: event_log, name: name)
+
+    EventLog.append(event_log, [
+      %UserCreated{id: "1", user_id: 99, name: "John"},
+      %UserNameUpdated{id: "2", user_id: 99, name: "Pikachu"}
+    ])
+
+    Derive.await(name, [
+      %UserCreated{id: "1", user_id: 99, name: "John"},
+      %UserNameUpdated{id: "2", user_id: 99, name: "Pikachu"}
+    ])
+
+    assert [
              %Derive.NotifierTest.Email{message: "Hi you changed your name to Pikachu", to: 99}
            ] = EmailServer.get_emails(email_server)
 

@@ -12,62 +12,35 @@ defmodule Derive.Dispatcher do
 
   use GenServer, restart: :transient
 
-  alias Derive.{Partition, PartitionDispatcher, Reducer}
+  alias Derive.{Options, EventBatch, Partition, PartitionSupervisor, PartitionDispatcher}
 
   alias __MODULE__, as: S
 
   @type t :: %__MODULE__{
-          reducer: Reducer.t(),
-          batch_size: non_neg_integer(),
-          partition: Reducer.partition(),
-          lookup_or_start: PartitionDispatcher.lookup_or_start(),
-          mode: mode(),
-          logger: Derive.Logger.t()
+          options: Derive.Options.t(),
+          partition: Derive.Partition.t() | nil,
+          partition_supervisor: atom()
         }
 
-  defstruct [:reducer, :batch_size, :partition, :source, :lookup_or_start, :mode, :logger]
-
-  @typedoc """
-  The mode in which the dispatcher should operate
-
-  catchup: on boot, catch up to the last point possible, stay alive and up to date
-  rebuild: destroy the state, rebuild it up to the last point possible, then shut down
-  """
-  @type mode :: :catchup | :rebuild
+  defstruct [:partition, :options, :partition_supervisor]
 
   @type server :: pid() | atom()
 
-  @type dispatcher_option ::
-          {:reducer, Reducer.t()}
-          | {:batch_size, non_neg_integer()}
-          | {:partition, Reducer.partition()}
-          | {:lookup_or_start, PartitionDispatcher.lookup_or_start()}
-          | {:mode, mode()}
-          | {:logger, Derive.Logger.t()}
-
-  @type option :: dispatcher_option() | GenServer.option()
+  @type option ::
+          {:options, Derive.Options.t()}
+          | {:partition_supervisor, atom()}
+          | GenServer.option()
 
   @spec start_link([option]) :: {:ok, server()} | {:error, term()}
   def start_link(opts \\ []) do
     {dispatcher_opts, genserver_opts} = Keyword.split(opts, Map.keys(__struct__()))
 
-    reducer = Keyword.fetch!(dispatcher_opts, :reducer)
-    batch_size = Keyword.get(dispatcher_opts, :batch_size, 100)
-    source = Keyword.fetch!(dispatcher_opts, :source)
-    lookup_or_start = Keyword.fetch!(dispatcher_opts, :lookup_or_start)
-    mode = Keyword.get(dispatcher_opts, :mode, :catchup)
-    logger = Keyword.get(dispatcher_opts, :logger)
+    options = Keyword.fetch!(dispatcher_opts, :options)
+    partition_supervisor = Keyword.fetch!(dispatcher_opts, :partition_supervisor)
 
     GenServer.start_link(
       __MODULE__,
-      %S{
-        reducer: reducer,
-        batch_size: batch_size,
-        source: source,
-        lookup_or_start: lookup_or_start,
-        mode: mode,
-        logger: logger
-      },
+      %S{options: options, partition_supervisor: partition_supervisor},
       genserver_opts
     )
   end
@@ -85,7 +58,10 @@ defmodule Derive.Dispatcher do
   ### Server
 
   @impl true
-  def init(%S{source: source, mode: mode, reducer: reducer, logger: logger} = state) do
+  def init(
+        %S{options: %Options{source: source, mode: mode, reducer: reducer, logger: logger}} =
+          state
+      ) do
     Process.flag(:trap_exit, true)
 
     case mode do
@@ -105,8 +81,8 @@ defmodule Derive.Dispatcher do
   end
 
   @impl true
-  def handle_continue(:load_partition, %S{reducer: reducer} = state) do
-    partition = reducer.load_partition(Partition.global_id())
+  def handle_continue(:load_partition, %S{options: %Options{reducer: reducer} = options} = state) do
+    partition = reducer.load_partition(options, Partition.global_id())
 
     GenServer.cast(self(), :catchup)
 
@@ -119,7 +95,10 @@ defmodule Derive.Dispatcher do
   def handle_call(
         {:await, event},
         from,
-        %S{reducer: reducer, lookup_or_start: lookup_or_start} = state
+        %S{
+          partition_supervisor: partition_supervisor,
+          options: %Options{reducer: reducer} = option
+        } = state
       ) do
     # if a partition goes to nil, we consider it processed since it'll never get processed
     case reducer.partition(event) do
@@ -127,7 +106,9 @@ defmodule Derive.Dispatcher do
         {:reply, :ok, state}
 
       partition ->
-        partition_dispatcher = lookup_or_start.({reducer, partition})
+        partition_dispatcher =
+          PartitionSupervisor.start_child(partition_supervisor, {option, partition})
+
         PartitionDispatcher.register_awaiter(partition_dispatcher, from, event)
         {:noreply, state}
     end
@@ -137,7 +118,7 @@ defmodule Derive.Dispatcher do
   def handle_cast({:new_events, _new_events}, %S{} = state),
     do: handle_cast(:catchup, state)
 
-  def handle_cast(:catchup, %S{mode: mode} = state) do
+  def handle_cast(:catchup, %S{options: %{mode: mode}} = state) do
     case catchup(state) do
       {:continue, new_state} ->
         # recursively call catchup
@@ -164,12 +145,15 @@ defmodule Derive.Dispatcher do
 
   defp catchup(
          %S{
-           reducer: reducer,
-           source: source,
            partition: %Derive.Partition{cursor: cursor} = partition,
-           batch_size: batch_size,
-           lookup_or_start: lookup_or_start,
-           logger: logger
+           partition_supervisor: partition_supervisor,
+           options:
+             %Options{
+               reducer: reducer,
+               source: source,
+               batch_size: batch_size,
+               logger: logger
+             } = options
          } = state
        ) do
     case Derive.EventLog.fetch(source, {cursor, batch_size}) do
@@ -179,30 +163,38 @@ defmodule Derive.Dispatcher do
         {:done, state}
 
       {events, new_cursor} ->
-        events_by_partition =
+        events_by_partition_id =
           Enum.group_by(events, &reducer.partition/1)
           |> Enum.reject(fn {partition, _events} ->
             partition == nil
           end)
 
-        events_by_partition_dispatcher =
-          for {partition, events} <- events_by_partition, into: %{} do
-            partition_dispatcher = lookup_or_start.({reducer, partition})
+        events_by_partition_id_dispatcher =
+          for {partition_id, events} <- events_by_partition_id, into: %{} do
+            partition_dispatcher =
+              Derive.PartitionSupervisor.start_child(
+                partition_supervisor,
+                {options, partition_id}
+              )
+
             {partition_dispatcher, events}
           end
 
-        Enum.each(events_by_partition_dispatcher, fn {partition_dispatcher, events} ->
-          PartitionDispatcher.dispatch_events(partition_dispatcher, events, logger)
+        Enum.each(events_by_partition_id_dispatcher, fn {partition_dispatcher, events} ->
+          PartitionDispatcher.dispatch_events(partition_dispatcher, %EventBatch{
+            events: events,
+            logger: logger
+          })
         end)
 
         # We want to wait until all of the partitions have processed the events
         # before updating the cursor of this partition
-        for {partition_dispatcher, events} <- events_by_partition_dispatcher, e <- events do
+        for {partition_dispatcher, events} <- events_by_partition_id_dispatcher, e <- events do
           PartitionDispatcher.await(partition_dispatcher, e)
         end
 
         new_partition = %{partition | cursor: new_cursor}
-        reducer.save_partition(new_partition)
+        reducer.save_partition(options, new_partition)
 
         Derive.Logger.log(logger, {:events_processed, Enum.count(events)})
 
