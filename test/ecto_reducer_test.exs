@@ -157,6 +157,8 @@ defmodule Derive.EctoReducerTest do
     ])
 
     assert %{name: "John Wayne"} = Repo.get(User, "99")
+
+    Derive.stop(name)
   end
 
   test "allow adding a source to be a child spec like {mod, opts} instead of an atom" do
@@ -182,6 +184,8 @@ defmodule Derive.EctoReducerTest do
     ])
 
     assert %{name: "Didi"} = Repo.get(User, "d")
+
+    Derive.stop(name)
   end
 
   test "events are processed in parallel according to the partition" do
@@ -297,6 +301,36 @@ defmodule Derive.EctoReducerTest do
       EventLog.append(event_log, [e1])
 
       assert :ok = Derive.await(name, [e1])
+
+      Derive.stop(name)
+    end
+
+    test "&Derive.await_catchup/1" do
+      name = :await_caught_up
+
+      {:ok, event_log} = EventLog.start_link()
+      Derive.rebuild(UserReducer, source: event_log)
+
+      {:ok, _} =
+        Derive.start_link(
+          name: name,
+          reducer: UserReducer,
+          source: event_log
+        )
+
+      events = [
+        %UserCreated{id: "1", user_id: "99", name: "Pear"},
+        %UserNameUpdated{id: "2", user_id: "99", name: "Blueberry"}
+      ]
+
+      EventLog.append(event_log, events)
+
+      Derive.await_catchup(name)
+
+      assert %{name: "Blueberry"} = Repo.get(User, "99")
+
+      # should not freeze the next time around
+      Derive.await_catchup(name)
 
       Derive.stop(name)
     end
@@ -429,6 +463,8 @@ defmodule Derive.EctoReducerTest do
                ],
                status: :error
              } = failed_multi
+
+      Derive.stop(name)
     end
 
     test "a partition skips over events in future updates to the event log" do
@@ -466,7 +502,6 @@ defmodule Derive.EctoReducerTest do
       Derive.stop(name)
     end
 
-    @tag :focus
     test "a commit failing due to a constraint violation" do
       name = :constraint_violation
 
@@ -509,6 +544,8 @@ defmodule Derive.EctoReducerTest do
                  ]
                }
              } = multi
+
+      Derive.stop(name)
     end
 
     test "a commit failing with no correlation to the event causes the partition to halt" do
@@ -562,6 +599,8 @@ defmodule Derive.EctoReducerTest do
              } = UserReducer.load_partition(nil, "99")
 
       assert String.contains?(error, "missing_field")
+
+      Derive.stop(name)
     end
 
     test "events are skipped over if the processing succeeds, but the Dispatcher fails to update its pointer" do
@@ -595,6 +634,8 @@ defmodule Derive.EctoReducerTest do
       Derive.await(name, events)
 
       assert %{name: "Superdupersaiyan"} = Repo.get(User, "99")
+
+      Derive.stop(name)
     end
 
     test "a process fails to start if a rebuild is needed" do
@@ -610,6 +651,8 @@ defmodule Derive.EctoReducerTest do
                  source: event_log,
                  validate_version: true
                )
+
+      Derive.stop(name)
     end
   end
 

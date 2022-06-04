@@ -12,17 +12,17 @@ defmodule Derive.PartitionDispatcher do
   @type t :: %__MODULE__{
           options: Options.t(),
           partition: Partition.t(),
-          pending_awaiters: [pending_awaiter()],
+          awaiters: [awaiter()],
           timeout: timeout()
         }
 
-  defstruct [:options, :partition, :pending_awaiters, :timeout]
+  defstruct [:options, :partition, :awaiters, :timeout]
 
   @typedoc """
   A process which has called await, along with a version it is waiting for
   Once we have processed up to or past the target cursor the awaiter will be notified
   """
-  @type pending_awaiter :: {GenServer.from(), Reducer.cursor()}
+  @type awaiter :: {GenServer.from(), Reducer.cursor()}
 
   @default_timeout 30_000
 
@@ -36,7 +36,7 @@ defmodule Derive.PartitionDispatcher do
       %S{
         options: options,
         partition: %Partition{id: partition_id},
-        pending_awaiters: [],
+        awaiters: [],
         timeout: timeout
       },
       opts
@@ -111,7 +111,7 @@ defmodule Derive.PartitionDispatcher do
         %S{
           options: %Options{reducer: reducer},
           partition: %Partition{cursor: cursor},
-          pending_awaiters: pending_awaiters,
+          awaiters: awaiters,
           timeout: timeout
         } = state
       ) do
@@ -129,7 +129,7 @@ defmodule Derive.PartitionDispatcher do
         # At a later time, we will reply to these callers after we process the events
         new_state = %{
           state
-          | pending_awaiters: [{reply_to, event_cursor} | pending_awaiters]
+          | awaiters: [{reply_to, event_cursor} | awaiters]
         }
 
         {:noreply, new_state, timeout}
@@ -144,7 +144,7 @@ defmodule Derive.PartitionDispatcher do
         %S{
           options: %Options{reducer: reducer},
           partition: %Partition{} = partition,
-          pending_awaiters: pending_awaiters,
+          awaiters: awaiters,
           timeout: timeout
         } = state
       ) do
@@ -154,8 +154,8 @@ defmodule Derive.PartitionDispatcher do
     new_partition = multi.partition
 
     # The awaiters that can be notified after these events get processed
-    {awaiters_to_notify, pending_awaiters_left} =
-      Enum.split_with(pending_awaiters, fn {_awaiter, target_cursor} ->
+    {awaiters_to_notify, awaiters_left} =
+      Enum.split_with(awaiters, fn {_awaiter, target_cursor} ->
         new_partition.cursor >= target_cursor
       end)
 
@@ -163,7 +163,7 @@ defmodule Derive.PartitionDispatcher do
 
     new_state = %{
       state
-      | pending_awaiters: pending_awaiters_left,
+      | awaiters: awaiters_left,
         partition: new_partition
     }
 
