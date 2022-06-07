@@ -30,6 +30,12 @@ defmodule Derive.Reducer do
   @type cursor() :: EventLog.cursor()
 
   @doc """
+  An optional callback to ensure a reducer is properly setup.
+  For example, this might mean to setup a partitions table before the Derive process is started.
+  """
+  @callback setup(Derive.Options.t()) :: :ok
+
+  @doc """
   Events within the same partition are processed in order.
   For example, returning event.user_id would guarantee that all events for a given user are processed in order.
 
@@ -83,6 +89,9 @@ defmodule Derive.Reducer do
   defmacro __using__(_options) do
     quote do
       @behaviour Derive.Reducer
+
+      def setup(_), do: :ok
+      defoverridable setup: 1
 
       def child_specs(_), do: []
       defoverridable child_specs: 1

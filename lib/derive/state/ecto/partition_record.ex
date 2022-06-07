@@ -13,9 +13,9 @@ defmodule Derive.State.Ecto.PartitionRecord do
 
   @primary_key {:id, :string, [autogenerate: false]}
   schema "partitions" do
-    field :cursor, :string
-    field :status, Ecto.Enum, values: [ok: 1, error: 2]
-    field :error, :map
+    field(:cursor, Derive.State.Ecto.CursorType)
+    field(:status, Ecto.Enum, values: [ok: 1, error: 2])
+    field(:error, :map)
   end
 
   def from_partition(%Partition{id: id, cursor: cursor, status: status, error: error}) do
@@ -56,7 +56,7 @@ defmodule Derive.State.Ecto.PartitionRecord do
 
     [
       """
-      CREATE TABLE #{table} (
+      CREATE TABLE IF NOT EXISTS #{table} (
         id character varying(32) PRIMARY KEY,
         cursor character varying(32),
         status integer NOT NULL DEFAULT 1,

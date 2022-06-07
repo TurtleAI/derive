@@ -3,6 +3,8 @@ defmodule Derive.Reducer.EventProcessor do
   Provides the process-agnostic logic for processing an ordered list of events.
   """
 
+  require Logger
+
   defmodule Options do
     @type t :: %__MODULE__{
             handle_event: event_handler(),
@@ -58,9 +60,17 @@ defmodule Derive.Reducer.EventProcessor do
         ) ::
           MultiOp.t()
   def process_events(
+        _,
+        %MultiOp{partition: %Partition{status: :error}} = multi,
+        %Options{on_error: :halt}
+      ) do
+    MultiOp.processed(multi)
+  end
+
+  def process_events(
         events,
         multi,
-        %Options{commit: commit} = options
+        %Options{commit: commit, logger: logger} = options
       ) do
     case reduce_events(events, multi, options) do
       %MultiOp{status: :processed} = multi ->
@@ -71,7 +81,8 @@ defmodule Derive.Reducer.EventProcessor do
           # Due to a programmer error, commit raised an exception
           # We don't want this to bring down the app and instead handle this explicitly
           error ->
-            MultiOp.commit_failed(multi, error)
+            Derive.Logger.error(logger, error, __STACKTRACE__)
+            MultiOp.commit_failed(multi, {error, __STACKTRACE__})
         end
 
       multi ->

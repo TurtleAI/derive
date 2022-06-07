@@ -124,7 +124,7 @@ defmodule Derive.EctoReducerTest do
   def failed_multis(logger) do
     InMemoryLogger.fetch(logger)
     |> Enum.flat_map(fn
-      {:error, {:multi_op, multi}} -> [multi]
+      {:multi, %MultiOp{status: :error} = multi} -> [multi]
       _ -> []
     end)
   end
@@ -210,7 +210,7 @@ defmodule Derive.EctoReducerTest do
     event_ops_by_event =
       Derive.Logger.InMemoryLogger.fetch(logger)
       |> Enum.flat_map(fn
-        {:committed, %MultiOp{operations: operations}} -> operations
+        {:multi, %MultiOp{status: :committed, operations: operations}} -> operations
         _ -> []
       end)
       |> Enum.group_by(& &1.event)
@@ -227,7 +227,7 @@ defmodule Derive.EctoReducerTest do
     Derive.stop(name)
   end
 
-  describe "&Derive.await/2" do
+  describe "Derive.await/2" do
     test "await before an event has been persisted" do
       name = :basic_await
 
@@ -522,7 +522,7 @@ defmodule Derive.EctoReducerTest do
       Derive.await(name, events)
 
       assert %Partition{
-               cursor: "2",
+               cursor: :start,
                error: %Derive.PartitionError{
                  cursor: "2",
                  message: _,
@@ -588,10 +588,10 @@ defmodule Derive.EctoReducerTest do
       Derive.stop(name)
 
       assert %Derive.Partition{
-               cursor: "6",
+               cursor: "1",
                error: %Derive.PartitionError{
-                 cursor: "4",
-                 message: "%Ecto.QueryError{" <> error,
+                 cursor: "3",
+                 message: "** (Ecto.QueryError)" <> error,
                  type: :commit
                },
                id: "99",

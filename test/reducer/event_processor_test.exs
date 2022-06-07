@@ -145,7 +145,7 @@ defmodule Derive.Reducer.EventProcessorTest do
           raise %TestCommitError{message: "exception!"}
 
         Enum.member?(ops, "error") ->
-          MultiOp.commit_failed(multi, %TestCommitError{message: "error!"})
+          MultiOp.commit_failed(multi, {%TestCommitError{message: "error!"}, []})
 
         true ->
           commit(state, ops)

@@ -25,8 +25,9 @@ defmodule Derive.State.MultiOp do
   - processed: the events have been processed (handle_event has been called)
   - committed: the operations from handle_event have been committed
   - error: the processing or committing has failed (an exception has been raised)
+  - skipped: the events have been skipped due to an error
   """
-  @type status :: :processing | :processed | :committed | :error
+  @type status :: :processing | :processed | :committed | :error | :skipped
 
   @typedoc """
   An operation can fail when processing an event (calling handle_event)
@@ -76,12 +77,19 @@ defmodule Derive.State.MultiOp do
     do: %{multi | status: :committed}
 
   @doc """
+  Due to an error (partition was halted) the events have been skipped
+  """
+  @spec skipped(MultiOp.t()) :: MultiOp.t()
+  def skipped(%MultiOp{status: :skipped} = multi),
+    do: %{multi | status: :skipped}
+
+  @doc """
   This operation failed on a particular handle_event(event)
   """
   @spec failed_on_event(MultiOp.t(), EventOp.t()) :: MultiOp.t()
   def failed_on_event(
         %MultiOp{partition: partition} = multi,
-        %EventOp{cursor: cursor, error: error} = op
+        %EventOp{error: error} = op
       ) do
     partition_error = %PartitionError{
       type: :handle_event,
@@ -92,7 +100,6 @@ defmodule Derive.State.MultiOp do
     new_partition = %Partition{
       partition
       | status: :error,
-        cursor: max(cursor, partition.cursor),
         error: partition_error
     }
 
@@ -107,18 +114,30 @@ defmodule Derive.State.MultiOp do
   @doc """
   This operation failed during the commit phase
   """
-  @spec commit_failed(MultiOp.t(), commit_error(), EventOp.t() | nil) :: MultiOp.t()
-  def commit_failed(%MultiOp{partition: partition} = multi, error, event_op \\ nil) do
+  @spec commit_failed(
+          MultiOp.t(),
+          {commit_error(), Exception.stacktrace() | nil},
+          EventOp.t() | nil
+        ) :: MultiOp.t()
+  def commit_failed(
+        %MultiOp{
+          partition: partition,
+          initial_partition: %Partition{cursor: cursor_before_commit}
+        } = multi,
+        {error, stacktrace},
+        event_op \\ nil
+      ) do
     partition_error = %PartitionError{
       type: :commit,
       cursor: partition.cursor,
-      message: inspect(error)
+      message: Exception.format(:error, error, stacktrace || [])
     }
 
     new_partition = %Partition{
       partition
       | status: :error,
-        error: partition_error
+        error: partition_error,
+        cursor: cursor_before_commit
     }
 
     %{

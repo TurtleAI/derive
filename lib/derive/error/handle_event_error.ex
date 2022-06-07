@@ -3,10 +3,11 @@ defmodule Derive.Error.HandleEventError do
   Error when trying to commit some operations
   """
 
-  defexception [:operation]
+  defexception [:operation, :stacktrace]
 
   @type t :: %__MODULE__{
-          operation: Derive.State.EventOp.t()
+          operation: Derive.State.EventOp.t(),
+          stacktrace: Exception.stacktrace() | nil
         }
 
   def message(%__MODULE__{operation: operation}) do

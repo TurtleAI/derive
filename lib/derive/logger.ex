@@ -18,12 +18,16 @@ defmodule Derive.Logger do
   @doc """
   Log a multi that has been committed
   """
-  def committed(server, multi),
-    do: log(server, {:committed, multi})
+  def multi(server, multi),
+    do: log(server, {:multi, multi})
 
   @spec append_logger(t(), server()) :: t()
   def append_logger(loggers, l),
     do: List.wrap(loggers) ++ [l]
+
+  def error(logger, error, stacktrace \\ []) do
+    log(logger, {:error, error, stacktrace})
+  end
 
   @spec log(t(), term()) :: :ok
   def log(nil, _),

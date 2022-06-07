@@ -110,7 +110,7 @@ defmodule Derive.PartitionDispatcher do
         {:register_awaiter, reply_to, event},
         %S{
           options: %Options{reducer: reducer},
-          partition: %Partition{cursor: cursor},
+          partition: %Partition{cursor: cursor, status: status},
           awaiters: awaiters,
           timeout: timeout
         } = state
@@ -118,7 +118,7 @@ defmodule Derive.PartitionDispatcher do
     event_cursor = reducer.get_cursor(event)
     # if there has been an error or if we've already processed the event,
     # await completes immediately
-    case cursor >= event_cursor do
+    case cursor >= event_cursor || status == :error do
       true ->
         # The event was already processed, so we can immediately reply :ok
         GenServer.reply(reply_to, :ok)
@@ -142,7 +142,7 @@ defmodule Derive.PartitionDispatcher do
   def handle_cast(
         {:dispatch_events, %EventBatch{events: events, logger: logger}},
         %S{
-          options: %Options{reducer: reducer},
+          options: %Options{reducer: reducer, logger: logger} = opts,
           partition: %Partition{} = partition,
           awaiters: awaiters,
           timeout: timeout
@@ -150,8 +150,10 @@ defmodule Derive.PartitionDispatcher do
       ) do
     multi = reducer.process_events(events, MultiOp.new(partition))
 
-    log_multi(state, logger, multi)
+    Derive.Logger.multi(logger, multi)
     new_partition = multi.partition
+
+    reducer.save_partition(opts, new_partition)
 
     # The awaiters that can be notified after these events get processed
     {awaiters_to_notify, awaiters_left} =
@@ -173,22 +175,6 @@ defmodule Derive.PartitionDispatcher do
   @impl true
   def terminate(_, _state),
     do: :ok
-
-  defp log_multi(_, logger, %MultiOp{status: :committed} = multi) do
-    Derive.Logger.committed(logger, multi)
-    multi
-  end
-
-  defp log_multi(
-         %S{} = _state,
-         logger,
-         %MultiOp{status: :error} = multi
-       ) do
-    Derive.Logger.log(
-      logger,
-      {:error, {:multi_op, multi}}
-    )
-  end
 
   defp notify_awaiters(awaiters) do
     Enum.each(awaiters, fn {reply_to, _event_id} ->
