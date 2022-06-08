@@ -124,7 +124,7 @@ defmodule Derive.Reducer.EventProcessorTest do
 
     assert %Derive.State.EventOp{
              cursor: "3",
-             error: %FunctionClauseError{},
+             error: {%FunctionClauseError{}, [_ | _]},
              event: %{error: "blah", id: "3"},
              operations: [],
              status: :error

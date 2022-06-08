@@ -151,7 +151,13 @@ defmodule Derive.Reducer.EventProcessor do
             # Due to a programmer error, the handle_event raised an exception
             # We don't want this to bring down the app and instead handle this explicitly
             error ->
-              {:error, EventOp.error(event_cursor, event, error, Timespan.stop(timespan))}
+              {:error,
+               EventOp.error(
+                 event_cursor,
+                 event,
+                 {error, __STACKTRACE__},
+                 Timespan.stop(timespan)
+               )}
           end
       end
 

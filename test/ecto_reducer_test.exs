@@ -406,13 +406,14 @@ defmodule Derive.EctoReducerTest do
                  error: %Derive.PartitionError{
                    type: :handle_event,
                    cursor: "3",
-                   message: "** (Derive.EctoReducerTest.UserError) bad stuff happened"
+                   message: "** (Derive.EctoReducerTest.UserError) bad stuff happened" <> stack
                  }
                },
                error: %HandleEventError{
                  operation: %Derive.State.EventOp{
                    cursor: "3",
-                   error: %Derive.EctoReducerTest.UserError{message: "bad stuff happened"},
+                   error:
+                     {%Derive.EctoReducerTest.UserError{message: "bad stuff happened"}, [_ | _]},
                    event: %Derive.EctoReducerTest.UserRaiseHandleError{
                      id: "3",
                      message: "bad stuff happened",
@@ -438,6 +439,8 @@ defmodule Derive.EctoReducerTest do
                ],
                status: :error
              } = failed_multi
+
+      assert String.contains?(stack, "lib/derive")
 
       assert %{name: "Pikachu"} = Repo.get(User, "99")
 

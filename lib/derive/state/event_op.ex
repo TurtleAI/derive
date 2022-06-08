@@ -23,6 +23,8 @@ defmodule Derive.State.EventOp do
   """
   @type event() :: Derive.EventLog.event()
 
+  @type error() :: {any(), Exception.stacktrace() | nil}
+
   @typedoc """
   The operations that were produced from calling `handle_event`
   """
@@ -40,6 +42,7 @@ defmodule Derive.State.EventOp do
     }
   end
 
+  @spec error(error(), event(), error(), Derive.Timespan.t() | nil) :: t()
   def error(cursor, event, error, timespan \\ nil) do
     %__MODULE__{
       status: :error,

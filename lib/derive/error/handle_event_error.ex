@@ -6,11 +6,10 @@ defmodule Derive.Error.HandleEventError do
   If this happens, the failure happens before we even get to a commit step.
   """
 
-  defexception [:operation, :stacktrace]
+  defexception [:operation]
 
   @type t :: %__MODULE__{
-          operation: Derive.State.EventOp.t(),
-          stacktrace: Exception.stacktrace()
+          operation: Derive.State.EventOp.t()
         }
 
   alias Derive.State.EventOp
@@ -20,7 +19,9 @@ defmodule Derive.Error.HandleEventError do
   end
 
   def to_partition_error(
-        %__MODULE__{operation: %EventOp{cursor: cursor, error: error}, stacktrace: stacktrace},
+        %__MODULE__{
+          operation: %EventOp{cursor: cursor, error: {error, stacktrace}}
+        },
         %Derive.State.MultiOp{
           operations: operations
         }
