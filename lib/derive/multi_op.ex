@@ -1,13 +1,13 @@
 defmodule Derive.MultiOp do
   @moduledoc """
-  `Derive.State.MultiOp` is a data structure for grouping multiple generic operations
-  produced by combining the operations produced by `handle_event` over a list of events.
+  `Derive.MultiOp` that maintains the current state of processing a batch of events
+  within a given partition.
 
-  Inspired by `Ecto.Multi` but generic to other types of operations.
+  - A batch of events is processed with handle_event(event) and produces operations
+  - Those operations are committed in a single shot
   """
 
-  alias Derive.Partition
-  alias Derive.{MultiOp, EventOp}
+  alias Derive.{Partition, MultiOp, EventOp}
   alias Derive.Error.{HandleEventError, CommitError}
 
   @type t :: %__MODULE__{
@@ -110,16 +110,10 @@ defmodule Derive.MultiOp do
     error = %HandleEventError{operation: op}
     partition_error = HandleEventError.to_partition_error(error, multi)
 
-    new_partition = %Partition{
-      partition
-      | status: :error,
-        error: partition_error
-    }
-
-    %{
+    %MultiOp{
       multi
       | status: :error,
-        partition: new_partition,
+        partition: %Partition{partition | status: :error, error: partition_error},
         error: %HandleEventError{operation: op}
     }
   end
@@ -143,17 +137,16 @@ defmodule Derive.MultiOp do
     error = %CommitError{error: error, operation: event_op, stacktrace: stacktrace}
     partition_error = CommitError.to_partition_error(error, multi)
 
-    new_partition = %Partition{
-      partition
-      | status: :error,
-        error: partition_error,
-        cursor: cursor_before_commit
-    }
-
-    %{
+    %MultiOp{
       multi
       | status: :error,
-        partition: new_partition,
+        partition: %Partition{
+          partition
+          | status: :error,
+            error: partition_error,
+            # if we ever resume operations, we want the cursor to be reverted to the previous commit
+            cursor: cursor_before_commit
+        },
         error: error
     }
   end

@@ -4,7 +4,7 @@ defmodule Derive.Ecto.ServiceTest do
   alias DeriveTestRepo, as: Repo
   alias Derive.Timespan
   alias Derive.Logger.InMemoryLogger
-  # alias Derive.EventLog.InMemoryEventLog, as: EventLog
+  alias Derive.EventLog.InMemoryEventLog, as: EventLog
 
   defmodule Event do
     use Derive.Ecto.Model
@@ -104,70 +104,72 @@ defmodule Derive.Ecto.ServiceTest do
     end)
   end
 
-  # @tag :focus
-  # test "when there is a failure, the partition should be marked in an error state" do
-  #   name = :process_entries_sequentially
+  test "when there is a failure, the partition should be marked in an error state" do
+    name = :process_entries_sequentially
 
-  #   {:ok, event_log} = EventLog.start_link()
+    {:ok, event_log} = EventLog.start_link()
 
-  #   {:ok, _} =
-  #     Derive.start_link(
-  #       reducer: AccountingService,
-  #       source: event_log,
-  #       name: name
-  #     )
+    {:ok, _} =
+      Derive.start_link(
+        reducer: AccountingService,
+        source: event_log,
+        name: name
+      )
 
-  #   EventLog.append(event_log, [
-  #     %TimeTracked{id: "1", amount: 25},
-  #     %TimeTracked{id: "2", amount: {:non_serializable, :value}}
-  #   ])
+    EventLog.append(event_log, [
+      %TimeTracked{id: "1", amount: 25},
+      %TimeTracked{id: "2", amount: {:non_serializable, :value}}
+    ])
 
-  #   Derive.await(name, [
-  #     %TimeTracked{id: "1", amount: 25},
-  #     %TimeTracked{id: "2", amount: {:non_serializable, :value}}
-  #   ])
+    Derive.await(name, [
+      %TimeTracked{id: "1", amount: 25},
+      %TimeTracked{id: "2", amount: {:non_serializable, :value}}
+    ])
 
-  #   %Derive.Partition{
-  #     cursor: :start,
-  #     error: %Derive.PartitionError{
-  #       cursor: "2",
-  #       message: message,
-  #       type: :commit
-  #     },
-  #     id: "main",
-  #     status: :error
-  #   } = AccountingService.load_partition(nil, "main")
+    %Derive.Partition{
+      cursor: :start,
+      error: %Derive.PartitionError{
+        batch: ["1", "2"],
+        # we can't correlate to where the error started
+        cursor: nil,
+        message: message,
+        type: :commit
+      },
+      id: "main",
+      status: :error
+    } = AccountingService.load_partition(nil, "main")
 
-  #   assert String.contains?(
-  #            message,
-  #            "Jason.Encoder not implemented for {:non_serializable, :value} "
-  #          )
+    assert String.contains?(
+             message,
+             "Jason.Encoder not implemented for {:non_serializable, :value} "
+           )
 
-  #   events = Repo.all(Event)
-  #   assert [%Derive.EctoServiceTest.Event{data: %{"amount" => 25}, id: "event-1"}] = events
+    events = Repo.all(Event)
+    assert [%Event{data: %{"amount" => 25}, id: "event-1"}] = events
 
-  #   # it doesn't process future events
-  #   EventLog.append(event_log, [
-  #     %TimeTracked{id: "3", amount: 100}
-  #   ])
+    # it doesn't process future events
+    EventLog.append(event_log, [
+      %TimeTracked{id: "3", amount: 100}
+    ])
 
-  #   Derive.await(name, [
-  #     %TimeTracked{id: "3", amount: 100}
-  #   ])
+    Derive.await(name, [
+      %TimeTracked{id: "3", amount: 100}
+    ])
 
-  #   assert %Derive.Partition{
-  #            cursor: :start,
-  #            error: %Derive.PartitionError{
-  #              cursor: "2",
-  #              #  message: message,
-  #              type: :commit
-  #            },
-  #            id: "main",
-  #            status: :error
-  #          } = AccountingService.load_partition(nil, "main")
+    assert %Derive.Partition{
+             cursor: :start,
+             error: %Derive.PartitionError{
+               cursor: nil,
+               batch: ["1", "2"],
+               message: "** (" <> _,
+               type: :commit
+             },
+             id: "main",
+             status: :error
+           } = AccountingService.load_partition(nil, "main")
 
-  #   assert [%Derive.EctoServiceTest.Event{data: %{"amount" => 25}, id: "event-1"}] = events
+    assert [%Event{data: %{"amount" => 25}, id: "event-1"}] = events
 
-  #   Derive.stop(name)
-  # end
+    Derive.stop(name)
+  end
 end

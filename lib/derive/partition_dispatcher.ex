@@ -1,6 +1,9 @@
 defmodule Derive.PartitionDispatcher do
   @moduledoc """
   A process for a given {reducer, partition} to keep the state of its partition up to date
+
+  A `Derive.Dispatcher` doesn't do any processing of its own. It will lazily instantiate processes
+  of `Derive.PartitionDispatcher` and forward events to each partition to do the actual processing.
   """
 
   use GenServer, restart: :transient
