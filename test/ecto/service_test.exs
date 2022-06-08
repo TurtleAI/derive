@@ -104,8 +104,83 @@ defmodule Derive.Ecto.ServiceTest do
     end)
   end
 
+  test "processes things sequentially " do
+    name = :sequential_processing
+
+    {:ok, event_log} = EventLog.start_link()
+
+    {:ok, _} =
+      Derive.start_link(
+        reducer: AccountingService,
+        source: event_log,
+        name: name
+      )
+
+    EventLog.append(event_log, [
+      %TimeTracked{id: "1", amount: 111},
+      %TimeTracked{id: "2", amount: 222}
+    ])
+
+    Derive.await(name, [
+      %TimeTracked{id: "1", amount: 111},
+      %TimeTracked{id: "2", amount: 222}
+    ])
+
+    assert %Derive.Partition{
+             cursor: "2",
+             error: nil,
+             id: "main",
+             status: :ok
+           } = AccountingService.load_partition(nil, "main")
+
+    assert [
+             %Event{data: %{"amount" => 111}, id: "event-1"},
+             %Event{data: %{"amount" => 222}, id: "event-2"}
+           ] = Repo.all(Event)
+
+    EventLog.append(event_log, [
+      %TimeTracked{id: "3", amount: 333}
+    ])
+
+    Derive.await(name, [
+      %TimeTracked{id: "3", amount: 333}
+    ])
+
+    assert [
+             %Event{data: %{"amount" => 111}, id: "event-1"},
+             %Event{data: %{"amount" => 222}, id: "event-2"},
+             %Event{data: %{"amount" => 333}, id: "event-3"}
+           ] = Repo.all(Event)
+
+    # shut down the process, add some events, then see if they get processed
+    Derive.stop(name)
+
+    EventLog.append(event_log, [
+      %TimeTracked{id: "4", amount: 444}
+    ])
+
+    # Sleep as a sanity check to ensure we pick back where we leave off
+    Process.sleep(50)
+
+    {:ok, _} =
+      Derive.start_link(
+        reducer: AccountingService,
+        source: event_log,
+        name: name
+      )
+
+    Derive.await_catchup(name)
+
+    assert [
+             %Event{data: %{"amount" => 111}, id: "event-1"},
+             %Event{data: %{"amount" => 222}, id: "event-2"},
+             %Event{data: %{"amount" => 333}, id: "event-3"},
+             %Event{data: %{"amount" => 444}, id: "event-4"}
+           ] = Repo.all(Event)
+  end
+
   test "when there is a failure, the partition should be marked in an error state" do
-    name = :process_entries_sequentially
+    name = :failure_error_state
 
     {:ok, event_log} = EventLog.start_link()
 
@@ -168,6 +243,7 @@ defmodule Derive.Ecto.ServiceTest do
              status: :error
            } = AccountingService.load_partition(nil, "main")
 
+    events = Repo.all(Event)
     assert [%Event{data: %{"amount" => 25}, id: "event-1"}] = events
 
     Derive.stop(name)
