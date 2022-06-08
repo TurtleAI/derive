@@ -1,4 +1,4 @@
-defmodule Derive.EctoService do
+defmodule Derive.Ecto.Service do
   @callback commit(Derive.State.MultiOp.t()) :: Derive.State.MultiOp.t()
 
   defmacro __using__(opts) do
@@ -7,9 +7,9 @@ defmodule Derive.EctoService do
 
     quote do
       use Derive.Reducer
-      @behaviour Derive.EctoService
+      @behaviour Derive.Ecto.Service
 
-      @state %Derive.State.Ecto{
+      @state %Derive.Ecto.State{
         repo: unquote(repo),
         namespace: unquote(namespace),
         models: [],
@@ -18,7 +18,7 @@ defmodule Derive.EctoService do
 
       @impl true
       def setup(%Derive.Options{} = opts) do
-        Derive.State.Ecto.init_state(@state)
+        Derive.Ecto.State.init_state(@state)
       end
 
       @impl true
@@ -41,11 +41,11 @@ defmodule Derive.EctoService do
 
       @impl true
       def load_partition(_opts, id),
-        do: Derive.State.Ecto.load_partition(@state, id)
+        do: Derive.Ecto.State.load_partition(@state, id)
 
       @impl true
       def save_partition(_opts, partition),
-        do: Derive.State.Ecto.save_partition(@state, partition)
+        do: Derive.Ecto.State.save_partition(@state, partition)
     end
   end
 end

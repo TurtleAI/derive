@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.PartitionErrorType do
+defmodule Derive.Ecto.PartitionErrorType do
   @moduledoc """
   Used for serializing and de-serializing an error
   """

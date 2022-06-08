@@ -1,4 +1,4 @@
-defmodule Derive.EctoReducer do
+defmodule Derive.Ecto.Reducer do
   @moduledoc """
   An Ecto-specific implementation of `Derive.Reducer`
 
@@ -39,14 +39,14 @@ defmodule Derive.EctoReducer do
       use Derive.Reducer
       @behaviour Derive.ReducerState
 
-      @state %Derive.State.Ecto{
+      @state %Derive.Ecto.State{
         repo: unquote(repo),
         namespace: unquote(namespace),
         models: unquote(models),
         version: unquote(version)
       }
 
-      import Derive.State.Ecto.Operation
+      import Derive.Ecto.Operation
 
       @impl true
       def process_events(events, multi) do
@@ -63,7 +63,7 @@ defmodule Derive.EctoReducer do
       end
 
       def commit(op),
-        do: Derive.State.Ecto.commit(@state, op)
+        do: Derive.Ecto.State.commit(@state, op)
 
       @impl true
       def get_cursor(%{id: id}),
@@ -71,19 +71,19 @@ defmodule Derive.EctoReducer do
 
       @impl true
       def reset_state,
-        do: Derive.State.Ecto.reset_state(@state)
+        do: Derive.Ecto.State.reset_state(@state)
 
       @impl true
       def needs_rebuild?,
-        do: Derive.State.Ecto.needs_rebuild?(@state)
+        do: Derive.Ecto.State.needs_rebuild?(@state)
 
       @impl true
       def load_partition(_, id),
-        do: Derive.State.Ecto.load_partition(@state, id)
+        do: Derive.Ecto.State.load_partition(@state, id)
 
       @impl true
       def save_partition(_opts, %Derive.Partition{} = partition),
-        do: Derive.State.Ecto.save_partition(@state, partition)
+        do: Derive.Ecto.State.save_partition(@state, partition)
     end
   end
 end

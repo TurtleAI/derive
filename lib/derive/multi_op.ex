@@ -1,4 +1,4 @@
-defmodule Derive.State.MultiOp do
+defmodule Derive.MultiOp do
   @moduledoc """
   `Derive.State.MultiOp` is a data structure for grouping multiple generic operations
   produced by combining the operations produced by `handle_event` over a list of events.
@@ -7,7 +7,7 @@ defmodule Derive.State.MultiOp do
   """
 
   alias Derive.Partition
-  alias Derive.State.{MultiOp, EventOp}
+  alias Derive.{MultiOp, EventOp}
   alias Derive.Error.{HandleEventError, CommitError}
 
   @type t :: %__MODULE__{

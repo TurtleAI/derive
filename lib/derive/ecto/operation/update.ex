@@ -1,12 +1,12 @@
-defmodule Derive.State.Ecto.Operation.Update do
+defmodule Derive.Ecto.Operation.Update do
   defstruct [:selector, :fields]
 end
 
-defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.Update do
-  import Derive.State.Ecto.Selector
+defimpl Derive.Ecto.DbOp, for: Derive.Ecto.Operation.Update do
+  import Derive.Ecto.Selector
 
   def to_multi(
-        %Derive.State.Ecto.Operation.Update{selector: selector, fields: fun} = update,
+        %Derive.Ecto.Operation.Update{selector: selector, fields: fun} = update,
         index
       )
       when is_function(fun) do
@@ -18,7 +18,7 @@ defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.Update do
     end)
   end
 
-  def to_multi(%Derive.State.Ecto.Operation.Update{selector: selector, fields: fields}, index) do
+  def to_multi(%Derive.Ecto.Operation.Update{selector: selector, fields: fields}, index) do
     Ecto.Multi.update_all(Ecto.Multi.new(), index, selector_query(selector),
       set: to_keyword_list(fields)
     )

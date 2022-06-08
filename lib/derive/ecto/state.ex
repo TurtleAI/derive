@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto do
+defmodule Derive.Ecto.State do
   @moduledoc """
   An Ecto-based implementation of state
   """
@@ -8,15 +8,15 @@ defmodule Derive.State.Ecto do
   @type t :: %__MODULE__{
           repo: Ecto.Repo.t(),
           namespace: binary(),
-          models: [Derive.State.Ecto.Model.t()],
+          models: [Derive.Ecto.Model.t()],
           version: binary()
         }
 
   alias __MODULE__, as: S
 
   alias Derive.Partition
-  alias Derive.State.Ecto.PartitionRecord
-  alias Derive.State.MultiOp
+  alias Derive.Ecto.PartitionRecord
+  alias Derive.MultiOp
 
   @doc """
   Commit a list of operations to disk within a transaction.
@@ -24,7 +24,7 @@ defmodule Derive.State.Ecto do
   @spec commit(t(), MultiOp.t()) :: MultiOp.t()
   def commit(%S{repo: repo} = state, %MultiOp{partition: partition} = multi_op) do
     multi_op =
-      MultiOp.save_partition(multi_op, %Derive.State.Ecto.Operation.SetPartition{
+      MultiOp.save_partition(multi_op, %Derive.Ecto.Operation.SetPartition{
         table: partition_table(state),
         partition: partition
       })
@@ -104,7 +104,7 @@ defmodule Derive.State.Ecto do
   def save_partition(%S{repo: repo} = state, partition) do
     multi =
       operations_to_multi(Ecto.Multi.new(), 0, [
-        %Derive.State.Ecto.Operation.SetPartition{
+        %Derive.Ecto.Operation.SetPartition{
           table: partition_table(state),
           partition: partition
         }
@@ -193,7 +193,7 @@ defmodule Derive.State.Ecto do
 
   defp operations_to_multi(multi, index, [op | rest]) do
     multi
-    |> Ecto.Multi.append(Derive.State.Ecto.DbOp.to_multi(op, index))
+    |> Ecto.Multi.append(Derive.Ecto.DbOp.to_multi(op, index))
     |> operations_to_multi(index + 1, rest)
   end
 end

@@ -1,10 +1,9 @@
 defmodule Derive.Reducer.EventProcessorTest do
   use ExUnit.Case
 
-  alias Derive.Partition
+  alias Derive.{Partition, MultiOp}
   alias Derive.Reducer.EventProcessor
   alias Derive.Reducer.EventProcessor.Options
-  alias Derive.State.MultiOp
   alias Derive.Error.{HandleEventError, CommitError}
 
   def create_state(initial) do
@@ -75,19 +74,19 @@ defmodule Derive.Reducer.EventProcessorTest do
 
     # operations are reversed
     assert [
-             %Derive.State.EventOp{
+             %Derive.EventOp{
                cursor: "7",
                event: %{id: "7", name: "bruce lee"},
                operations: ["bruce lee"],
                status: :ok
              },
-             %Derive.State.EventOp{
+             %Derive.EventOp{
                cursor: "6",
                event: %{id: "6", name: "jones"},
                operations: [],
                status: :ignore
              },
-             %Derive.State.EventOp{
+             %Derive.EventOp{
                cursor: "5",
                event: %{id: "5", name: "bob"},
                operations: [],
@@ -122,7 +121,7 @@ defmodule Derive.Reducer.EventProcessorTest do
 
     assert %MultiOp{status: :error, error: %HandleEventError{operation: event_op}} = multi
 
-    assert %Derive.State.EventOp{
+    assert %Derive.EventOp{
              cursor: "3",
              error: {%FunctionClauseError{}, [_ | _]},
              event: %{error: "blah", id: "3"},

@@ -8,7 +8,7 @@ defmodule Derive.State.InMemory do
   defstruct [:reduce, :acc]
 
   alias Derive.State.InMemory, as: S
-  alias Derive.State.MultiOp
+  alias Derive.MultiOp
 
   def start_link(opts) do
     {reducer_opts, genserver_opts} = Keyword.split(opts, [:reduce])

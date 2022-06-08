@@ -1,15 +1,14 @@
-defmodule Derive.EctoReducerTest do
+defmodule Derive.Ecto.ReducerTest do
   use ExUnit.Case
 
   alias Derive.EventLog.InMemoryEventLog, as: EventLog
   alias DeriveTestRepo, as: Repo
-  alias Derive.{Timespan, Partition}
+  alias Derive.{Timespan, Partition, MultiOp, EventOp}
   alias Derive.Error.{HandleEventError, CommitError}
-  alias Derive.State.{MultiOp, EventOp}
   alias Derive.Logger.InMemoryLogger
 
   defmodule User do
-    use Derive.State.Ecto.Model
+    use Derive.Ecto.Model
 
     @primary_key {:id, :string, []}
     schema "users" do
@@ -57,7 +56,7 @@ defmodule Derive.EctoReducerTest do
   end
 
   defmodule UserReducer do
-    use Derive.EctoReducer,
+    use Derive.Ecto.Reducer,
       repo: Repo,
       namespace: "user_reducer",
       models: [User]
@@ -398,7 +397,7 @@ defmodule Derive.EctoReducerTest do
       # the error log shows up
       [failed_multi] = failed_multis(logger)
 
-      assert %Derive.State.MultiOp{
+      assert %Derive.MultiOp{
                partition: %Derive.Partition{
                  cursor: "1",
                  id: "99",
@@ -406,15 +405,14 @@ defmodule Derive.EctoReducerTest do
                  error: %Derive.PartitionError{
                    type: :handle_event,
                    cursor: "3",
-                   message: "** (Derive.EctoReducerTest.UserError) bad stuff happened" <> stack
+                   message: "** (Derive.Ecto.ReducerTest.UserError) bad stuff happened" <> stack
                  }
                },
                error: %HandleEventError{
-                 operation: %Derive.State.EventOp{
+                 operation: %Derive.EventOp{
                    cursor: "3",
-                   error:
-                     {%Derive.EctoReducerTest.UserError{message: "bad stuff happened"}, [_ | _]},
-                   event: %Derive.EctoReducerTest.UserRaiseHandleError{
+                   error: {%UserError{message: "bad stuff happened"}, [_ | _]},
+                   event: %UserRaiseHandleError{
                      id: "3",
                      message: "bad stuff happened",
                      user_id: "99"
@@ -425,10 +423,10 @@ defmodule Derive.EctoReducerTest do
                },
                operations: [
                  # we failed on event 3, so this following event gets skipped
-                 %Derive.State.EventOp{
+                 %Derive.EventOp{
                    cursor: "4",
                    error: nil,
-                   event: %Derive.EctoReducerTest.UserNameUpdated{
+                   event: %UserNameUpdated{
                      id: "4",
                      name: "Raichu",
                      user_id: "99"

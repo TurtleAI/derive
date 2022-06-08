@@ -43,8 +43,7 @@ defmodule Derive.Reducer.EventProcessor do
   @type cursor :: Derive.EventLog.cursor()
   @type operation :: Derive.Reducer.operation()
 
-  alias Derive.State.{EventOp, MultiOp}
-  alias Derive.{Partition, Timespan}
+  alias Derive.{Partition, Timespan, MultiOp, EventOp}
 
   @doc """
   Process events for a given list of events. This involves the following steps:

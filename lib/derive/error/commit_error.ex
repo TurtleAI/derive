@@ -10,7 +10,7 @@ defmodule Derive.Error.CommitError do
           operation: Derive.State.EventOp.t() | nil
         }
 
-  alias Derive.State.EventOp
+  alias Derive.EventOp
 
   def message(%__MODULE__{operation: operation, error: error}) do
     "commit failed [#{operation.cursor}] #{inspect(error)}"
@@ -18,7 +18,7 @@ defmodule Derive.Error.CommitError do
 
   def to_partition_error(
         %__MODULE__{operation: operation, error: error, stacktrace: stacktrace},
-        %Derive.State.MultiOp{
+        %Derive.MultiOp{
           operations: operations
         }
       ) do

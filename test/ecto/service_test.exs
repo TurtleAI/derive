@@ -1,4 +1,4 @@
-defmodule Derive.EctoServiceTest do
+defmodule Derive.Ecto.ServiceTest do
   use ExUnit.Case
 
   alias DeriveTestRepo, as: Repo
@@ -7,7 +7,7 @@ defmodule Derive.EctoServiceTest do
   # alias Derive.EventLog.InMemoryEventLog, as: EventLog
 
   defmodule Event do
-    use Derive.State.Ecto.Model
+    use Derive.Ecto.Model
 
     @primary_key {:id, :string, []}
     schema "events" do
@@ -29,14 +29,14 @@ defmodule Derive.EctoServiceTest do
   end
 
   defmodule FakeEventLog do
-    @state %Derive.State.Ecto{
+    @state %Derive.Ecto.State{
       repo: Repo,
       models: [Event],
       namespace: "events"
     }
 
     def reset_state do
-      Derive.State.Ecto.reset_state(@state)
+      Derive.Ecto.State.reset_state(@state)
     end
 
     def persist(events) do
@@ -47,7 +47,7 @@ defmodule Derive.EctoServiceTest do
   end
 
   defmodule AccountingService do
-    use Derive.EctoService,
+    use Derive.Ecto.Service,
       repo: Repo,
       namespace: "accounting_service"
 
@@ -64,10 +64,10 @@ defmodule Derive.EctoServiceTest do
     end
 
     @impl true
-    def commit(%Derive.State.MultiOp{} = op) do
-      events = Derive.State.MultiOp.operations(op)
+    def commit(%Derive.MultiOp{} = op) do
+      events = Derive.MultiOp.operations(op)
       FakeEventLog.persist(events)
-      Derive.State.MultiOp.committed(op)
+      Derive.MultiOp.committed(op)
     end
   end
 

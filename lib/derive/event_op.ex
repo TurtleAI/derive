@@ -1,4 +1,4 @@
-defmodule Derive.State.EventOp do
+defmodule Derive.EventOp do
   @moduledoc """
   An event and the operation that resulted from calling `handle_event` on the event.
   """

@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.Operation do
+defmodule Derive.Ecto.Operation do
   @moduledoc """
   Provides shortcut functions for common Ecto state operations to reduce
   the amount of boilerplate that needs to be written for reducers.
@@ -7,11 +7,11 @@ defmodule Derive.State.Ecto.Operation do
   `insert(record)`.
   """
 
-  alias Derive.State.Ecto.Operation
+  alias Derive.Ecto.Operation
 
   @type record :: Ecto.Schema.t()
   @type operation :: Derive.Reducer.operation()
-  @type selector :: Derive.State.Ecto.Selector.t()
+  @type selector :: Derive.Ecto.Selector.t()
   @type fields :: keyword()
   @type field_name :: atom()
 
@@ -88,7 +88,7 @@ defmodule Derive.State.Ecto.Operation do
 
   @doc """
   Execute a transaction
-  If the transaction returns one or more operations that implement `Derive.State.Ecto.DbOp`,
+  If the transaction returns one or more operations that implement `Derive.Ecto.DbOp`,
   these will be committed as part of the transaction.
   """
   def transaction(fun) when is_function(fun, 1),

@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.Operation.ArrayPush do
+defmodule Derive.Ecto.Operation.ArrayPush do
   @moduledoc """
   For the record(s) identified by a given selector,
   add a value to an array.
@@ -10,11 +10,11 @@ defmodule Derive.State.Ecto.Operation.ArrayPush do
   defstruct [:selector, :field, :values, unique: false]
 end
 
-defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.ArrayPush do
-  import Derive.State.Ecto.Selector
+defimpl Derive.Ecto.DbOp, for: Derive.Ecto.Operation.ArrayPush do
+  import Derive.Ecto.Selector
 
   def to_multi(
-        %Derive.State.Ecto.Operation.ArrayPush{
+        %Derive.Ecto.Operation.ArrayPush{
           selector: selector,
           field: field,
           values: values,

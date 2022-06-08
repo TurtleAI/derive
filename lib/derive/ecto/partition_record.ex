@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.PartitionRecord do
+defmodule Derive.Ecto.PartitionRecord do
   @moduledoc """
   Each reducer has a table to keep track of partitions,
   up to which event they have processed, and whether it's in an
@@ -7,15 +7,15 @@ defmodule Derive.State.Ecto.PartitionRecord do
   This is model that backs it.
   """
 
-  use Derive.State.Ecto.Model
+  use Derive.Ecto.Model
 
   alias Derive.Partition
 
   @primary_key {:id, :string, [autogenerate: false]}
   schema "partitions" do
-    field(:cursor, Derive.State.Ecto.CursorType)
+    field(:cursor, Derive.Ecto.CursorType)
     field(:status, Ecto.Enum, values: [ok: 1, error: 2])
-    field(:error, Derive.State.Ecto.PartitionErrorType)
+    field(:error, Derive.Ecto.PartitionErrorType)
   end
 
   def from_partition(%Partition{id: id, cursor: cursor, status: status, error: error}) do

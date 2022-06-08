@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.CursorType do
+defmodule Derive.Ecto.CursorType do
   @moduledoc """
   Encapsulates a partition
   """

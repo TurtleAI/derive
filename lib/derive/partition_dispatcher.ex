@@ -6,8 +6,7 @@ defmodule Derive.PartitionDispatcher do
   use GenServer, restart: :transient
 
   alias __MODULE__, as: S
-  alias Derive.{Partition, Reducer, EventBatch, Options}
-  alias Derive.State.MultiOp
+  alias Derive.{Partition, Reducer, EventBatch, Options, MultiOp}
 
   @type t :: %__MODULE__{
           options: Options.t(),

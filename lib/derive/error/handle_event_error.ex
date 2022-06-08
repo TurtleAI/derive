@@ -9,10 +9,10 @@ defmodule Derive.Error.HandleEventError do
   defexception [:operation]
 
   @type t :: %__MODULE__{
-          operation: Derive.State.EventOp.t()
+          operation: Derive.EventOp.t()
         }
 
-  alias Derive.State.EventOp
+  alias Derive.EventOp
 
   def message(%__MODULE__{operation: operation}) do
     "handle_event failed #{inspect(operation)}"
@@ -22,9 +22,7 @@ defmodule Derive.Error.HandleEventError do
         %__MODULE__{
           operation: %EventOp{cursor: cursor, error: {error, stacktrace}}
         },
-        %Derive.State.MultiOp{
-          operations: operations
-        }
+        %Derive.MultiOp{operations: operations}
       ) do
     batch = for %EventOp{cursor: cursor} <- Enum.reverse(operations), do: cursor
 
