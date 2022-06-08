@@ -28,7 +28,7 @@ defmodule Derive.State.EventOp do
   """
   @type operations() :: [Derive.Reducer.operation()]
 
-  @type status() :: :ok | :error | :skip
+  @type status() :: :ok | :error | :ignore
 
   def new(cursor, event, ops, timespan \\ nil) do
     %__MODULE__{
@@ -51,9 +51,9 @@ defmodule Derive.State.EventOp do
     }
   end
 
-  def skip(cursor, event, timespan \\ nil) do
+  def ignore(cursor, event, timespan \\ nil) do
     %__MODULE__{
-      status: :skip,
+      status: :ignore,
       cursor: cursor,
       event: event,
       operations: [],

@@ -6,7 +6,7 @@ defmodule Derive.State.MultiOp do
   Inspired by `Ecto.Multi` but generic to other types of operations.
   """
 
-  alias Derive.{Partition, PartitionError}
+  alias Derive.Partition
   alias Derive.State.{MultiOp, EventOp}
   alias Derive.Error.{HandleEventError, CommitError}
 
@@ -14,10 +14,18 @@ defmodule Derive.State.MultiOp do
           partition: Partition.t(),
           initial_partition: Partition.t(),
           error: error() | nil,
+          save_partition: Derive.Reducer.operation() | nil,
           status: status(),
           operations: [EventOp.t()]
         }
-  defstruct [:partition, :initial_partition, :error, status: :processing, operations: []]
+  defstruct [
+    :partition,
+    :initial_partition,
+    :error,
+    :save_partition,
+    status: :processing,
+    operations: []
+  ]
 
   @typedoc """
   When processing events, there are 3 stages
@@ -53,11 +61,19 @@ defmodule Derive.State.MultiOp do
   @spec add(MultiOp.t(), EventOp.t()) :: MultiOp.t()
   def add(
         %MultiOp{partition: partition, operations: operations} = multi,
-        %EventOp{cursor: cursor} = op
+        %EventOp{cursor: cursor, status: :ok} = op
       ) do
     new_partition = %{partition | cursor: max(cursor, partition.cursor)}
     new_operations = [op | operations]
     %{multi | partition: new_partition, operations: new_operations}
+  end
+
+  def add(
+        %MultiOp{operations: operations} = multi,
+        %EventOp{status: :ignore} = op
+      ) do
+    # we don't update the cursor if we're ignoring the event
+    %{multi | operations: [op | operations]}
   end
 
   @doc """
@@ -89,13 +105,10 @@ defmodule Derive.State.MultiOp do
   @spec failed_on_event(MultiOp.t(), EventOp.t()) :: MultiOp.t()
   def failed_on_event(
         %MultiOp{partition: partition} = multi,
-        %EventOp{error: error} = op
+        %EventOp{} = op
       ) do
-    partition_error = %PartitionError{
-      type: :handle_event,
-      cursor: partition.cursor,
-      message: inspect(error)
-    }
+    error = %HandleEventError{operation: op}
+    partition_error = HandleEventError.to_partition_error(error, multi)
 
     new_partition = %Partition{
       partition
@@ -127,11 +140,8 @@ defmodule Derive.State.MultiOp do
         {error, stacktrace},
         event_op \\ nil
       ) do
-    partition_error = %PartitionError{
-      type: :commit,
-      cursor: partition.cursor,
-      message: Exception.format(:error, error, stacktrace || [])
-    }
+    error = %CommitError{error: error, operation: event_op, stacktrace: stacktrace}
+    partition_error = CommitError.to_partition_error(error, multi)
 
     new_partition = %Partition{
       partition
@@ -144,8 +154,25 @@ defmodule Derive.State.MultiOp do
       multi
       | status: :error,
         partition: new_partition,
-        error: %CommitError{error: error, operation: event_op}
+        error: error
     }
+  end
+
+  @doc """
+  Add a special operation that's meant to update the partition along with all of the
+  other operations.
+
+  This method is preferred because you can ensure this all happens in a single transaction
+  to prevent edge cases for the cursor getting out of sync.
+  """
+  @spec save_partition(MultiOp.t(), Derive.Reducer.operation()) :: MultiOp.t()
+  def save_partition(
+        %MultiOp{
+          save_partition: nil
+        } = multi,
+        operation
+      ) do
+    %MultiOp{multi | save_partition: operation}
   end
 
   @doc """

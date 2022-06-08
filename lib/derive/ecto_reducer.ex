@@ -82,15 +82,8 @@ defmodule Derive.EctoReducer do
         do: Derive.State.Ecto.load_partition(@state, id)
 
       @impl true
-      def save_partition(_opts, %Derive.Partition{id: "$"} = partition),
+      def save_partition(_opts, %Derive.Partition{} = partition),
         do: Derive.State.Ecto.save_partition(@state, partition)
-
-      # This is an optimization.
-      # Ecto reducers update the partition as part of the transaction,
-      # so it's redundant and less robust to save the partition.
-      # TODO: make this more explicit
-      def save_partition(_opts, _),
-        do: :ok
     end
   end
 end

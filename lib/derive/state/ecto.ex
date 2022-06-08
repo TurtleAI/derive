@@ -23,14 +23,13 @@ defmodule Derive.State.Ecto do
   """
   @spec commit(t(), MultiOp.t()) :: MultiOp.t()
   def commit(%S{repo: repo} = state, %MultiOp{partition: partition} = multi_op) do
-    operations =
-      MultiOp.operations(multi_op) ++
-        [
-          %Derive.State.Ecto.Operation.SetPartition{
-            table: partition_table(state),
-            partition: partition
-          }
-        ]
+    multi_op =
+      MultiOp.save_partition(multi_op, %Derive.State.Ecto.Operation.SetPartition{
+        table: partition_table(state),
+        partition: partition
+      })
+
+    operations = MultiOp.operations(multi_op) ++ [multi_op.save_partition]
 
     multi = operations_to_multi(Ecto.Multi.new(), 0, operations)
 

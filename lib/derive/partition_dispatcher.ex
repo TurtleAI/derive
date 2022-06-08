@@ -153,13 +153,18 @@ defmodule Derive.PartitionDispatcher do
     Derive.Logger.multi(logger, multi)
     new_partition = multi.partition
 
-    reducer.save_partition(opts, new_partition)
+    case multi do
+      # we must save the partition because this implementation doesn't include saving
+      # the partition as part of the commit step
+      %MultiOp{save_partition: nil} -> reducer.save_partition(opts, new_partition)
+      # We must save the partition because, even if we have a save_partition included in the commit
+      # We've never got to this point because either we got stuck at handle_event or commit
+      %MultiOp{status: :error} -> reducer.save_partition(opts, new_partition)
+      _ -> :ok
+    end
 
     # The awaiters that can be notified after these events get processed
-    {awaiters_to_notify, awaiters_left} =
-      Enum.split_with(awaiters, fn {_awaiter, target_cursor} ->
-        new_partition.cursor >= target_cursor
-      end)
+    {awaiters_to_notify, awaiters_left} = split_awaiters(new_partition, awaiters)
 
     notify_awaiters(awaiters_to_notify)
 
@@ -175,6 +180,17 @@ defmodule Derive.PartitionDispatcher do
   @impl true
   def terminate(_, _state),
     do: :ok
+
+  defp split_awaiters(%Partition{status: :error}, awaiters) do
+    # if there's an error, we want to notify all awaiters that we're done
+    {awaiters, []}
+  end
+
+  defp split_awaiters(partition, awaiters) do
+    Enum.split_with(awaiters, fn {_awaiter, target_cursor} ->
+      partition.cursor >= target_cursor
+    end)
+  end
 
   defp notify_awaiters(awaiters) do
     Enum.each(awaiters, fn {reply_to, _event_id} ->

@@ -85,13 +85,13 @@ defmodule Derive.Reducer.EventProcessorTest do
                cursor: "6",
                event: %{id: "6", name: "jones"},
                operations: [],
-               status: :skip
+               status: :ignore
              },
              %Derive.State.EventOp{
                cursor: "5",
                event: %{id: "5", name: "bob"},
                operations: [],
-               status: :skip
+               status: :ignore
              }
            ] = operations
 
@@ -130,7 +130,7 @@ defmodule Derive.Reducer.EventProcessorTest do
              status: :error
            } = event_op
 
-    assert %{id: "x", cursor: "4", status: :error} = multi.partition
+    assert %{id: "x", cursor: "2", status: :error} = multi.partition
 
     # didn't even get to committing the events
     assert get_state(state) == []

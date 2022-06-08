@@ -136,12 +136,12 @@ defmodule Derive.Reducer.EventProcessor do
              "Skipping over event #{event_cursor}. Already processed. - #{Partition.to_string(partition)}"}
           )
 
-          {:skip, EventOp.skip(event_cursor, event, Timespan.stop(timespan))}
+          {:ignore, EventOp.ignore(event_cursor, event, Timespan.stop(timespan))}
 
         # if there was an error for a previous event, we don't want to call handle_event
         # ever again for this partition
         status == :error ->
-          {:skip, EventOp.skip(event_cursor, event, Timespan.stop(timespan))}
+          {:ignore, EventOp.ignore(event_cursor, event, Timespan.stop(timespan))}
 
         status == :ok ->
           try do
@@ -156,7 +156,7 @@ defmodule Derive.Reducer.EventProcessor do
       end
 
     case resp do
-      {status, event_op} when status in [:ok, :skip] ->
+      {status, event_op} when status in [:ok, :ignore] ->
         reduce_events(rest, MultiOp.add(multi, event_op), options)
 
       {:error, event_op} ->

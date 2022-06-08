@@ -9,17 +9,17 @@ defmodule Derive.State.Ecto.PartitionRecord do
 
   use Derive.State.Ecto.Model
 
-  alias Derive.{Partition, PartitionError}
+  alias Derive.Partition
 
   @primary_key {:id, :string, [autogenerate: false]}
   schema "partitions" do
     field(:cursor, Derive.State.Ecto.CursorType)
     field(:status, Ecto.Enum, values: [ok: 1, error: 2])
-    field(:error, :map)
+    field(:error, Derive.State.Ecto.PartitionErrorType)
   end
 
   def from_partition(%Partition{id: id, cursor: cursor, status: status, error: error}) do
-    %__MODULE__{id: id, cursor: cursor, status: status, error: encode_error(error)}
+    %__MODULE__{id: id, cursor: cursor, status: status, error: error}
   end
 
   def to_partition(%__MODULE__{id: id, cursor: cursor, status: status, error: error}) do
@@ -27,20 +27,8 @@ defmodule Derive.State.Ecto.PartitionRecord do
       id: id,
       cursor: cursor,
       status: status,
-      error: decode_error(error)
+      error: error
     }
-  end
-
-  defp encode_error(nil), do: nil
-
-  defp encode_error(%PartitionError{type: type, message: message, cursor: cursor}) do
-    %{"type" => type, "message" => message, "cursor" => cursor}
-  end
-
-  defp decode_error(nil), do: nil
-
-  defp decode_error(%{"type" => type, "message" => message, "cursor" => cursor}) do
-    %PartitionError{type: String.to_atom(type), message: message, cursor: cursor}
   end
 
   # Because we can't create a migration with a dynamic table name using create table(...),
