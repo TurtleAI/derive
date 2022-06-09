@@ -103,14 +103,6 @@ defmodule Derive do
     do: Dispatcher.await(child_process(server, :dispatcher), events)
 
   @doc """
-  Wait for this reducer to get caught up to the head of the event log
-  If we are already currently at the head, this will complete immediately
-  """
-  @spec await_catchup(server()) :: :ok
-  def await_catchup(server),
-    do: Dispatcher.await_catchup(child_process(server, :dispatcher))
-
-  @doc """
   Wait for all the events to be processed by all Derive processes
   """
   @spec await_many([server()], [EventLog.event()]) :: :ok

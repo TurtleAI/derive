@@ -56,6 +56,9 @@ defmodule Derive.Dispatcher do
 
   ### Client
   @spec await(server(), [Derive.EventLog.event()]) :: :ok
+  def await(server, :catchup),
+    do: GenServer.call(server, {:await, :catchup}, 30_000)
+
   def await(_server, []),
     do: :ok
 
@@ -63,10 +66,6 @@ defmodule Derive.Dispatcher do
     GenServer.call(server, {:await, event}, 30_000)
     await(server, rest)
   end
-
-  @spec await_catchup(server()) :: :ok
-  def await_catchup(server),
-    do: GenServer.call(server, :await_catchup)
 
   ### Server
 
@@ -106,6 +105,24 @@ defmodule Derive.Dispatcher do
 
   @impl true
   def handle_call(
+        {:await, :catchup},
+        _from,
+        %S{status: :caught_up} = state
+      ) do
+    {:reply, :ok, state}
+  end
+
+  def handle_call(
+        {:await, :catchup},
+        from,
+        %S{
+          catchup_awaiters: catchup_awaiters
+        } = state
+      ) do
+    {:noreply, %S{state | catchup_awaiters: [from | catchup_awaiters]}}
+  end
+
+  def handle_call(
         {:await, event},
         from,
         %S{
@@ -125,24 +142,6 @@ defmodule Derive.Dispatcher do
         PartitionDispatcher.register_awaiter(partition_dispatcher, from, event)
         {:noreply, state}
     end
-  end
-
-  def handle_call(
-        :await_catchup,
-        _from,
-        %S{status: :caught_up} = state
-      ) do
-    {:reply, :ok, state}
-  end
-
-  def handle_call(
-        :await_catchup,
-        from,
-        %S{
-          catchup_awaiters: catchup_awaiters
-        } = state
-      ) do
-    {:noreply, %S{state | catchup_awaiters: [from | catchup_awaiters]}}
   end
 
   @impl true
