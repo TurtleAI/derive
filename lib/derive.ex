@@ -95,6 +95,8 @@ defmodule Derive do
   If the event has already been processed, this will complete immediately
   If the event has not yet been processed, this will block until it completes processing
 
+  It is also possible to pass call `Derive.await(server, :catchup)` to wait until a server is fully caught up.
+
   Events are not considered processed until *all* operations produced by `Derive.Reducer.handle_event/1`
   have been committed by `Derive.Reducer.commit/1`
   """
