@@ -66,8 +66,16 @@ defmodule Derive.Ecto.ServiceTest do
     @impl true
     def commit(%Derive.MultiOp{} = op) do
       events = Derive.MultiOp.operations(op)
-      FakeEventLog.persist(events)
-      Derive.MultiOp.committed(op)
+
+      if Enum.any?(events, fn
+           %Event{data: %{"amount" => amount}} -> amount < 0
+           _ -> false
+         end) do
+        Derive.MultiOp.commit_failed(op, {:negative_balance, nil})
+      else
+        FakeEventLog.persist(events)
+        Derive.MultiOp.committed(op)
+      end
     end
   end
 
@@ -177,6 +185,16 @@ defmodule Derive.Ecto.ServiceTest do
              %Event{data: %{"amount" => 333}, id: "event-3"},
              %Event{data: %{"amount" => 444}, id: "event-4"}
            ] = Repo.all(Event)
+
+    # # # append an event that will cause a commit error
+    # EventLog.append(event_log, [
+    #   %TimeTracked{id: "5", amount: -100}
+    # ])
+
+    # assert {:error, _} =
+    #          Derive.await(name, [
+    #            %TimeTracked{id: "5", amount: -100}
+    #          ])
   end
 
   test "when there is a failure, the partition should be marked in an error state" do

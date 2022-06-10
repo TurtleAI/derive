@@ -54,19 +54,6 @@ defmodule Derive.Dispatcher do
     )
   end
 
-  ### Client
-  @spec await(server(), [Derive.EventLog.event()]) :: :ok
-  def await(server, :catchup),
-    do: GenServer.call(server, {:await, :catchup}, 30_000)
-
-  def await(_server, []),
-    do: :ok
-
-  def await(server, [event | rest]) do
-    GenServer.call(server, {:await, event}, 30_000)
-    await(server, rest)
-  end
-
   ### Server
 
   @impl true

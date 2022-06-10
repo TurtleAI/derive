@@ -101,8 +101,16 @@ defmodule Derive do
   have been committed by `Derive.Reducer.commit/1`
   """
   @spec await(server(), [EventLog.event()]) :: :ok
-  def await(server, events),
-    do: Dispatcher.await(child_process(server, :dispatcher), events)
+  def await(server, :catchup) do
+    GenServer.call(child_process(server, :dispatcher), {:await, :catchup}, 30_000)
+    :ok
+  end
+
+  def await(server, events) do
+    servers_with_messages = for e <- events, do: {child_process(server, :dispatcher), {:await, e}}
+    Derive.Ext.GenServer.call_many(servers_with_messages, 30_000)
+    :ok
+  end
 
   @doc """
   Wait for all the events to be processed by all Derive processes

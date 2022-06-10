@@ -112,7 +112,7 @@ defmodule Derive.PartitionDispatcher do
         {:register_awaiter, reply_to, event},
         %S{
           options: %Options{reducer: reducer},
-          partition: %Partition{cursor: cursor, status: status},
+          partition: %Partition{cursor: cursor, status: status, error: error},
           awaiters: awaiters,
           timeout: timeout
         } = state
@@ -122,8 +122,15 @@ defmodule Derive.PartitionDispatcher do
     # await completes immediately
     case cursor >= event_cursor || status == :error do
       true ->
-        # The event was already processed, so we can immediately reply :ok
-        GenServer.reply(reply_to, :ok)
+        case status do
+          :error ->
+            GenServer.reply(reply_to, {:error, error})
+
+          # The event was already processed, so we can immediately reply :ok
+          _ ->
+            GenServer.reply(reply_to, :ok)
+        end
+
         {:noreply, state, timeout}
 
       false ->
@@ -166,9 +173,9 @@ defmodule Derive.PartitionDispatcher do
     end
 
     # The awaiters that can be notified after these events get processed
-    {awaiters_to_notify, awaiters_left} = split_awaiters(new_partition, awaiters)
+    {{awaiters_to_notify, message}, awaiters_left} = split_awaiters(multi, awaiters)
 
-    notify_awaiters(awaiters_to_notify)
+    notify_awaiters(awaiters_to_notify, message)
 
     new_state = %{
       state
@@ -183,20 +190,28 @@ defmodule Derive.PartitionDispatcher do
   def terminate(_, _state),
     do: :ok
 
-  defp split_awaiters(%Partition{status: :error}, awaiters) do
+  defp split_awaiters(%MultiOp{status: :error}, awaiters) do
     # if there's an error, we want to notify all awaiters that we're done
-    {awaiters, []}
+    {{awaiters, :error}, []}
   end
 
-  defp split_awaiters(partition, awaiters) do
-    Enum.split_with(awaiters, fn {_awaiter, target_cursor} ->
-      partition.cursor >= target_cursor
-    end)
+  defp split_awaiters(%MultiOp{partition: %Partition{status: :error}}, awaiters) do
+    # if there's an error, we want to notify all awaiters that we're done
+    {{awaiters, :error}, []}
   end
 
-  defp notify_awaiters(awaiters) do
+  defp split_awaiters(%MultiOp{partition: %Partition{cursor: partition_cursor}}, awaiters) do
+    {awaiters_to_notify, awaiters_left} =
+      Enum.split_with(awaiters, fn {_awaiter, target_cursor} ->
+        partition_cursor >= target_cursor
+      end)
+
+    {{awaiters_to_notify, :ok}, awaiters_left}
+  end
+
+  defp notify_awaiters(awaiters, message) do
     Enum.each(awaiters, fn {reply_to, _event_id} ->
-      GenServer.reply(reply_to, :ok)
+      GenServer.reply(reply_to, message)
     end)
   end
 end
