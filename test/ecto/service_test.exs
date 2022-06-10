@@ -186,7 +186,8 @@ defmodule Derive.Ecto.ServiceTest do
              %Event{data: %{"amount" => 444}, id: "event-4"}
            ] = Repo.all(Event)
 
-    # # # append an event that will cause a commit error
+    # # append an event that will cause a commit error
+    # TODO: get working
     # EventLog.append(event_log, [
     #   %TimeTracked{id: "5", amount: -100}
     # ])

@@ -37,21 +37,22 @@ defmodule Derive.Ex.GenServerTest do
     test "awaiting multiple processes" do
       [p1, p2] = start(2)
 
-      assert [{^p1, {:ok, :p1hi}}, {^p2, {:ok, :p2hi}}] =
+      assert [{^p1, {:reply, :p1hi}}, {^p2, {:reply, :p2hi}}] =
                call_many([{p1, {:p1hi, 10}}, {p2, {:p2hi, 50}}], @timeout)
     end
 
     test "one process that takes too long" do
       [p1, p2] = start(2)
 
-      assert [{^p1, {:error, :timeout}}, {^p2, {:ok, :p2hi}}] =
+      assert [{^p1, {:error, :timeout}}, {^p2, {:reply, :p2hi}}] =
                call_many([{p1, {:p1hi, 100}}, {p2, {:p2hi, 10}}], 50)
     end
 
     test "several processes take too long" do
       [p1, p2, p3] = start(3)
 
-      assert {elapsed, [{^p1, {:error, :timeout}}, {^p2, {:error, :timeout}}, {^p3, {:ok, :yay}}]} =
+      assert {elapsed,
+              [{^p1, {:error, :timeout}}, {^p2, {:error, :timeout}}, {^p3, {:reply, :yay}}]} =
                call_timed([{p1, {:p1hi, 100}}, {p2, {:p2hi, 75}}, {p3, {:yay, 25}}], 50)
 
       assert elapsed < 100

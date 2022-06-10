@@ -1,5 +1,5 @@
 defmodule Derive.Ext.GenServer do
-  @type reply :: {:ok, term} | {:error, :timeout}
+  @type reply :: {:reply, term} | {:error, :timeout}
 
   @type server_with_message :: {GenServer.server(), term}
   @type server_with_response :: {GenServer.server(), reply}
@@ -39,7 +39,7 @@ defmodule Derive.Ext.GenServer do
   defp process_replies([{sub, req_id} | rest], {status, items}, timeout) do
     case :gen_server.receive_response(req_id, timeout) do
       {:reply, reply} ->
-        process_replies(rest, {status, [{sub, {:ok, reply}} | items]}, timeout)
+        process_replies(rest, {status, [{sub, {:reply, reply}} | items]}, timeout)
 
       # The GenServer died before a reply was sent
       {:error, reason} ->
