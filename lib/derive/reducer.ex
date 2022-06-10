@@ -41,6 +41,8 @@ defmodule Derive.Reducer do
 
   A partition is also used to maximize concurrency so events are processed as fast as possible.
   Events in different partitions can be processed simultaneously since they have no dependencies on one another.
+
+  The return value must be deterministic, meaning it should always return the same value for the same event.
   """
   @callback partition(event()) :: Partition.id() | nil
 

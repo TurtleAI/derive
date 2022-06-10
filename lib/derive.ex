@@ -100,15 +100,30 @@ defmodule Derive do
   Events are not considered processed until *all* operations produced by `Derive.Reducer.handle_event/1`
   have been committed by `Derive.Reducer.commit/1`
   """
-  @spec await(server(), [EventLog.event()]) :: :ok
+  @spec await(server(), [EventLog.event()] | :catchup) :: :ok
   def await(server, :catchup) do
     GenServer.call(child_process(server, :dispatcher), {:await_catchup}, 30_000)
     :ok
   end
 
   def await(server, events) do
-    servers_with_messages = for e <- events, do: {child_process(server, :dispatcher), {:await, e}}
+    dispatcher = child_process(server, :dispatcher)
+    partition_supervisor = child_process(server, :supervisor)
+
+    options = %Options{reducer: reducer} = Derive.Dispatcher.get_options(dispatcher)
+
+    servers_with_messages =
+      for event <- events, reducer.partition(event) != nil do
+        partition = reducer.partition(event)
+
+        partition_dispatcher =
+          Derive.PartitionSupervisor.start_child(partition_supervisor, {options, partition})
+
+        {partition_dispatcher, {:await, event}}
+      end
+
     Derive.Ext.GenServer.call_many(servers_with_messages, 30_000)
+
     :ok
   end
 
@@ -117,13 +132,9 @@ defmodule Derive do
   """
   @spec await_many([server()], [EventLog.event()]) :: :ok
   def await_many(servers, events) do
-    servers_with_messages =
-      for s <- servers, e <- events do
-        {child_process(s, :dispatcher), {:await, e}}
-      end
-
-    Derive.Ext.GenServer.call_many(servers_with_messages, 30_000)
-    :ok
+    Enum.each(servers, fn s ->
+      await(s, events)
+    end)
   end
 
   @doc """

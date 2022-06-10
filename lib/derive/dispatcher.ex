@@ -12,7 +12,7 @@ defmodule Derive.Dispatcher do
 
   use GenServer, restart: :transient
 
-  alias Derive.{Options, EventBatch, Partition, PartitionSupervisor, PartitionDispatcher}
+  alias Derive.{Options, EventBatch, Partition, PartitionDispatcher}
 
   alias __MODULE__, as: S
 
@@ -53,6 +53,15 @@ defmodule Derive.Dispatcher do
       genserver_opts
     )
   end
+
+  ### Client
+  @doc """
+  Get the options that were configured for the Derive instance
+  Once booted, this value does not change.
+  """
+  @spec get_options(server()) :: Options.t()
+  def get_options(server),
+    do: GenServer.call(server, :get_options)
 
   ### Server
 
@@ -109,27 +118,8 @@ defmodule Derive.Dispatcher do
     {:noreply, %S{state | catchup_awaiters: [from | catchup_awaiters]}}
   end
 
-  def handle_call(
-        {:await, event},
-        from,
-        %S{
-          partition_supervisor: partition_supervisor,
-          options: %Options{reducer: reducer} = option
-        } = state
-      ) do
-    # if a partition goes to nil, we consider it processed since it'll never get processed
-    case reducer.partition(event) do
-      nil ->
-        {:reply, :ok, state}
-
-      partition ->
-        partition_dispatcher =
-          PartitionSupervisor.start_child(partition_supervisor, {option, partition})
-
-        PartitionDispatcher.register_awaiter(partition_dispatcher, from, event)
-        {:noreply, state}
-    end
-  end
+  def handle_call(:get_options, _from, %S{options: options} = state),
+    do: {:reply, options, state}
 
   @impl true
   def handle_cast({:new_events, _new_events}, %S{} = state),

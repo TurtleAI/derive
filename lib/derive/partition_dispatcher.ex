@@ -55,15 +55,6 @@ defmodule Derive.PartitionDispatcher do
   def dispatch_events(server, event_batch),
     do: GenServer.cast(server, {:dispatch_events, event_batch})
 
-  @doc """
-  Register an awaiter process that will be notified with `GenServer.reply(reply_to, :ok)`
-  Once an event is processed
-  If it has already been processed, this awaiter will be notified immediately
-  """
-  @spec register_awaiter(pid(), GenServer.from(), Derive.EventLog.event()) :: :ok
-  def register_awaiter(server, reply_to, event),
-    do: GenServer.cast(server, {:register_awaiter, reply_to, event})
-
   ### Server
 
   @impl true
@@ -94,14 +85,9 @@ defmodule Derive.PartitionDispatcher do
     do: {:stop, :shutdown, state}
 
   @impl true
-  def handle_call({:await, event}, from, %S{timeout: timeout} = state) do
-    register_awaiter(self(), from, event)
-    {:noreply, state, timeout}
-  end
-
-  @impl true
-  def handle_cast(
-        {:register_awaiter, reply_to, event},
+  def handle_call(
+        {:await, event},
+        from,
         %S{
           options: %Options{reducer: reducer},
           partition: %Partition{cursor: cursor, status: status, error: error},
@@ -114,26 +100,25 @@ defmodule Derive.PartitionDispatcher do
     cond do
       # have already processed past this event, so we can reply immediately
       cursor >= event_cursor ->
-        GenServer.reply(reply_to, :ok)
-        {:noreply, state, timeout}
+        {:reply, :ok, state, timeout}
 
       # This partition has errored out, so we want to immediately notify that this is an error
       status == :error ->
-        GenServer.reply(reply_to, {:error, error})
-        {:noreply, state, timeout}
+        {:reply, {:error, error}, state, timeout}
 
       true ->
         # The event hasn't yet been processed, so we hold onto a reference to the caller
         # We will reply to this awaiter later on after we process the event
         new_state = %{
           state
-          | awaiters: [{reply_to, event_cursor} | awaiters]
+          | awaiters: [{from, event_cursor} | awaiters]
         }
 
         {:noreply, new_state, timeout}
     end
   end
 
+  @impl true
   def handle_cast({:dispatch_events, %EventBatch{events: []}}, %S{timeout: timeout} = state),
     do: {:noreply, state, timeout}
 
