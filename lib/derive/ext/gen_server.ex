@@ -8,8 +8,8 @@ defmodule Derive.Ext.GenServer do
   Given list of {server, message} tuples, send a `GenServer.call/2 to each one
   with the given message and returns with the responses of each one.
 
-  The returned tuples will always match the structure as the requests, except
-  the send item will be either {:ok, value} or a timeout error {:error, :timeout}
+  The returned tuples will match the structure of the requests
+  but with the 2nd being the reply: {:ok, value} or a timeout {:error, :timeout}
   """
   @spec call_many([server_with_message()], timeout) :: [server_with_response()]
   def call_many(servers_with_messages, timeout \\ 5000) do
@@ -46,7 +46,8 @@ defmodule Derive.Ext.GenServer do
         process_replies(rest, {status, [{sub, {:error, reason}} | items]}, timeout)
 
       # We exceeded the overall timeout for this individual call
-      # So we can globally consider this a timeout and process the rest without any more waiting
+      # By dropping the timeout to 0, we can collect the responses that have completed successfully so far
+      # and considered the rest as timed out.
       :timeout ->
         process_replies(rest, {:overall_timeout, [{sub, {:error, :timeout}} | items]}, 0)
     end

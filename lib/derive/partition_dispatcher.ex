@@ -56,14 +56,6 @@ defmodule Derive.PartitionDispatcher do
     do: GenServer.cast(server, {:dispatch_events, event_batch})
 
   @doc """
-  Wait until an event has been processed
-  If it has already been processed, this should complete immediately
-  """
-  @spec await(pid(), Derive.EventLog.event()) :: :ok
-  def await(server, event),
-    do: GenServer.call(server, {:await, event}, 30_000)
-
-  @doc """
   Register an awaiter process that will be notified with `GenServer.reply(reply_to, :ok)`
   Once an event is processed
   If it has already been processed, this awaiter will be notified immediately
@@ -118,24 +110,21 @@ defmodule Derive.PartitionDispatcher do
         } = state
       ) do
     event_cursor = reducer.get_cursor(event)
-    # if there has been an error or if we've already processed the event,
-    # await completes immediately
-    case cursor >= event_cursor || status == :error do
-      true ->
-        case status do
-          :error ->
-            GenServer.reply(reply_to, {:error, error})
 
-          # The event was already processed, so we can immediately reply :ok
-          _ ->
-            GenServer.reply(reply_to, :ok)
-        end
-
+    cond do
+      # have already processed past this event, so we can reply immediately
+      cursor >= event_cursor ->
+        GenServer.reply(reply_to, :ok)
         {:noreply, state, timeout}
 
-      false ->
+      # This partition has errored out, so we want to immediately notify that this is an error
+      status == :error ->
+        GenServer.reply(reply_to, {:error, error})
+        {:noreply, state, timeout}
+
+      true ->
         # The event hasn't yet been processed, so we hold onto a reference to the caller
-        # At a later time, we will reply to these callers after we process the events
+        # We will reply to this awaiter later on after we process the event
         new_state = %{
           state
           | awaiters: [{reply_to, event_cursor} | awaiters]

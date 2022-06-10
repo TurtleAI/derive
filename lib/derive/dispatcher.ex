@@ -92,7 +92,7 @@ defmodule Derive.Dispatcher do
 
   @impl true
   def handle_call(
-        {:await, :catchup},
+        {:await_catchup},
         _from,
         %S{status: :caught_up} = state
       ) do
@@ -100,7 +100,7 @@ defmodule Derive.Dispatcher do
   end
 
   def handle_call(
-        {:await, :catchup},
+        {:await_catchup},
         from,
         %S{
           catchup_awaiters: catchup_awaiters
@@ -213,9 +213,13 @@ defmodule Derive.Dispatcher do
 
         # We want to wait until all of the partitions have processed the events
         # before updating the cursor of this partition
-        for {partition_dispatcher, events} <- events_by_partition_id_dispatcher, e <- events do
-          PartitionDispatcher.await(partition_dispatcher, e)
-        end
+
+        partitions_with_messages =
+          for {partition_dispatcher, events} <- events_by_partition_id_dispatcher, e <- events do
+            {partition_dispatcher, {:await, e}}
+          end
+
+        Derive.Ext.GenServer.call_many(partitions_with_messages, 30_000)
 
         new_partition = %{partition | cursor: new_cursor}
         reducer.save_partition(options, new_partition)

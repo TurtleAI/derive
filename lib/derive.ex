@@ -102,7 +102,7 @@ defmodule Derive do
   """
   @spec await(server(), [EventLog.event()]) :: :ok
   def await(server, :catchup) do
-    GenServer.call(child_process(server, :dispatcher), {:await, :catchup}, 30_000)
+    GenServer.call(child_process(server, :dispatcher), {:await_catchup}, 30_000)
     :ok
   end
 
@@ -116,12 +116,14 @@ defmodule Derive do
   Wait for all the events to be processed by all Derive processes
   """
   @spec await_many([server()], [EventLog.event()]) :: :ok
-  def await_many([], _events),
-    do: :ok
+  def await_many(servers, events) do
+    servers_with_messages =
+      for s <- servers, e <- events do
+        {child_process(s, :dispatcher), {:await, e}}
+      end
 
-  def await_many([server | rest], events) do
-    await(server, events)
-    await_many(rest, events)
+    Derive.Ext.GenServer.call_many(servers_with_messages, 30_000)
+    :ok
   end
 
   @doc """
