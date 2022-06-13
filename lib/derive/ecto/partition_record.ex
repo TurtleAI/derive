@@ -45,8 +45,8 @@ defmodule Derive.Ecto.PartitionRecord do
     [
       """
       CREATE TABLE IF NOT EXISTS #{table} (
-        id character varying(32) PRIMARY KEY,
-        cursor character varying(32),
+        id text PRIMARY KEY,
+        cursor text,
         status integer NOT NULL DEFAULT 1,
         error jsonb
       );

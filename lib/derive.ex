@@ -107,10 +107,10 @@ defmodule Derive do
   end
 
   def await(server, events) do
-    dispatcher = child_process(server, :dispatcher)
+    options_agent = child_process(server, :options)
     partition_supervisor = child_process(server, :supervisor)
 
-    options = %Options{reducer: reducer} = Derive.Dispatcher.get_options(dispatcher)
+    options = %Options{reducer: reducer} = Agent.get(options_agent, & &1)
 
     servers_with_messages =
       for event <- events,
@@ -213,6 +213,11 @@ defmodule Derive do
       child_specs ++
         derive_opts.reducer.child_specs(derive_opts) ++
         [
+          %{
+            id: :options,
+            start:
+              {Agent, :start_link, [fn -> derive_opts end, [name: child_process(name, :options)]]}
+          },
           {Dispatcher, dispatcher_opts},
           {Derive.MapSupervisor, name: child_process(name, :supervisor)}
         ]
