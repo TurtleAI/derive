@@ -54,15 +54,6 @@ defmodule Derive.Dispatcher do
     )
   end
 
-  ### Client
-  @doc """
-  Get the options that were configured for the Derive instance
-  Once booted, this value does not change.
-  """
-  @spec get_options(server()) :: Options.t()
-  def get_options(server),
-    do: GenServer.call(server, :get_options)
-
   ### Server
 
   @impl true
@@ -117,9 +108,6 @@ defmodule Derive.Dispatcher do
       ) do
     {:noreply, %S{state | catchup_awaiters: [from | catchup_awaiters]}}
   end
-
-  def handle_call(:get_options, _from, %S{options: options} = state),
-    do: {:reply, options, state}
 
   @impl true
   def handle_cast({:new_events, _new_events}, %S{} = state),
