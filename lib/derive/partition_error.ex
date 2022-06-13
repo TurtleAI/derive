@@ -6,9 +6,10 @@ defmodule Derive.PartitionError do
   @type t :: %__MODULE__{
           type: type(),
           message: binary(),
+          batch: [cursor()],
           cursor: cursor()
         }
-  defstruct [:type, :message, :cursor]
+  defstruct [:type, :message, :batch, :cursor]
 
   @typedoc """
   If the status of a partition is :ok, it is in an active state and can keep catching up

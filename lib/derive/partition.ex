@@ -11,13 +11,15 @@ defmodule Derive.Partition do
         }
   defstruct [:id, :cursor, :status, :error]
 
+  alias Derive.PartitionError
+
   @typedoc """
   If the status of a partition is :ok, it is in an active state and can keep catching up
   If the status is :error, there was an error and no further processing is allowed
   """
   @type status() :: :ok | :error
 
-  @type error() :: Derive.PartitionError.t()
+  @type error() :: PartitionError.t()
 
   @typedoc """
   The id of the partition. Can be any string.

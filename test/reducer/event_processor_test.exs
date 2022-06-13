@@ -1,10 +1,9 @@
 defmodule Derive.Reducer.EventProcessorTest do
   use ExUnit.Case
 
-  alias Derive.Partition
+  alias Derive.{Partition, MultiOp}
   alias Derive.Reducer.EventProcessor
   alias Derive.Reducer.EventProcessor.Options
-  alias Derive.State.MultiOp
   alias Derive.Error.{HandleEventError, CommitError}
 
   def create_state(initial) do
@@ -75,23 +74,23 @@ defmodule Derive.Reducer.EventProcessorTest do
 
     # operations are reversed
     assert [
-             %Derive.State.EventOp{
+             %Derive.EventOp{
                cursor: "7",
                event: %{id: "7", name: "bruce lee"},
                operations: ["bruce lee"],
                status: :ok
              },
-             %Derive.State.EventOp{
+             %Derive.EventOp{
                cursor: "6",
                event: %{id: "6", name: "jones"},
                operations: [],
-               status: :skip
+               status: :ignore
              },
-             %Derive.State.EventOp{
+             %Derive.EventOp{
                cursor: "5",
                event: %{id: "5", name: "bob"},
                operations: [],
-               status: :skip
+               status: :ignore
              }
            ] = operations
 
@@ -122,15 +121,15 @@ defmodule Derive.Reducer.EventProcessorTest do
 
     assert %MultiOp{status: :error, error: %HandleEventError{operation: event_op}} = multi
 
-    assert %Derive.State.EventOp{
+    assert %Derive.EventOp{
              cursor: "3",
-             error: %FunctionClauseError{},
+             error: {%FunctionClauseError{}, [_ | _]},
              event: %{error: "blah", id: "3"},
              operations: [],
              status: :error
            } = event_op
 
-    assert %{id: "x", cursor: "4", status: :error} = multi.partition
+    assert %{id: "x", cursor: "2", status: :error} = multi.partition
 
     # didn't even get to committing the events
     assert get_state(state) == []
@@ -145,7 +144,7 @@ defmodule Derive.Reducer.EventProcessorTest do
           raise %TestCommitError{message: "exception!"}
 
         Enum.member?(ops, "error") ->
-          MultiOp.commit_failed(multi, %TestCommitError{message: "error!"})
+          MultiOp.commit_failed(multi, {%TestCommitError{message: "error!"}, []})
 
         true ->
           commit(state, ops)

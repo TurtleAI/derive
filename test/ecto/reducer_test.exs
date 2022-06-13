@@ -1,15 +1,14 @@
-defmodule Derive.EctoReducerTest do
+defmodule Derive.Ecto.ReducerTest do
   use ExUnit.Case
 
   alias Derive.EventLog.InMemoryEventLog, as: EventLog
   alias DeriveTestRepo, as: Repo
-  alias Derive.{Timespan, Partition}
+  alias Derive.{Timespan, Partition, MultiOp, EventOp}
   alias Derive.Error.{HandleEventError, CommitError}
-  alias Derive.State.MultiOp
   alias Derive.Logger.InMemoryLogger
 
   defmodule User do
-    use Derive.State.Ecto.Model
+    use Derive.Ecto.Model
 
     @primary_key {:id, :string, []}
     schema "users" do
@@ -57,7 +56,7 @@ defmodule Derive.EctoReducerTest do
   end
 
   defmodule UserReducer do
-    use Derive.EctoReducer,
+    use Derive.Ecto.Reducer,
       repo: Repo,
       namespace: "user_reducer",
       models: [User]
@@ -124,7 +123,7 @@ defmodule Derive.EctoReducerTest do
   def failed_multis(logger) do
     InMemoryLogger.fetch(logger)
     |> Enum.flat_map(fn
-      {:error, {:multi_op, multi}} -> [multi]
+      {:multi, %MultiOp{status: :error} = multi} -> [multi]
       _ -> []
     end)
   end
@@ -210,7 +209,7 @@ defmodule Derive.EctoReducerTest do
     event_ops_by_event =
       Derive.Logger.InMemoryLogger.fetch(logger)
       |> Enum.flat_map(fn
-        {:committed, %MultiOp{operations: operations}} -> operations
+        {:multi, %MultiOp{status: :committed, operations: operations}} -> operations
         _ -> []
       end)
       |> Enum.group_by(& &1.event)
@@ -227,7 +226,7 @@ defmodule Derive.EctoReducerTest do
     Derive.stop(name)
   end
 
-  describe "&Derive.await/2" do
+  describe "Derive.await/2" do
     test "await before an event has been persisted" do
       name = :basic_await
 
@@ -305,7 +304,7 @@ defmodule Derive.EctoReducerTest do
       Derive.stop(name)
     end
 
-    test "&Derive.await_catchup/1" do
+    test "Derive.await(_, :catchup)" do
       name = :await_caught_up
 
       {:ok, event_log} = EventLog.start_link()
@@ -325,12 +324,12 @@ defmodule Derive.EctoReducerTest do
 
       EventLog.append(event_log, events)
 
-      Derive.await_catchup(name)
+      Derive.await(name, :catchup)
 
       assert %{name: "Blueberry"} = Repo.get(User, "99")
 
       # should not freeze the next time around
-      Derive.await_catchup(name)
+      Derive.await(name, :catchup)
 
       Derive.stop(name)
     end
@@ -395,6 +394,52 @@ defmodule Derive.EctoReducerTest do
       EventLog.append(event_log, events)
       Derive.await(name, events)
 
+      # the error log shows up
+      [failed_multi] = failed_multis(logger)
+
+      assert %Derive.MultiOp{
+               partition: %Derive.Partition{
+                 cursor: "1",
+                 id: "99",
+                 status: :error,
+                 error: %Derive.PartitionError{
+                   type: :handle_event,
+                   cursor: "3",
+                   message: "** (Derive.Ecto.ReducerTest.UserError) bad stuff happened" <> stack
+                 }
+               },
+               error: %HandleEventError{
+                 operation: %Derive.EventOp{
+                   cursor: "3",
+                   error: {%UserError{message: "bad stuff happened"}, [_ | _]},
+                   event: %UserRaiseHandleError{
+                     id: "3",
+                     message: "bad stuff happened",
+                     user_id: "99"
+                   },
+                   operations: [],
+                   status: :error
+                 }
+               },
+               operations: [
+                 # we failed on event 3, so this following event gets skipped
+                 %Derive.EventOp{
+                   cursor: "4",
+                   error: nil,
+                   event: %UserNameUpdated{
+                     id: "4",
+                     name: "Raichu",
+                     user_id: "99"
+                   },
+                   operations: [],
+                   status: :ignore
+                 }
+               ],
+               status: :error
+             } = failed_multi
+
+      assert String.contains?(stack, "lib/derive")
+
       assert %{name: "Pikachu"} = Repo.get(User, "99")
 
       # other partitions can happily continue processing
@@ -408,7 +453,7 @@ defmodule Derive.EctoReducerTest do
       assert %Derive.Partition{cursor: "5", id: "55", status: :ok} =
                UserReducer.load_partition(nil, "55")
 
-      assert %Derive.Partition{cursor: "6", id: "99", status: :error} =
+      assert %Derive.Partition{cursor: "1", id: "99", status: :error} =
                UserReducer.load_partition(nil, "99")
 
       assert %Derive.Partition{cursor: "6", status: :ok} =
@@ -416,53 +461,6 @@ defmodule Derive.EctoReducerTest do
 
       # name hasn't changed
       assert %{name: "Pikachu"} = Repo.get(User, "99")
-
-      Derive.stop(name)
-
-      # the error log shows up
-      [failed_multi] = failed_multis(logger)
-
-      assert %Derive.State.MultiOp{
-               initial_partition: %Derive.Partition{cursor: "1", id: "99", status: :ok},
-               partition: %Derive.Partition{
-                 cursor: "4",
-                 id: "99",
-                 status: :error,
-                 error: %Derive.PartitionError{
-                   type: :handle_event,
-                   cursor: "1",
-                   message: "%Derive.EctoReducerTest.UserError{message: \"bad stuff happened\"}"
-                 }
-               },
-               error: %HandleEventError{
-                 operation: %Derive.State.EventOp{
-                   cursor: "3",
-                   error: %Derive.EctoReducerTest.UserError{message: "bad stuff happened"},
-                   event: %Derive.EctoReducerTest.UserRaiseHandleError{
-                     id: "3",
-                     message: "bad stuff happened",
-                     user_id: "99"
-                   },
-                   operations: [],
-                   status: :error
-                 }
-               },
-               operations: [
-                 # we failed on event 3, so this following event gets skipped
-                 %Derive.State.EventOp{
-                   cursor: "4",
-                   error: nil,
-                   event: %Derive.EctoReducerTest.UserNameUpdated{
-                     id: "4",
-                     name: "Raichu",
-                     user_id: "99"
-                   },
-                   operations: [],
-                   status: :skip
-                 }
-               ],
-               status: :error
-             } = failed_multi
 
       Derive.stop(name)
     end
@@ -522,7 +520,7 @@ defmodule Derive.EctoReducerTest do
       Derive.await(name, events)
 
       assert %Partition{
-               cursor: "2",
+               cursor: :start,
                error: %Derive.PartitionError{
                  cursor: "2",
                  message: _,
@@ -537,6 +535,7 @@ defmodule Derive.EctoReducerTest do
       assert %MultiOp{
                status: :error,
                error: %CommitError{
+                 operation: %EventOp{cursor: "2", event: %{name: "Mondo Manner"}},
                  error: [
                    id:
                      {"has already been taken",
@@ -548,18 +547,20 @@ defmodule Derive.EctoReducerTest do
       Derive.stop(name)
     end
 
-    test "a commit failing with no correlation to the event causes the partition to halt" do
+    test "a commit failing with an Ecto.QueryError" do
       name = :commit_failed
 
       {:ok, event_log} = EventLog.start_link()
       Derive.rebuild(UserReducer, source: event_log)
 
-      {:ok, _} = Derive.start_link(name: name, reducer: UserReducer, source: event_log)
+      {:ok, logger} = InMemoryLogger.start_link()
+
+      {:ok, _} =
+        Derive.start_link(name: name, reducer: UserReducer, source: event_log, logger: logger)
 
       event = %UserCreated{id: "1", user_id: "99", name: "Pikachu"}
 
       EventLog.append(event_log, [event])
-
       Derive.await(name, [event])
 
       events = [
@@ -588,10 +589,12 @@ defmodule Derive.EctoReducerTest do
       Derive.stop(name)
 
       assert %Derive.Partition{
-               cursor: "6",
+               cursor: "1",
                error: %Derive.PartitionError{
-                 cursor: "4",
-                 message: "%Ecto.QueryError{" <> error,
+                 # since this is a commit exception, we don't know the cursor that caused the failure
+                 cursor: nil,
+                 batch: ["3", "4"],
+                 message: "** (Ecto.QueryError)" <> error,
                  type: :commit
                },
                id: "99",
@@ -599,6 +602,8 @@ defmodule Derive.EctoReducerTest do
              } = UserReducer.load_partition(nil, "99")
 
       assert String.contains?(error, "missing_field")
+      # stacktrace is included in the message
+      assert String.contains?(error, "lib/ecto/")
 
       Derive.stop(name)
     end

@@ -3,14 +3,38 @@ defmodule Derive.Error.CommitError do
   Error when trying to commit some operations
   """
 
-  defexception [:cursor, :error, :operation]
+  defexception [:error, :stacktrace, :operation]
 
   @type t :: %__MODULE__{
-          cursor: Derive.EventLog.cursor() | nil,
-          operation: Derive.State.EventOp.t()
+          stacktrace: System.stacktrace() | nil,
+          operation: Derive.State.EventOp.t() | nil
         }
 
-  def message(%__MODULE__{cursor: cursor, error: error}) do
-    "commit failed [#{cursor}] #{inspect(error)}"
+  alias Derive.EventOp
+
+  def message(%__MODULE__{operation: operation, error: error}) do
+    "commit failed [#{operation.cursor}] #{inspect(error)}"
+  end
+
+  def to_partition_error(
+        %__MODULE__{operation: operation, error: error, stacktrace: stacktrace},
+        %Derive.MultiOp{
+          operations: operations
+        }
+      ) do
+    batch = for %EventOp{cursor: cursor} <- Enum.reverse(operations), do: cursor
+
+    cursor =
+      case operation do
+        %EventOp{cursor: cursor} -> cursor
+        nil -> nil
+      end
+
+    %Derive.PartitionError{
+      type: :commit,
+      batch: batch,
+      cursor: cursor,
+      message: Exception.format(:error, error, stacktrace || [])
+    }
   end
 end

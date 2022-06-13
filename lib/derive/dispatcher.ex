@@ -12,7 +12,7 @@ defmodule Derive.Dispatcher do
 
   use GenServer, restart: :transient
 
-  alias Derive.{Options, EventBatch, Partition, PartitionSupervisor, PartitionDispatcher}
+  alias Derive.{Options, EventBatch, Partition, PartitionDispatcher}
 
   alias __MODULE__, as: S
 
@@ -55,18 +55,13 @@ defmodule Derive.Dispatcher do
   end
 
   ### Client
-  @spec await(server(), [Derive.EventLog.event()]) :: :ok
-  def await(_server, []),
-    do: :ok
-
-  def await(server, [event | rest]) do
-    GenServer.call(server, {:await, event}, 30_000)
-    await(server, rest)
-  end
-
-  @spec await_catchup(server()) :: :ok
-  def await_catchup(server),
-    do: GenServer.call(server, :await_catchup)
+  @doc """
+  Get the options that were configured for the Derive instance
+  Once booted, this value does not change.
+  """
+  @spec get_options(server()) :: Options.t()
+  def get_options(server),
+    do: GenServer.call(server, :get_options)
 
   ### Server
 
@@ -106,29 +101,7 @@ defmodule Derive.Dispatcher do
 
   @impl true
   def handle_call(
-        {:await, event},
-        from,
-        %S{
-          partition_supervisor: partition_supervisor,
-          options: %Options{reducer: reducer} = option
-        } = state
-      ) do
-    # if a partition goes to nil, we consider it processed since it'll never get processed
-    case reducer.partition(event) do
-      nil ->
-        {:reply, :ok, state}
-
-      partition ->
-        partition_dispatcher =
-          PartitionSupervisor.start_child(partition_supervisor, {option, partition})
-
-        PartitionDispatcher.register_awaiter(partition_dispatcher, from, event)
-        {:noreply, state}
-    end
-  end
-
-  def handle_call(
-        :await_catchup,
+        {:await_catchup},
         _from,
         %S{status: :caught_up} = state
       ) do
@@ -136,7 +109,7 @@ defmodule Derive.Dispatcher do
   end
 
   def handle_call(
-        :await_catchup,
+        {:await_catchup},
         from,
         %S{
           catchup_awaiters: catchup_awaiters
@@ -144,6 +117,9 @@ defmodule Derive.Dispatcher do
       ) do
     {:noreply, %S{state | catchup_awaiters: [from | catchup_awaiters]}}
   end
+
+  def handle_call(:get_options, _from, %S{options: options} = state),
+    do: {:reply, options, state}
 
   @impl true
   def handle_cast({:new_events, _new_events}, %S{} = state),
@@ -227,9 +203,13 @@ defmodule Derive.Dispatcher do
 
         # We want to wait until all of the partitions have processed the events
         # before updating the cursor of this partition
-        for {partition_dispatcher, events} <- events_by_partition_id_dispatcher, e <- events do
-          PartitionDispatcher.await(partition_dispatcher, e)
-        end
+
+        partitions_with_messages =
+          for {partition_dispatcher, events} <- events_by_partition_id_dispatcher, e <- events do
+            {partition_dispatcher, {:await, e}}
+          end
+
+        Derive.Ext.GenServer.call_many(partitions_with_messages, 30_000)
 
         new_partition = %{partition | cursor: new_cursor}
         reducer.save_partition(options, new_partition)

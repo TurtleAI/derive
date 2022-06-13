@@ -1,12 +1,12 @@
-defmodule Derive.State.Ecto.OperationTest do
+defmodule Derive.Ecto.OperationTest do
   use ExUnit.Case
 
   alias DeriveTestRepo, as: Repo
 
-  import Derive.State.Ecto.Operation
+  import Derive.Ecto.Operation
 
   defmodule Person do
-    use Derive.State.Ecto.Model
+    use Derive.Ecto.Model
 
     @primary_key {:id, :string, []}
     schema "people" do
@@ -28,7 +28,7 @@ defmodule Derive.State.Ecto.OperationTest do
   end
 
   defmodule Checkin do
-    use Derive.State.Ecto.Model
+    use Derive.Ecto.Model
 
     @primary_key false
     schema "checkins" do
@@ -49,7 +49,7 @@ defmodule Derive.State.Ecto.OperationTest do
   end
 
   defmodule FriendRequest do
-    use Derive.State.Ecto.Model
+    use Derive.Ecto.Model
 
     @primary_key false
     schema "friend_requests" do
@@ -70,13 +70,13 @@ defmodule Derive.State.Ecto.OperationTest do
   setup_all do
     Repo.start_link()
 
-    state = %Derive.State.Ecto{
+    state = %Derive.Ecto.State{
       repo: Repo,
       namespace: "db_op_test",
       models: [Person, Checkin, FriendRequest]
     }
 
-    Derive.State.Ecto.reset_state(state)
+    Derive.Ecto.State.reset_state(state)
 
     :ok
   end
@@ -95,7 +95,7 @@ defmodule Derive.State.Ecto.OperationTest do
 
   def to_multi(multi, index, [op | rest]) do
     multi
-    |> Ecto.Multi.append(Derive.State.Ecto.DbOp.to_multi(op, index))
+    |> Ecto.Multi.append(Derive.Ecto.DbOp.to_multi(op, index))
     |> to_multi(index + 1, rest)
   end
 

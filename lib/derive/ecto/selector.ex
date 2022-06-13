@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.Selector do
+defmodule Derive.Ecto.Selector do
   @moduledoc """
   A selector is a tuple that points rows in a database.
 
@@ -6,7 +6,7 @@ defmodule Derive.State.Ecto.Selector do
   * `{MyApp.User, 5}` could refer to a user with id 5.
   * `{MyApp.Checkins, user_id: 5, location_id: 23}` could refer to the checkin with the matching fields
 
-  Most operations that implement `Derive.State.Ecto.DbOp` accept selectors as a way to identify
+  Most operations that implement `Derive.Ecto.DbOp` accept selectors as a way to identify
   records in the database.
   """
 

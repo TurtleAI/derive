@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.Model do
+defmodule Derive.Ecto.Model do
   @moduledoc """
   A database-backed model that's essentially an `Ecto.Schema`
   but also bundled with up/down functions create and drop the underlying tables.

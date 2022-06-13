@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.Operation.Merge do
+defmodule Derive.Ecto.Operation.Merge do
   @moduledoc """
   Insert or merge a record into the database.
   Equivalent to an SQL upsert statement.
@@ -10,9 +10,9 @@ defmodule Derive.State.Ecto.Operation.Merge do
   defstruct [:selector, :fields]
 end
 
-defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.Merge do
+defimpl Derive.Ecto.DbOp, for: Derive.Ecto.Operation.Merge do
   def to_multi(
-        %Derive.State.Ecto.Operation.Merge{selector: {type, selector_fields}, fields: fields},
+        %Derive.Ecto.Operation.Merge{selector: {type, selector_fields}, fields: fields},
         name
       ) do
     conflict_target = type.__schema__(:primary_key)

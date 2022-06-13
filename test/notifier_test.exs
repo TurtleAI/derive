@@ -1,7 +1,7 @@
 defmodule Derive.NotifierTest do
   use ExUnit.Case
 
-  alias Derive.State.MultiOp
+  alias Derive.MultiOp
   alias Derive.EventLog.InMemoryEventLog, as: EventLog
 
   defmodule UserCreated do
@@ -44,7 +44,7 @@ defmodule Derive.NotifierTest do
 
     @impl true
     def commit(%MultiOp{} = op) do
-      emails = Derive.State.MultiOp.operations(op)
+      emails = Derive.MultiOp.operations(op)
 
       for email <- emails do
         EmailServer.send_email(:emails, email)
@@ -110,7 +110,7 @@ defmodule Derive.NotifierTest do
     ])
 
     assert [
-             %Derive.NotifierTest.Email{message: "Hi you changed your name to Pikachu", to: 99}
+             %Email{message: "Hi you changed your name to Pikachu", to: 99}
            ] = EmailServer.get_emails(email_server)
 
     Derive.stop(name)

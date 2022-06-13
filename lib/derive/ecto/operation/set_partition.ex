@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.Operation.SetPartition do
+defmodule Derive.Ecto.Operation.SetPartition do
   @moduledoc """
   Insert or update a partition record that's stored in the given table.
 
@@ -12,24 +12,25 @@ defmodule Derive.State.Ecto.Operation.SetPartition do
   defstruct [:table, :partition]
 
   @type t :: %__MODULE__{
-    table: binary(),
-    partition: Derive.Partition.t()
-  }
+          table: binary(),
+          partition: Derive.Partition.t()
+        }
 end
 
-defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.SetPartition do
+defimpl Derive.Ecto.DbOp, for: Derive.Ecto.Operation.SetPartition do
   alias Ecto.Multi
 
-  alias Derive.State.Ecto.PartitionRecord
+  alias Derive.Ecto.PartitionRecord
 
   def to_multi(
-        %Derive.State.Ecto.Operation.SetPartition{
+        %Derive.Ecto.Operation.SetPartition{
           table: table,
           partition: partition
         },
         index
       ) do
-    record = PartitionRecord.from_partition(partition)
+    record =
+      PartitionRecord.from_partition(partition)
       |> Ecto.put_meta(source: table)
 
     Multi.insert(Multi.new(), index, record,

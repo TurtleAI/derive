@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.Operation.Replace do
+defmodule Derive.Ecto.Operation.Replace do
   @moduledoc """
   Replace an entire record in the database based on its primary key.
 
@@ -13,9 +13,9 @@ defmodule Derive.State.Ecto.Operation.Replace do
   defstruct [:record]
 end
 
-defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.Replace do
+defimpl Derive.Ecto.DbOp, for: Derive.Ecto.Operation.Replace do
   def to_multi(
-        %Derive.State.Ecto.Operation.Replace{record: %type{} = record},
+        %Derive.Ecto.Operation.Replace{record: %type{} = record},
         name
       ) do
     conflict_target = type.__schema__(:primary_key)

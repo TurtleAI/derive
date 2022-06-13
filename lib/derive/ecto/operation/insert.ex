@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.Operation.Insert do
+defmodule Derive.Ecto.Operation.Insert do
   @moduledoc """
   Insert a new record into the database
 
@@ -9,9 +9,9 @@ defmodule Derive.State.Ecto.Operation.Insert do
   defstruct [:record, on_conflict: :raise]
 end
 
-defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.Insert do
+defimpl Derive.Ecto.DbOp, for: Derive.Ecto.Operation.Insert do
   def to_multi(
-        %Derive.State.Ecto.Operation.Insert{record: %type{} = record, on_conflict: on_conflict},
+        %Derive.Ecto.Operation.Insert{record: %type{} = record, on_conflict: on_conflict},
         name
       ) do
     conflict_target = type.__schema__(:primary_key)

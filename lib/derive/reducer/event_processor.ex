@@ -3,6 +3,8 @@ defmodule Derive.Reducer.EventProcessor do
   Provides the process-agnostic logic for processing an ordered list of events.
   """
 
+  require Logger
+
   defmodule Options do
     @type t :: %__MODULE__{
             handle_event: event_handler(),
@@ -41,8 +43,7 @@ defmodule Derive.Reducer.EventProcessor do
   @type cursor :: Derive.EventLog.cursor()
   @type operation :: Derive.Reducer.operation()
 
-  alias Derive.State.{EventOp, MultiOp}
-  alias Derive.{Partition, Timespan}
+  alias Derive.{Partition, Timespan, MultiOp, EventOp}
 
   @doc """
   Process events for a given list of events. This involves the following steps:
@@ -58,9 +59,17 @@ defmodule Derive.Reducer.EventProcessor do
         ) ::
           MultiOp.t()
   def process_events(
+        _,
+        %MultiOp{partition: %Partition{status: :error}} = multi,
+        %Options{on_error: :halt}
+      ) do
+    MultiOp.processed(multi)
+  end
+
+  def process_events(
         events,
         multi,
-        %Options{commit: commit} = options
+        %Options{commit: commit, logger: logger} = options
       ) do
     case reduce_events(events, multi, options) do
       %MultiOp{status: :processed} = multi ->
@@ -71,7 +80,8 @@ defmodule Derive.Reducer.EventProcessor do
           # Due to a programmer error, commit raised an exception
           # We don't want this to bring down the app and instead handle this explicitly
           error ->
-            MultiOp.commit_failed(multi, error)
+            Derive.Logger.error(logger, error, __STACKTRACE__)
+            MultiOp.commit_failed(multi, {error, __STACKTRACE__})
         end
 
       multi ->
@@ -125,12 +135,12 @@ defmodule Derive.Reducer.EventProcessor do
              "Skipping over event #{event_cursor}. Already processed. - #{Partition.to_string(partition)}"}
           )
 
-          {:skip, EventOp.skip(event_cursor, event, Timespan.stop(timespan))}
+          {:ignore, EventOp.ignore(event_cursor, event, Timespan.stop(timespan))}
 
         # if there was an error for a previous event, we don't want to call handle_event
         # ever again for this partition
         status == :error ->
-          {:skip, EventOp.skip(event_cursor, event, Timespan.stop(timespan))}
+          {:ignore, EventOp.ignore(event_cursor, event, Timespan.stop(timespan))}
 
         status == :ok ->
           try do
@@ -140,12 +150,18 @@ defmodule Derive.Reducer.EventProcessor do
             # Due to a programmer error, the handle_event raised an exception
             # We don't want this to bring down the app and instead handle this explicitly
             error ->
-              {:error, EventOp.error(event_cursor, event, error, Timespan.stop(timespan))}
+              {:error,
+               EventOp.error(
+                 event_cursor,
+                 event,
+                 {error, __STACKTRACE__},
+                 Timespan.stop(timespan)
+               )}
           end
       end
 
     case resp do
-      {status, event_op} when status in [:ok, :skip] ->
+      {status, event_op} when status in [:ok, :ignore] ->
         reduce_events(rest, MultiOp.add(multi, event_op), options)
 
       {:error, event_op} ->

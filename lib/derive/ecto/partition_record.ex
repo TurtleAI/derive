@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.PartitionRecord do
+defmodule Derive.Ecto.PartitionRecord do
   @moduledoc """
   Each reducer has a table to keep track of partitions,
   up to which event they have processed, and whether it's in an
@@ -7,19 +7,19 @@ defmodule Derive.State.Ecto.PartitionRecord do
   This is model that backs it.
   """
 
-  use Derive.State.Ecto.Model
+  use Derive.Ecto.Model
 
-  alias Derive.{Partition, PartitionError}
+  alias Derive.Partition
 
   @primary_key {:id, :string, [autogenerate: false]}
   schema "partitions" do
-    field :cursor, :string
-    field :status, Ecto.Enum, values: [ok: 1, error: 2]
-    field :error, :map
+    field(:cursor, Derive.Ecto.CursorType)
+    field(:status, Ecto.Enum, values: [ok: 1, error: 2])
+    field(:error, Derive.Ecto.PartitionErrorType)
   end
 
   def from_partition(%Partition{id: id, cursor: cursor, status: status, error: error}) do
-    %__MODULE__{id: id, cursor: cursor, status: status, error: encode_error(error)}
+    %__MODULE__{id: id, cursor: cursor, status: status, error: error}
   end
 
   def to_partition(%__MODULE__{id: id, cursor: cursor, status: status, error: error}) do
@@ -27,20 +27,8 @@ defmodule Derive.State.Ecto.PartitionRecord do
       id: id,
       cursor: cursor,
       status: status,
-      error: decode_error(error)
+      error: error
     }
-  end
-
-  defp encode_error(nil), do: nil
-
-  defp encode_error(%PartitionError{type: type, message: message, cursor: cursor}) do
-    %{"type" => type, "message" => message, "cursor" => cursor}
-  end
-
-  defp decode_error(nil), do: nil
-
-  defp decode_error(%{"type" => type, "message" => message, "cursor" => cursor}) do
-    %PartitionError{type: String.to_atom(type), message: message, cursor: cursor}
   end
 
   # Because we can't create a migration with a dynamic table name using create table(...),
@@ -56,7 +44,7 @@ defmodule Derive.State.Ecto.PartitionRecord do
 
     [
       """
-      CREATE TABLE #{table} (
+      CREATE TABLE IF NOT EXISTS #{table} (
         id character varying(32) PRIMARY KEY,
         cursor character varying(32),
         status integer NOT NULL DEFAULT 1,

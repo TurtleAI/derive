@@ -30,7 +30,7 @@ defmodule Derive.InMemoryReducerTest do
 
     import Derive.State.InMemory.Operation
 
-    alias Derive.State.MultiOp
+    alias Derive.MultiOp
 
     @impl true
     def partition(%{user_id: user_id}), do: user_id

@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto.Operation.ArrayDelete do
+defmodule Derive.Ecto.Operation.ArrayDelete do
   @moduledoc """
   For the record(s) identified by a given selector,
   remove the value from an array.
@@ -10,11 +10,11 @@ defmodule Derive.State.Ecto.Operation.ArrayDelete do
   defstruct [:selector, :field, :value]
 end
 
-defimpl Derive.State.Ecto.DbOp, for: Derive.State.Ecto.Operation.ArrayDelete do
-  import Derive.State.Ecto.Selector
+defimpl Derive.Ecto.DbOp, for: Derive.Ecto.Operation.ArrayDelete do
+  import Derive.Ecto.Selector
 
   def to_multi(
-        %Derive.State.Ecto.Operation.ArrayDelete{selector: selector, field: field, value: value},
+        %Derive.Ecto.Operation.ArrayDelete{selector: selector, field: field, value: value},
         name
       ) do
     Ecto.Multi.update_all(Ecto.Multi.new(), name, selector_query(selector), pull: [{field, value}])

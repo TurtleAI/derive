@@ -26,14 +26,30 @@ defmodule Derive do
 
   use Supervisor
 
-  alias Derive.{Dispatcher, Dispatcher, EventLog}
+  alias Derive.{Dispatcher, Dispatcher, EventLog, Options}
 
   @spec start_link([option()]) :: {:ok, server()} | {:error, term()}
   def start_link(opts \\ []) do
     unless opts[:reducer], do: raise(ArgumentError, "expected :reducer option")
 
     reducer = Keyword.fetch!(opts, :reducer)
+    name = Keyword.fetch!(opts, :name)
+    source = Keyword.fetch!(opts, :source)
     mode = Keyword.get(opts, :mode, :catchup)
+
+    {source_spec, source_server} = spec_and_server(name, :source, source)
+
+    derive_opts = %Derive.Options{
+      reducer: Keyword.fetch!(opts, :reducer),
+      name: name,
+      mode: Keyword.get(opts, :mode, :catchup),
+      batch_size: Keyword.get(opts, :batch_size, 100),
+      source: source_server,
+      logger: Keyword.get(opts, :logger)
+    }
+
+    # Some reducers have an optional setup step
+    derive_opts.reducer.setup(derive_opts)
 
     # In dev and prod mode, by default, we'd like to validate that the reducer
     # version matches what is currently in the database to avoid subtle errors.
@@ -44,12 +60,18 @@ defmodule Derive do
     # In test mode, we disable this by default to make testing easier
     validate_version = Keyword.get(opts, :validate_version, Mix.env() != :test)
 
-    if validate_version && reducer.needs_rebuild?() && mode != :rebuild do
-      {:error, {:needs_rebuild, reducer}}
-    else
-      supervisor_opts = Keyword.take(opts, [:name])
-      Supervisor.start_link(__MODULE__, opts, supervisor_opts)
+    cond do
+      validate_version && needs_rebuild?(derive_opts.reducer) && mode != :rebuild ->
+        {:error, {:needs_rebuild, reducer}}
+
+      true ->
+        supervisor_opts = Keyword.take(opts, [:name])
+        Supervisor.start_link(__MODULE__, {derive_opts, source_spec}, supervisor_opts)
     end
+  end
+
+  defp needs_rebuild?(reducer) do
+    function_exported?(reducer, :needs_rebuild?, 0) && reducer.needs_rebuild?()
   end
 
   def child_spec(opts) do
@@ -73,31 +95,46 @@ defmodule Derive do
   If the event has already been processed, this will complete immediately
   If the event has not yet been processed, this will block until it completes processing
 
+  It is also possible to pass call `Derive.await(server, :catchup)` to wait until a server is fully caught up.
+
   Events are not considered processed until *all* operations produced by `Derive.Reducer.handle_event/1`
   have been committed by `Derive.Reducer.commit/1`
   """
-  @spec await(server(), [EventLog.event()]) :: :ok
-  def await(server, events),
-    do: Dispatcher.await(child_process(server, :dispatcher), events)
+  @spec await(server(), [EventLog.event()] | :catchup) :: :ok
+  def await(server, :catchup) do
+    GenServer.call(child_process(server, :dispatcher), {:await_catchup}, 30_000)
+    :ok
+  end
 
-  @doc """
-  Wait for this reducer to get caught up to the head of the event log
-  If we are already currently at the head, this will complete immediately
-  """
-  @spec await_catchup(server()) :: :ok
-  def await_catchup(server),
-    do: Dispatcher.await_catchup(child_process(server, :dispatcher))
+  def await(server, events) do
+    dispatcher = child_process(server, :dispatcher)
+    partition_supervisor = child_process(server, :supervisor)
+
+    options = %Options{reducer: reducer} = Derive.Dispatcher.get_options(dispatcher)
+
+    servers_with_messages =
+      for event <- events,
+          partition = reducer.partition(event),
+          partition != nil do
+        partition_dispatcher =
+          Derive.PartitionSupervisor.start_child(partition_supervisor, {options, partition})
+
+        {partition_dispatcher, {:await, event}}
+      end
+
+    Derive.Ext.GenServer.call_many(servers_with_messages, 30_000)
+
+    :ok
+  end
 
   @doc """
   Wait for all the events to be processed by all Derive processes
   """
   @spec await_many([server()], [EventLog.event()]) :: :ok
-  def await_many([], _events),
-    do: :ok
-
-  def await_many([server | rest], events) do
-    await(server, events)
-    await_many(rest, events)
+  def await_many(servers, events) do
+    Enum.each(servers, fn s ->
+      await(s, events)
+    end)
   end
 
   @doc """
@@ -165,32 +202,19 @@ defmodule Derive do
 
   ### Server
 
-  def init(opts) do
-    derive_opts = %Derive.Options{
-      reducer: Keyword.fetch!(opts, :reducer),
-      name: Keyword.fetch!(opts, :name),
-      mode: Keyword.get(opts, :mode, :catchup),
-      batch_size: Keyword.get(opts, :batch_size, 100),
-      source: Keyword.fetch!(opts, :source),
-      logger: Keyword.get(opts, :logger)
-    }
-
-    {source_spec, source_server} = spec_and_server(derive_opts.name, :source, derive_opts.source)
-
-    derive_opts = %{derive_opts | source: source_server}
-
+  def init({%Options{name: name} = derive_opts, child_specs}) do
     dispatcher_opts = [
-      name: child_process(derive_opts.name, :dispatcher),
+      name: child_process(name, :dispatcher),
       options: derive_opts,
-      partition_supervisor: child_process(derive_opts.name, :supervisor)
+      partition_supervisor: child_process(name, :supervisor)
     ]
 
     children =
-      source_spec ++
+      child_specs ++
         derive_opts.reducer.child_specs(derive_opts) ++
         [
           {Dispatcher, dispatcher_opts},
-          {Derive.MapSupervisor, name: child_process(derive_opts.name, :supervisor)}
+          {Derive.MapSupervisor, name: child_process(name, :supervisor)}
         ]
 
     # :rest_for_one because if the dispatcher dies,

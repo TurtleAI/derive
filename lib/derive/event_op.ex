@@ -1,4 +1,4 @@
-defmodule Derive.State.EventOp do
+defmodule Derive.EventOp do
   @moduledoc """
   An event and the operation that resulted from calling `handle_event` on the event.
   """
@@ -23,12 +23,14 @@ defmodule Derive.State.EventOp do
   """
   @type event() :: Derive.EventLog.event()
 
+  @type error() :: {any(), Exception.stacktrace() | nil}
+
   @typedoc """
   The operations that were produced from calling `handle_event`
   """
   @type operations() :: [Derive.Reducer.operation()]
 
-  @type status() :: :ok | :error | :skip
+  @type status() :: :ok | :error | :ignore
 
   def new(cursor, event, ops, timespan \\ nil) do
     %__MODULE__{
@@ -40,6 +42,7 @@ defmodule Derive.State.EventOp do
     }
   end
 
+  @spec error(error(), event(), error(), Derive.Timespan.t() | nil) :: t()
   def error(cursor, event, error, timespan \\ nil) do
     %__MODULE__{
       status: :error,
@@ -51,9 +54,9 @@ defmodule Derive.State.EventOp do
     }
   end
 
-  def skip(cursor, event, timespan \\ nil) do
+  def ignore(cursor, event, timespan \\ nil) do
     %__MODULE__{
-      status: :skip,
+      status: :ignore,
       cursor: cursor,
       event: event,
       operations: [],

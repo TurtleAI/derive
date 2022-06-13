@@ -1,4 +1,4 @@
-defprotocol Derive.State.Ecto.DbOp do
+defprotocol Derive.Ecto.DbOp do
   @moduledoc """
   Represents an operation which updates the state of an Ecto database,
   such as insert, update and delete.

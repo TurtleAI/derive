@@ -1,4 +1,4 @@
-defmodule Derive.State.Ecto do
+defmodule Derive.Ecto.State do
   @moduledoc """
   An Ecto-based implementation of state
   """
@@ -8,29 +8,28 @@ defmodule Derive.State.Ecto do
   @type t :: %__MODULE__{
           repo: Ecto.Repo.t(),
           namespace: binary(),
-          models: [Derive.State.Ecto.Model.t()],
+          models: [Derive.Ecto.Model.t()],
           version: binary()
         }
 
   alias __MODULE__, as: S
 
   alias Derive.Partition
-  alias Derive.State.Ecto.PartitionRecord
-  alias Derive.State.MultiOp
+  alias Derive.Ecto.PartitionRecord
+  alias Derive.MultiOp
 
   @doc """
   Commit a list of operations to disk within a transaction.
   """
   @spec commit(t(), MultiOp.t()) :: MultiOp.t()
   def commit(%S{repo: repo} = state, %MultiOp{partition: partition} = multi_op) do
-    operations =
-      MultiOp.operations(multi_op) ++
-        [
-          %Derive.State.Ecto.Operation.SetPartition{
-            table: partition_table(state),
-            partition: partition
-          }
-        ]
+    multi_op =
+      MultiOp.save_partition(multi_op, %Derive.Ecto.Operation.SetPartition{
+        table: partition_table(state),
+        partition: partition
+      })
+
+    operations = MultiOp.operations(multi_op) ++ [multi_op.save_partition]
 
     multi = operations_to_multi(Ecto.Multi.new(), 0, operations)
 
@@ -40,12 +39,12 @@ defmodule Derive.State.Ecto do
 
       {:error, failed_operation_index, %Ecto.Changeset{errors: errors}, _changes_so_far} ->
         failed_event_op = MultiOp.find_event_op_by_index(multi_op, failed_operation_index)
-        multi_op = MultiOp.commit_failed(multi_op, errors, failed_event_op)
+        multi_op = MultiOp.commit_failed(multi_op, {errors, []}, failed_event_op)
         save_partition(state, multi_op.partition)
         multi_op
 
-      {:exception, error} ->
-        multi_op = MultiOp.commit_failed(multi_op, error)
+      {:exception, error, stacktrace} ->
+        multi_op = MultiOp.commit_failed(multi_op, {error, stacktrace})
         save_partition(state, multi_op.partition)
         multi_op
     end
@@ -57,13 +56,13 @@ defmodule Derive.State.Ecto do
           {:ok, any}
           | {:error, any}
           | {:error, Ecto.Multi.name(), any, %{Ecto.Multi.name() => any}}
-          | {:exception, any()}
+          | {:exception, any(), Exception.stacktrace()}
   defp safe_transaction(repo, multi) do
     try do
       repo.transaction(multi)
     rescue
       error ->
-        {:exception, error}
+        {:exception, error, __STACKTRACE__}
     end
   end
 
@@ -105,7 +104,7 @@ defmodule Derive.State.Ecto do
   def save_partition(%S{repo: repo} = state, partition) do
     multi =
       operations_to_multi(Ecto.Multi.new(), 0, [
-        %Derive.State.Ecto.Operation.SetPartition{
+        %Derive.Ecto.Operation.SetPartition{
           table: partition_table(state),
           partition: partition
         }
@@ -194,7 +193,7 @@ defmodule Derive.State.Ecto do
 
   defp operations_to_multi(multi, index, [op | rest]) do
     multi
-    |> Ecto.Multi.append(Derive.State.Ecto.DbOp.to_multi(op, index))
+    |> Ecto.Multi.append(Derive.Ecto.DbOp.to_multi(op, index))
     |> operations_to_multi(index + 1, rest)
   end
 end
