@@ -113,9 +113,9 @@ defmodule Derive do
     options = %Options{reducer: reducer} = Derive.Dispatcher.get_options(dispatcher)
 
     servers_with_messages =
-      for event <- events, reducer.partition(event) != nil do
-        partition = reducer.partition(event)
-
+      for event <- events,
+          partition = reducer.partition(event),
+          partition != nil do
         partition_dispatcher =
           Derive.PartitionSupervisor.start_child(partition_supervisor, {options, partition})
 
