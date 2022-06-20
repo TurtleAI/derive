@@ -304,7 +304,7 @@ defmodule Derive.Ecto.ReducerTest do
       Derive.stop(name)
     end
 
-    test "Derive.await(_, :catchup)" do
+    test "Derive.await_catchup" do
       name = :await_caught_up
 
       {:ok, event_log} = EventLog.start_link()
@@ -324,12 +324,12 @@ defmodule Derive.Ecto.ReducerTest do
 
       EventLog.append(event_log, events)
 
-      Derive.await(name, :catchup)
+      Derive.await_catchup(name)
 
       assert %{name: "Blueberry"} = Repo.get(User, "99")
 
       # should not freeze the next time around
-      Derive.await(name, :catchup)
+      Derive.await_catchup(name)
 
       Derive.stop(name)
     end

@@ -92,7 +92,7 @@ defmodule Derive.Dispatcher do
 
   @impl true
   def handle_call(
-        {:await_catchup},
+        :await_catchup,
         _from,
         %S{status: :caught_up} = state
       ) do
@@ -100,7 +100,7 @@ defmodule Derive.Dispatcher do
   end
 
   def handle_call(
-        {:await_catchup},
+        :await_catchup,
         from,
         %S{
           catchup_awaiters: catchup_awaiters
@@ -119,7 +119,7 @@ defmodule Derive.Dispatcher do
       ) do
     case catchup(state) do
       {:continue, new_state} ->
-        # recursively call catchup
+        # recursively call catchup to process the next batch of events
 
         GenServer.cast(self(), :catchup)
         {:noreply, new_state}

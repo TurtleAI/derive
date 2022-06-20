@@ -177,7 +177,7 @@ defmodule Derive.Ecto.ServiceTest do
         name: name
       )
 
-    Derive.await(name, :catchup)
+    Derive.await_catchup(name)
 
     assert [
              %Event{data: %{"amount" => 111}, id: "event-1"},
