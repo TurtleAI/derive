@@ -26,7 +26,7 @@ defmodule Derive do
 
   use Supervisor
 
-  alias Derive.{Dispatcher, Dispatcher, EventLog, Options}
+  alias Derive.{Dispatcher, Dispatcher, PartitionSupervisor, EventLog, Options}
 
   @spec start_link([option()]) :: {:ok, server()} | {:error, term()}
   def start_link(opts \\ []) do
@@ -110,16 +110,14 @@ defmodule Derive do
     options_agent = child_process(server, :options)
     partition_supervisor = child_process(server, :supervisor)
 
-    options = %Options{reducer: reducer} = Agent.get(options_agent, & &1)
+    options = Agent.get(options_agent, & &1)
 
     servers_with_messages =
-      for event <- events,
-          partition = reducer.partition(event),
-          partition != nil do
-        partition_dispatcher =
-          Derive.PartitionSupervisor.start_child(partition_supervisor, {options, partition})
+      for {dispatcher_spec, message} <- await_messages(events, options) do
+        dispatcher_process =
+          PartitionSupervisor.start_child(partition_supervisor, dispatcher_spec)
 
-        {partition_dispatcher, {:await, event}}
+        {dispatcher_process, message}
       end
 
     Derive.Ext.GenServer.call_many(servers_with_messages, 30_000)
@@ -135,6 +133,14 @@ defmodule Derive do
     Enum.each(servers, fn s ->
       await(s, events)
     end)
+  end
+
+  defp await_messages(events, %Options{reducer: reducer} = options) do
+    for event <- events,
+        partition = reducer.partition(event),
+        partition != nil do
+      {{options, partition}, {:await, event}}
+    end
   end
 
   @doc """

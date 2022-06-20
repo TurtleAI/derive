@@ -9,7 +9,7 @@ defmodule Derive.PartitionDispatcher do
   use GenServer, restart: :transient
 
   alias __MODULE__, as: S
-  alias Derive.{Partition, Reducer, EventBatch, Options, MultiOp}
+  alias Derive.{Partition, Reducer, Options, MultiOp}
 
   @type t :: %__MODULE__{
           options: Options.t(),
@@ -51,7 +51,7 @@ defmodule Derive.PartitionDispatcher do
   Asynchronously dispatch events to get processed and committed
   To wait for the events to get processed, use `&Derive.PartitionDispatcher.await/2`
   """
-  @spec dispatch_events(pid(), EventBatch.t()) :: :ok
+  @spec dispatch_events(pid(), Derive.EventLog.event()) :: :ok
   def dispatch_events(server, event_batch),
     do: GenServer.cast(server, {:dispatch_events, event_batch})
 
@@ -119,11 +119,11 @@ defmodule Derive.PartitionDispatcher do
   end
 
   @impl true
-  def handle_cast({:dispatch_events, %EventBatch{events: []}}, %S{timeout: timeout} = state),
+  def handle_cast({:dispatch_events, []}, %S{timeout: timeout} = state),
     do: {:noreply, state, timeout}
 
   def handle_cast(
-        {:dispatch_events, %EventBatch{events: events, logger: logger}},
+        {:dispatch_events, events},
         %S{
           options: %Options{reducer: reducer, logger: logger} = opts,
           partition: %Partition{} = partition,

@@ -99,16 +99,12 @@ defmodule Derive.Reducer.EventProcessor do
   Depending on the on_error implementation of the reducer, an error may halt
   further processing or skip over the event.
   """
-  @spec reduce_events(
-          [event()],
-          MultiOp.t(),
-          Options.t()
-        ) ::
-          Derive.State.MultiOp.t()
-  def reduce_events([], %MultiOp{status: :processing} = multi, _options),
+
+  @spec reduce_events([event()], MultiOp.t(), Options.t()) :: Derive.MultiOp.t()
+  def reduce_events([], %MultiOp{status: :processing} = multi, _),
     do: MultiOp.processed(multi)
 
-  def reduce_events([], %MultiOp{} = multi, _options),
+  def reduce_events([], %MultiOp{} = multi, _),
     do: multi
 
   def reduce_events(

@@ -12,7 +12,7 @@ defmodule Derive.Dispatcher do
 
   use GenServer, restart: :transient
 
-  alias Derive.{Options, EventBatch, Partition, PartitionDispatcher}
+  alias Derive.{Options, Partition, PartitionDispatcher}
 
   alias __MODULE__, as: S
 
@@ -183,10 +183,7 @@ defmodule Derive.Dispatcher do
           end
 
         Enum.each(events_by_partition_id_dispatcher, fn {partition_dispatcher, events} ->
-          PartitionDispatcher.dispatch_events(partition_dispatcher, %EventBatch{
-            events: events,
-            logger: logger
-          })
+          PartitionDispatcher.dispatch_events(partition_dispatcher, events)
         end)
 
         # We want to wait until all of the partitions have processed the events
