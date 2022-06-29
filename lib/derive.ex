@@ -28,6 +28,9 @@ defmodule Derive do
 
   alias Derive.{Dispatcher, Dispatcher, PartitionSupervisor, EventLog, Options}
 
+  # The default timeout to use in waiting for things
+  @default_await_timeout 30_000
+
   @spec start_link([option()]) :: {:ok, server()} | {:error, term()}
   def start_link(opts \\ []) do
     unless opts[:reducer], do: raise(ArgumentError, "expected :reducer option")
@@ -100,13 +103,13 @@ defmodule Derive do
   Events are not considered processed until *all* operations produced by `Derive.Reducer.handle_event/1`
   have been committed by `Derive.Reducer.commit/1`
   """
-  @spec await_catchup(server()) :: :ok
-  def await_catchup(server) do
-    GenServer.call(child_process(server, :dispatcher), :await_catchup, 30_000)
+  @spec await_catchup(server(), timeout()) :: :ok
+  def await_catchup(server, timeout \\ @default_await_timeout) do
+    GenServer.call(child_process(server, :dispatcher), :await_catchup, timeout)
   end
 
-  @spec await(server(), [EventLog.event()]) :: :ok
-  def await(server, events) do
+  @spec await(server(), [EventLog.event()], timeout()) :: :ok
+  def await(server, events, timeout \\ @default_await_timeout) do
     options_agent = child_process(server, :options)
     partition_supervisor = child_process(server, :supervisor)
 
@@ -120,7 +123,7 @@ defmodule Derive do
         {dispatcher_process, message}
       end
 
-    Derive.Ext.GenServer.call_many(servers_with_messages, 30_000)
+    Derive.Ext.GenServer.call_many(servers_with_messages, timeout)
 
     :ok
   end
@@ -128,10 +131,10 @@ defmodule Derive do
   @doc """
   Wait for all the events to be processed by all Derive processes
   """
-  @spec await_many([server()], [EventLog.event()]) :: :ok
-  def await_many(servers, events) do
+  @spec await_many([server()], [EventLog.event()], timeout()) :: :ok
+  def await_many(servers, events, timeout \\ @default_await_timeout) do
     Enum.each(servers, fn s ->
-      await(s, events)
+      await(s, events, timeout)
     end)
   end
 
