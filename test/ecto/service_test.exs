@@ -191,20 +191,22 @@ defmodule Derive.Ecto.ServiceTest do
       %TimeTracked{id: "5", amount: -100}
     ])
 
-    assert {:error,
-            %{
-              {:sequential_processing, %TimeTracked{id: "5", amount: -100}} =>
-                {:error,
-                 %Derive.PartitionError{
-                   batch: ["5"],
-                   cursor: nil,
-                   message: "** (ErlangError) Erlang error: :negative_balance",
-                   type: :commit
-                 }}
-            }} =
+    assert {:error, await} =
              Derive.await(name, [
                %TimeTracked{id: "5", amount: -100}
              ])
+
+    assert {:error,
+            %Derive.PartitionError{
+              batch: ["5"],
+              cursor: nil,
+              message: "** (ErlangError) Erlang error: :negative_balance",
+              type: :commit
+            }} =
+             Derive.Await.get(
+               await,
+               {:sequential_processing, %TimeTracked{id: "5", amount: -100}}
+             )
 
     Derive.stop(name)
   end

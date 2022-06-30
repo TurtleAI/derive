@@ -270,16 +270,18 @@ defmodule Derive.Ecto.ReducerTest do
 
       EventLog.append(event_log, [e1])
 
-      assert {:error, error} = Derive.await(name, [e1])
+      assert {:error, await} = Derive.await(name, [e1])
 
-      assert %{
-               {:await_handle_event_fail,
-                %UserRaiseHandleError{
-                  id: "1",
-                  message: nil,
-                  user_id: "ee"
-                }} => {:error, _event_error}
-             } = error
+      assert {:error, _event_error} =
+               Derive.Await.get(
+                 await,
+                 {:await_handle_event_fail,
+                  %UserRaiseHandleError{
+                    id: "1",
+                    message: nil,
+                    user_id: "ee"
+                  }}
+               )
 
       Derive.stop(name)
     end

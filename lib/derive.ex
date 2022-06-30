@@ -26,7 +26,7 @@ defmodule Derive do
 
   use Supervisor
 
-  alias Derive.{Dispatcher, Dispatcher, PartitionSupervisor, EventLog, Options}
+  alias Derive.{Dispatcher, Dispatcher, Await, PartitionSupervisor, EventLog, Options}
 
   # The default timeout to use in waiting for things
   @default_await_timeout 30_000
@@ -108,7 +108,7 @@ defmodule Derive do
     GenServer.call(child_process(server, :dispatcher), :await_catchup, timeout)
   end
 
-  @spec await(server(), [EventLog.event()], timeout()) :: :ok
+  @spec await(server(), [EventLog.event()], timeout()) :: {:ok, Await.t()} | {:error, Await.t()}
   def await(server, events, timeout \\ @default_await_timeout) do
     options_agent = child_process(server, :options)
     partition_supervisor = child_process(server, :supervisor)
@@ -148,9 +148,9 @@ defmodule Derive do
          {_key, {:error, _}} -> true
          _ -> false
        end) do
-      {:error, keyed_responses}
+      {:error, %Await{status: :error, replies: keyed_responses}}
     else
-      {:ok, keyed_responses}
+      {:ok, %Await{status: :ok, replies: keyed_responses}}
     end
   end
 
