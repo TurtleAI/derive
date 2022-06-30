@@ -1,4 +1,8 @@
 defmodule Derive.ReducerState do
+  @moduledoc """
+  Behavior for stateful reducers that can have their state rebuilt from scratch
+  """
+
   @doc """
   Reset the state so we can start processing from the first event
   This operation should reset the state in *all* partitions

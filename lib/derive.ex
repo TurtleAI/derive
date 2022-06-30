@@ -115,17 +115,43 @@ defmodule Derive do
 
     options = Agent.get(options_agent, & &1)
 
-    servers_with_messages =
-      for {dispatcher_spec, message} <- await_messages(events, options) do
+    keyed_server_messages =
+      for {dispatcher_spec, {:await, event}} <- await_messages(events, options) do
         dispatcher_process =
           PartitionSupervisor.start_child(partition_supervisor, dispatcher_spec)
 
-        {dispatcher_process, message}
+        {{server, event}, dispatcher_process, {:await, event}}
       end
 
-    Derive.Ext.GenServer.call_many(servers_with_messages, timeout)
+    keys = for {key, _, _} <- keyed_server_messages, do: key
 
-    :ok
+    servers_with_messages =
+      for {_, process, message} <- keyed_server_messages, do: {process, message}
+
+    responses = Derive.Ext.GenServer.call_many(servers_with_messages, timeout)
+
+    for {key, {_pid, resp}} <- Enum.zip(keys, responses), into: %{} do
+      value =
+        case resp do
+          {:reply, :ok} -> :ok
+          {:reply, {:error, error}} -> {:error, error}
+          {:error, error} -> {:error, error}
+        end
+
+      {key, value}
+    end
+    |> process_responses()
+  end
+
+  defp process_responses(keyed_responses) do
+    if Enum.any?(keyed_responses, fn
+         {_key, {:error, _}} -> true
+         _ -> false
+       end) do
+      {:error, keyed_responses}
+    else
+      {:ok, keyed_responses}
+    end
   end
 
   @doc """
@@ -222,6 +248,9 @@ defmodule Derive do
       child_specs ++
         derive_opts.reducer.child_specs(derive_opts) ++
         [
+          # We use an agent to store the options for this derive process
+          # We want this to be a dedicated process so we aren't waiting
+          # for a busy process to finish its work before returning the config
           %{
             id: :options,
             start:

@@ -45,6 +45,10 @@ defmodule Derive.Ecto.ReducerTest do
 
   defmodule UserError do
     defexception [:message]
+
+    def message(%__MODULE__{message: message}) do
+      "UserError: #{message}"
+    end
   end
 
   defmodule NotPartitioned do
@@ -248,11 +252,12 @@ defmodule Derive.Ecto.ReducerTest do
       assert %{id: "22", name: "Real name"} = Repo.get(User, "22")
 
       # A second await completes immediately
-      assert :ok = Derive.await(name, [e1, e2])
+      assert {:ok, _} = Derive.await(name, [e1, e2])
 
       Derive.stop(name)
     end
 
+    @tag :focus
     test "await when a handle_event fails" do
       name = :await_handle_event_fail
 
@@ -265,7 +270,16 @@ defmodule Derive.Ecto.ReducerTest do
 
       EventLog.append(event_log, [e1])
 
-      assert :ok = Derive.await(name, [e1])
+      assert {:error, error} = Derive.await(name, [e1])
+
+      assert %{
+               {:await_handle_event_fail,
+                %UserRaiseHandleError{
+                  id: "1",
+                  message: nil,
+                  user_id: "ee"
+                }} => {:error, _event_error}
+             } = error
 
       Derive.stop(name)
     end
@@ -282,7 +296,7 @@ defmodule Derive.Ecto.ReducerTest do
 
       EventLog.append(event_log, [e1])
 
-      assert :ok = Derive.await(name, [e1])
+      assert {:ok, _} = Derive.await(name, [e1])
 
       Derive.stop(name)
     end
@@ -299,7 +313,7 @@ defmodule Derive.Ecto.ReducerTest do
 
       EventLog.append(event_log, [e1])
 
-      assert :ok = Derive.await(name, [e1])
+      assert {:ok, %{}} = Derive.await(name, [e1])
 
       Derive.stop(name)
     end
@@ -405,7 +419,9 @@ defmodule Derive.Ecto.ReducerTest do
                  error: %Derive.PartitionError{
                    type: :handle_event,
                    cursor: "3",
-                   message: "** (Derive.Ecto.ReducerTest.UserError) bad stuff happened" <> stack
+                   message:
+                     "** (Derive.Ecto.ReducerTest.UserError) UserError: bad stuff happened" <>
+                       stack
                  }
                },
                error: %HandleEventError{

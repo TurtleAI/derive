@@ -3,7 +3,7 @@ defmodule Derive.Reducer do
   Defines how a given state is kept up to date based on an event source by a `Derive.Dispatcher`
 
   It happens as follows:
-  - Events come from a source process as configured in `Derive.Dispatcher`
+  - Events come from a source `Derive.EventLog` process
   - These are partitioned by `&Derive.Reducer.partition/1` for maximum concurrency
   - These events are processed by `&Derive.Reducer.handle_event/1`
     which produces 0+ operations that are meant to update some state
