@@ -108,22 +108,22 @@ defmodule Derive do
     GenServer.call(child_process(server, :dispatcher), :await_catchup, timeout)
   end
 
+  @doc """
+  Wait for all events to be processed by the Derive process
+  """
   @spec await(server(), [EventLog.event()], timeout()) :: {:ok, Await.t()} | {:error, Await.t()}
-  def await(server, events, timeout \\ @default_await_timeout) do
-    options_agent = child_process(server, :options)
-    partition_supervisor = child_process(server, :supervisor)
+  def await(server, events, timeout \\ @default_await_timeout),
+    do: await_many([server], events, timeout)
 
-    options = Agent.get(options_agent, & &1)
+  @doc """
+  Wait for all the events to be processed by all Derive processes
+  """
+  @spec await_many([server()], [EventLog.event()], timeout()) ::
+          {:ok, Await.t()} | {:error, Await.t()}
+  def await_many(servers, events, timeout \\ @default_await_timeout) do
+    await_messages = for server <- servers, message <- await_messages(server, events), do: message
 
-    server_messages =
-      for {dispatcher_spec, {:await, event}} <- await_messages(events, options) do
-        dispatcher_process =
-          PartitionSupervisor.start_child(partition_supervisor, dispatcher_spec)
-
-        {{server, event}, dispatcher_process, {:await, event}}
-      end
-
-    replies = Derive.Ext.GenServer.call_many(server_messages, timeout)
+    replies = Derive.Ext.GenServer.call_many(await_messages, timeout)
 
     for {key, reply} <- replies, into: %{} do
       case reply do
@@ -133,26 +133,20 @@ defmodule Derive do
       end
     end
     |> Replies.new()
-    |> then(fn %Replies{status: status} = await ->
-      {status, await}
+    |> then(fn %Replies{status: status} = reply ->
+      {status, reply}
     end)
   end
 
-  @doc """
-  Wait for all the events to be processed by all Derive processes
-  """
-  @spec await_many([server()], [EventLog.event()], timeout()) :: :ok
-  def await_many(servers, events, timeout \\ @default_await_timeout) do
-    Enum.each(servers, fn s ->
-      await(s, events, timeout)
-    end)
-  end
+  defp await_messages(server, events) do
+    partition_supervisor = child_process(server, :supervisor)
+    options = %Options{reducer: reducer} = Agent.get(child_process(server, :options), & &1)
 
-  defp await_messages(events, %Options{reducer: reducer} = options) do
-    for event <- events,
-        partition = reducer.partition(event),
-        partition != nil do
-      {{options, partition}, {:await, event}}
+    for event <- events, partition = reducer.partition(event), partition != nil do
+      dispatcher_process =
+        PartitionSupervisor.start_child(partition_supervisor, {options, partition})
+
+      {{server, event}, dispatcher_process, {:await, event}}
     end
   end
 
