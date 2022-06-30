@@ -41,6 +41,13 @@ defmodule Derive.Ex.GenServerTest do
                call_many([{p1, {:p1hi, 10}}, {p2, {:p2hi, 50}}], @timeout)
     end
 
+    test "awaiting multiple processes by key" do
+      [p1, p2] = start(2)
+
+      assert [{:k1, {:reply, :p1hi}}, {:k2, {:reply, :p2hi}}] =
+               call_many([{:k1, p1, {:p1hi, 10}}, {:k2, p2, {:p2hi, 50}}], @timeout)
+    end
+
     test "one process that takes too long" do
       [p1, p2] = start(2)
 

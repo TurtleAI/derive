@@ -191,7 +191,7 @@ defmodule Derive.Ecto.ServiceTest do
       %TimeTracked{id: "5", amount: -100}
     ])
 
-    assert {:error, await} =
+    assert {:error, replies} =
              Derive.await(name, [
                %TimeTracked{id: "5", amount: -100}
              ])
@@ -203,8 +203,8 @@ defmodule Derive.Ecto.ServiceTest do
               message: "** (ErlangError) Erlang error: :negative_balance",
               type: :commit
             }} =
-             Derive.Await.get(
-               await,
+             Derive.Replies.get(
+               replies,
                {:sequential_processing, %TimeTracked{id: "5", amount: -100}}
              )
 

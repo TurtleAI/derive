@@ -26,7 +26,7 @@ defmodule Derive do
 
   use Supervisor
 
-  alias Derive.{Dispatcher, Dispatcher, Await, PartitionSupervisor, EventLog, Options}
+  alias Derive.{Dispatcher, Dispatcher, Replies, PartitionSupervisor, EventLog, Options}
 
   # The default timeout to use in waiting for things
   @default_await_timeout 30_000
@@ -115,7 +115,7 @@ defmodule Derive do
 
     options = Agent.get(options_agent, & &1)
 
-    keyed_server_messages =
+    server_messages =
       for {dispatcher_spec, {:await, event}} <- await_messages(events, options) do
         dispatcher_process =
           PartitionSupervisor.start_child(partition_supervisor, dispatcher_spec)
@@ -123,35 +123,19 @@ defmodule Derive do
         {{server, event}, dispatcher_process, {:await, event}}
       end
 
-    keys = for {key, _, _} <- keyed_server_messages, do: key
+    replies = Derive.Ext.GenServer.call_many(server_messages, timeout)
 
-    servers_with_messages =
-      for {_, process, message} <- keyed_server_messages, do: {process, message}
-
-    responses = Derive.Ext.GenServer.call_many(servers_with_messages, timeout)
-
-    for {key, {_pid, resp}} <- Enum.zip(keys, responses), into: %{} do
-      value =
-        case resp do
-          {:reply, :ok} -> :ok
-          {:reply, {:error, error}} -> {:error, error}
-          {:error, error} -> {:error, error}
-        end
-
-      {key, value}
+    for {key, reply} <- replies, into: %{} do
+      case reply do
+        {:reply, :ok} -> {key, :ok}
+        {:reply, {:error, error}} -> {key, {:error, error}}
+        {:error, error} -> {key, {:error, error}}
+      end
     end
-    |> process_responses()
-  end
-
-  defp process_responses(keyed_responses) do
-    if Enum.any?(keyed_responses, fn
-         {_key, {:error, _}} -> true
-         _ -> false
-       end) do
-      {:error, %Await{status: :error, replies: keyed_responses}}
-    else
-      {:ok, %Await{status: :ok, replies: keyed_responses}}
-    end
+    |> Replies.new()
+    |> then(fn %Replies{status: status} = await ->
+      {status, await}
+    end)
   end
 
   @doc """
