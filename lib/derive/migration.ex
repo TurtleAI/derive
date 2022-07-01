@@ -1,8 +1,6 @@
 defmodule Derive.Migration do
   alias Derive.Partition
 
-  require Logger
-
   @doc """
   Mark the entire state of a reducer for rebuild
   """

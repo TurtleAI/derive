@@ -164,23 +164,35 @@ defmodule Derive.PartitionDispatcher do
   def terminate(_, _state),
     do: :ok
 
-  defp split_awaiters(%MultiOp{status: :error}, awaiters) do
+  defp split_awaiters(%MultiOp{status: :error, error: error}, awaiters) do
     # if there's an error, we want to notify all awaiters that we're done
-    {{awaiters, :error}, []}
+    {{awaiters, {:error, error}}, []}
   end
 
-  defp split_awaiters(%MultiOp{partition: %Partition{status: :error}}, awaiters) do
+  defp split_awaiters(%MultiOp{partition: %Partition{status: :error, error: error}}, awaiters) do
     # if there's an error, we want to notify all awaiters that we're done
-    {{awaiters, :error}, []}
+    {{awaiters, {:error, error}}, []}
   end
 
-  defp split_awaiters(%MultiOp{partition: %Partition{cursor: partition_cursor}}, awaiters) do
+  defp split_awaiters(
+         %MultiOp{status: status, error: error, partition: %Partition{cursor: partition_cursor}},
+         awaiters
+       ) do
     {awaiters_to_notify, awaiters_left} =
       Enum.split_with(awaiters, fn {_awaiter, target_cursor} ->
         partition_cursor >= target_cursor
       end)
 
-    {{awaiters_to_notify, :ok}, awaiters_left}
+    reply =
+      case status do
+        :error ->
+          {:error, error}
+
+        _ ->
+          :ok
+      end
+
+    {{awaiters_to_notify, reply}, awaiters_left}
   end
 
   defp notify_awaiters(awaiters, message) do

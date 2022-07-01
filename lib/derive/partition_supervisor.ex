@@ -1,14 +1,7 @@
 defmodule Derive.PartitionSupervisor do
   @moduledoc """
-  A supervisor to, well, supervise `Derive.PartitionDispatcher` processes.
+  A supervisor to supervise `Derive.PartitionDispatcher` processes.
   """
-
-  alias Derive.{Reducer, Partition}
-
-  @typedoc """
-  A function to lookup or start a function given a reducer and partition
-  """
-  @type start_child :: ({Reducer.t(), Partition.id()} -> server())
 
   @type server :: pid() | atom()
 

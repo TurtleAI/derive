@@ -1,24 +1,18 @@
 defmodule Derive do
   @moduledoc ~S"""
-  Derive keeps a derived state in sync with an event log based on the behavior in `Derive.Reducer`.
+  Derive provides the infrastructure to keep derived state in sync
+  with an event log based on the behavior defined in `Derive.Reducer`.
 
-  Once the process has been started, it will automatically catch up to the latest version
-  derived state.
-  Then it will start listening to the event log for new events ensure the state stays up-to-date.
+  The event log and the state are both genreic.
+  - A Postgres users table can be kept in sync with a Postgres events table
+  - The state of an in-memory Agent can be kept in sync with a json text field
 
-  The event log can be any ordered log of events, such as a Postgres table or an in memory process.
-  It only needs to implement the `Derive.Eventlog` interface.
+  The event log can be any process that implements the `Derive.Eventlog` interface.
 
-  Derived state is generic too.
-  For example, it can be a set of Postgres tables or an in-memory GenServer.
+  How a state is updated is defined by the implementation in `c:Derive.Reducer.process_events/2`
 
-  Events are processed as follows:
-  - Events are processed from the configured source
-  - They are processed by `c:Derive.Reducer.handle_event/1` and produce a `Derive.State.MultiOp`,
-    a data structure to represent a state change.
-  - This state change is applied using `c:Derive.Reducer.commit/1`.
-    For Ecto, this is a database transaction.
-    For an in-memory implementation, it's simply a state change.
+  The state is eventually consistent. Once a `Derive` process has started,
+  it processes events in order until the state has been caught up.
   """
 
   @type option :: Derive.Options.option()
@@ -26,7 +20,10 @@ defmodule Derive do
 
   use Supervisor
 
-  alias Derive.{Dispatcher, Dispatcher, PartitionSupervisor, EventLog, Options}
+  alias Derive.{Dispatcher, Dispatcher, Replies, PartitionSupervisor, EventLog, Options}
+
+  # The default timeout to use in waiting for things
+  @default_await_timeout 30_000
 
   @spec start_link([option()]) :: {:ok, server()} | {:error, term()}
   def start_link(opts \\ []) do
@@ -100,46 +97,58 @@ defmodule Derive do
   Events are not considered processed until *all* operations produced by `Derive.Reducer.handle_event/1`
   have been committed by `Derive.Reducer.commit/1`
   """
-  @spec await_catchup(server()) :: :ok
-  def await_catchup(server) do
-    GenServer.call(child_process(server, :dispatcher), :await_catchup, 30_000)
+  @spec await_catchup(server(), timeout()) :: :ok
+  def await_catchup(server, timeout \\ @default_await_timeout) do
+    GenServer.call(child_process(server, :dispatcher), :await_catchup, timeout)
   end
 
-  @spec await(server(), [EventLog.event()]) :: :ok
-  def await(server, events) do
-    options_agent = child_process(server, :options)
-    partition_supervisor = child_process(server, :supervisor)
+  @doc """
+  Wait for all events to be processed by the Derive process.
 
-    options = Agent.get(options_agent, & &1)
+  If all events are successfully processed `{:ok, %Replies{}}` will be returned.
+  If there is an error on any event (even a partial failure), `{:error, %Replies{}}` will be returned.
 
-    servers_with_messages =
-      for {dispatcher_spec, message} <- await_messages(events, options) do
-        dispatcher_process =
-          PartitionSupervisor.start_child(partition_supervisor, dispatcher_spec)
+  In the simplest use case, you can call `Derive.await(server, events)` and it will block until processing is done.
 
-        {dispatcher_process, message}
-      end
-
-    Derive.Ext.GenServer.call_many(servers_with_messages, 30_000)
-
-    :ok
-  end
+  If the an event has already been processed by the server, it will be considered processed with no delay.
+  """
+  @spec await(server(), [EventLog.event()], timeout()) ::
+          {:ok, Replies.t()} | {:error, Replies.t()}
+  def await(server, events, timeout \\ @default_await_timeout),
+    do: await_many([server], events, timeout)
 
   @doc """
   Wait for all the events to be processed by all Derive processes
   """
-  @spec await_many([server()], [EventLog.event()]) :: :ok
-  def await_many(servers, events) do
-    Enum.each(servers, fn s ->
-      await(s, events)
+  @spec await_many([server()], [EventLog.event()], timeout()) ::
+          {:ok, Replies.t()} | {:error, Replies.t()}
+  def await_many(servers, events, timeout \\ @default_await_timeout) do
+    await_messages = for server <- servers, message <- await_messages(server, events), do: message
+
+    replies = Derive.Ext.GenServer.call_many(await_messages, timeout)
+
+    for {key, reply} <- replies, into: %{} do
+      case reply do
+        {:reply, :ok} -> {key, :ok}
+        {:reply, {:error, error}} -> {key, {:error, error}}
+        {:error, error} -> {key, {:error, error}}
+      end
+    end
+    |> Replies.new()
+    |> then(fn %Replies{status: status} = reply ->
+      {status, reply}
     end)
   end
 
-  defp await_messages(events, %Options{reducer: reducer} = options) do
-    for event <- events,
-        partition = reducer.partition(event),
-        partition != nil do
-      {{options, partition}, {:await, event}}
+  defp await_messages(server, events) do
+    partition_supervisor = child_process(server, :supervisor)
+    options = %Options{reducer: reducer} = Agent.get(child_process(server, :options), & &1)
+
+    for event <- events, partition = reducer.partition(event), partition != nil do
+      dispatcher_process =
+        PartitionSupervisor.start_child(partition_supervisor, {options, partition})
+
+      {{server, event}, dispatcher_process, {:await, event}}
     end
   end
 
@@ -219,6 +228,9 @@ defmodule Derive do
       child_specs ++
         derive_opts.reducer.child_specs(derive_opts) ++
         [
+          # We use an agent to store the options for this derive process
+          # We want this to be a dedicated process so we aren't waiting
+          # for a busy process to finish its work before returning the config
           %{
             id: :options,
             start:

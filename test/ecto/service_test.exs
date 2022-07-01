@@ -187,15 +187,28 @@ defmodule Derive.Ecto.ServiceTest do
            ] = Repo.all(Event)
 
     # # append an event that will cause a commit error
-    # TODO: get working
-    # EventLog.append(event_log, [
-    #   %TimeTracked{id: "5", amount: -100}
-    # ])
+    EventLog.append(event_log, [
+      %TimeTracked{id: "5", amount: -100}
+    ])
 
-    # assert {:error, _} =
-    #          Derive.await(name, [
-    #            %TimeTracked{id: "5", amount: -100}
-    #          ])
+    assert {:error, replies} =
+             Derive.await(name, [
+               %TimeTracked{id: "5", amount: -100}
+             ])
+
+    assert {:error,
+            %Derive.PartitionError{
+              batch: ["5"],
+              cursor: nil,
+              message: "** (ErlangError) Erlang error: :negative_balance",
+              type: :commit
+            }} =
+             Derive.Replies.get(
+               replies,
+               {:sequential_processing, %TimeTracked{id: "5", amount: -100}}
+             )
+
+    Derive.stop(name)
   end
 
   test "when there is a failure, the partition should be marked in an error state" do
