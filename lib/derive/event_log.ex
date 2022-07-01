@@ -14,7 +14,7 @@ defmodule Derive.EventLog do
   @typedoc """
   A generic struct that represents an event.
   """
-  @type event() :: term()
+  @type event() :: any()
 
   @typedoc """
   An opaque value that indicates the position of an event in an event log
@@ -24,7 +24,7 @@ defmodule Derive.EventLog do
   - It must be in increasing order
   - It must be stable, meaning a cursor should not change per event
   """
-  @type cursor() :: term()
+  @type cursor() :: any()
 
   @type option :: {:cursor, cursor()} | {:batch_size, non_neg_integer()}
 
@@ -96,6 +96,9 @@ defmodule Derive.EventLog do
     )
   end
 
+  @doc """
+  Return the total number of events in the event log
+  """
   @spec count(pid()) :: non_neg_integer()
   def count(server, timeout \\ 30_000),
     do: GenServer.call(server, :count, timeout)

@@ -1,24 +1,18 @@
 defmodule Derive do
   @moduledoc ~S"""
-  Derive keeps a derived state in sync with an event log based on the behavior in `Derive.Reducer`.
+  Derive provides the infrastructure to keep derived state in sync
+  with an event log based on the behavior defined in `Derive.Reducer`.
 
-  Once the process has been started, it will automatically catch up to the latest version
-  derived state.
-  Then it will start listening to the event log for new events ensure the state stays up-to-date.
+  The event log and the state are both genreic.
+  - A Postgres users table can be kept in sync with a Postgres events table
+  - The state of an in-memory Agent can be kept in sync with a json text field
 
-  The event log can be any ordered log of events, such as a Postgres table or an in memory process.
-  It only needs to implement the `Derive.Eventlog` interface.
+  The event log can be any process that implements the `Derive.Eventlog` interface.
 
-  Derived state is generic too.
-  For example, it can be a set of Postgres tables or an in-memory GenServer.
+  How a state is updated is defined by the implementation in `c:Derive.Reducer.process_events/2`
 
-  Events are processed as follows:
-  - Events are processed from the configured source
-  - They are processed by `c:Derive.Reducer.handle_event/1` and produce a `Derive.State.MultiOp`,
-    a data structure to represent a state change.
-  - This state change is applied using `c:Derive.Reducer.commit/1`.
-    For Ecto, this is a database transaction.
-    For an in-memory implementation, it's simply a state change.
+  The state is eventually consistent. Once a `Derive` process has started,
+  it processes events in order until the state has been caught up.
   """
 
   @type option :: Derive.Options.option()
@@ -109,9 +103,17 @@ defmodule Derive do
   end
 
   @doc """
-  Wait for all events to be processed by the Derive process
+  Wait for all events to be processed by the Derive process.
+
+  If all events are successfully processed `{:ok, %Replies{}}` will be returned.
+  If there is an error on any event (even a partial failure), `{:error, %Replies{}}` will be returned.
+
+  In the simplest use case, you can call `Derive.await(server, events)` and it will block until processing is done.
+
+  If the an event has already been processed by the server, it will be considered processed with no delay.
   """
-  @spec await(server(), [EventLog.event()], timeout()) :: {:ok, Await.t()} | {:error, Await.t()}
+  @spec await(server(), [EventLog.event()], timeout()) ::
+          {:ok, Replies.t()} | {:error, Replies.t()}
   def await(server, events, timeout \\ @default_await_timeout),
     do: await_many([server], events, timeout)
 
@@ -119,7 +121,7 @@ defmodule Derive do
   Wait for all the events to be processed by all Derive processes
   """
   @spec await_many([server()], [EventLog.event()], timeout()) ::
-          {:ok, Await.t()} | {:error, Await.t()}
+          {:ok, Replies.t()} | {:error, Replies.t()}
   def await_many(servers, events, timeout \\ @default_await_timeout) do
     await_messages = for server <- servers, message <- await_messages(server, events), do: message
 

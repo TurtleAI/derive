@@ -13,7 +13,7 @@ defmodule Derive.Replies do
 
   @type status :: :ok | :error
 
-  @type reply_key :: any()
+  @type reply_key :: {any(), Derive.EventLog.event()}
   @type reply_value :: {:ok, any()} | {:error, any()}
 
   def new(map) do
@@ -30,6 +30,10 @@ defmodule Derive.Replies do
     end
   end
 
+  @doc """
+  Get the reply for a Derive process processing a particular event.
+  """
+  @spec get(t(), reply_key()) :: reply_value()
   def get(%__MODULE__{map: map}, key) do
     Map.get(map, key)
   end
