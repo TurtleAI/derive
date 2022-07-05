@@ -65,6 +65,10 @@ defmodule Derive.Dispatcher do
       ) do
     Process.flag(:trap_exit, true)
 
+    # Some reducers have an optional setup step, for example services create partition tables
+    # on boot
+    reducer.setup(options)
+
     case mode do
       :catchup ->
         # only catchup needs to subscribe to new events

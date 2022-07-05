@@ -45,9 +45,6 @@ defmodule Derive do
       logger: Keyword.get(opts, :logger)
     }
 
-    # Some reducers have an optional setup step
-    derive_opts.reducer.setup(derive_opts)
-
     # In dev and prod mode, by default, we'd like to validate that the reducer
     # version matches what is currently in the database to avoid subtle errors.
     #
