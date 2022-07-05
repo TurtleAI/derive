@@ -58,8 +58,10 @@ defmodule Derive.Dispatcher do
 
   @impl true
   def init(
-        %S{options: %Options{source: source, mode: mode, reducer: reducer, logger: logger}} =
-          state
+        %S{
+          options:
+            %Options{source: source, mode: mode, reducer: reducer, logger: logger} = options
+        } = state
       ) do
     Process.flag(:trap_exit, true)
 
@@ -70,7 +72,7 @@ defmodule Derive.Dispatcher do
 
       :rebuild ->
         count = Derive.EventLog.count(source)
-        Derive.Logger.log(logger, {:rebuild_started, count})
+        Derive.Logger.log(logger, {:rebuild_started, options, count})
 
         # reset the state before anything is loaded
         reducer.reset_state()

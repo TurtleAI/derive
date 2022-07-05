@@ -19,6 +19,9 @@ defmodule Derive.Logger.RebuildProgressLogger do
 
   alias Derive.Logger.RebuildProgressLogger, as: S
   alias Derive.Logger.Util.ProgressBar
+  alias Derive.Options
+
+  @bar_width 25
 
   def start_link(opts \\ []),
     do: GenServer.start_link(__MODULE__, %S{}, opts)
@@ -31,10 +34,12 @@ defmodule Derive.Logger.RebuildProgressLogger do
 
   @impl true
   def handle_cast(
-        {:log, {:rebuild_started, total}},
+        {:log, {:rebuild_started, %Options{reducer: reducer}, total}},
         state
       ) do
-    %ProgressBar{value: 0, total: total, width: 50, status: "starting... #{total} events"}
+    IO.puts("REBUILD " <> Derive.Formatter.mod_to_string(reducer))
+
+    %ProgressBar{value: 0, total: total, width: @bar_width, status: "starting... #{total} events"}
     |> ProgressBar.render()
     |> IO.write()
 
@@ -62,7 +67,7 @@ defmodule Derive.Logger.RebuildProgressLogger do
     %ProgressBar{
       value: new_processed,
       total: total,
-      width: 50,
+      width: @bar_width,
       status:
         " #{new_processed}/#{total} ELAPSED: #{elapsed_status} ESTIMATE: #{estimated_status}"
     }
@@ -84,7 +89,7 @@ defmodule Derive.Logger.RebuildProgressLogger do
     %ProgressBar{
       value: total,
       total: total,
-      width: 50,
+      width: @bar_width,
       status: "processed #{processed} events in #{elapsed_status}"
     }
     |> ProgressBar.render(replace: true)
