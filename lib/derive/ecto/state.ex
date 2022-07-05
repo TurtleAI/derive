@@ -40,12 +40,12 @@ defmodule Derive.Ecto.State do
       {:error, failed_operation_index, %Ecto.Changeset{errors: errors}, _changes_so_far} ->
         failed_event_op = MultiOp.find_event_op_by_index(multi_op, failed_operation_index)
         multi_op = MultiOp.commit_failed(multi_op, {errors, []}, failed_event_op)
-        save_partition(state, multi_op.partition)
+        save_partitions(state, [multi_op.partition])
         multi_op
 
       {:exception, error, stacktrace} ->
         multi_op = MultiOp.commit_failed(multi_op, {error, stacktrace})
-        save_partition(state, multi_op.partition)
+        save_partitions(state, [multi_op.partition])
         multi_op
     end
   end
@@ -101,16 +101,16 @@ defmodule Derive.Ecto.State do
     end
   end
 
-  def save_partition(%S{repo: repo} = state, partition) do
-    multi =
-      operations_to_multi(Ecto.Multi.new(), 0, [
-        %Derive.Ecto.Operation.SetPartition{
-          table: partition_table(state),
-          partition: partition
-        }
-      ])
-
-    repo.transaction(multi)
+  def save_partitions(%S{repo: repo} = state, partitions) do
+    partitions
+    |> Enum.map(fn partition ->
+      %Derive.Ecto.Operation.SetPartition{
+        table: partition_table(state),
+        partition: partition
+      }
+    end)
+    |> operations_to_multi()
+    |> repo.transaction()
   end
 
   defp partition_table(%S{namespace: namespace}),
@@ -134,7 +134,7 @@ defmodule Derive.Ecto.State do
     models = [{PartitionRecord, partition_table(state)} | models]
     for model <- models, do: init_model(model, repo)
 
-    save_partition(state, %Partition{id: Partition.version_id(), cursor: version, status: :ok})
+    save_partitions(state, [%Partition{id: Partition.version_id(), cursor: version, status: :ok}])
   end
 
   defp clear_model(model, repo) when is_atom(model) do
@@ -188,6 +188,9 @@ defmodule Derive.Ecto.State do
     Ecto.Migration.Runner.flush()
     Ecto.Migration.Runner.stop()
   end
+
+  defp operations_to_multi(operations),
+    do: operations_to_multi(Ecto.Multi.new(), 0, operations)
 
   defp operations_to_multi(multi, _, []), do: multi
 

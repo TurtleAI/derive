@@ -83,7 +83,7 @@ defmodule Derive.Ecto.Reducer do
 
       @impl true
       def save_partition(_opts, %Derive.Partition{} = partition),
-        do: Derive.Ecto.State.save_partition(@state, partition)
+        do: Derive.Ecto.State.save_partitions(@state, [partition])
     end
   end
 end

@@ -45,7 +45,7 @@ defmodule Derive.Ecto.Service do
 
       @impl true
       def save_partition(_opts, partition),
-        do: Derive.Ecto.State.save_partition(@state, partition)
+        do: Derive.Ecto.State.save_partitions(@state, [partition])
     end
   end
 end
