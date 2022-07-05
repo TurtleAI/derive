@@ -87,8 +87,8 @@ defmodule Derive.Ecto.State do
     end
   end
 
-  def load_partition(%S{repo: repo} = state, partition_id) do
-    case repo.get({partition_table(state), PartitionRecord}, partition_id) do
+  def load_partition(%S{} = state, partition_id) do
+    case get_partition_record(state, partition_id) do
       nil ->
         %Partition{
           id: partition_id,
@@ -101,6 +101,10 @@ defmodule Derive.Ecto.State do
     end
   end
 
+  defp get_partition_record(%S{repo: repo} = state, partition_id) do
+    repo.get({partition_table(state), PartitionRecord}, partition_id)
+  end
+
   def save_partitions(%S{repo: repo} = state, partitions) do
     partitions
     |> Enum.map(fn partition ->
@@ -111,6 +115,8 @@ defmodule Derive.Ecto.State do
     end)
     |> operations_to_multi()
     |> repo.transaction()
+
+    :ok
   end
 
   defp partition_table(%S{namespace: namespace}),
@@ -118,11 +124,12 @@ defmodule Derive.Ecto.State do
 
   @doc """
   Erase all of the state to bring it back to the starting point.
-  This involves dropping and recreating all the tables.
+  This involves dropping and recreating all the tables including the partition tables.
   """
-  def reset_state(%S{} = state) do
+  @spec reset_state(t(), [Partition.t()]) :: :ok
+  def reset_state(%S{} = state, initial_partitions \\ []) do
     clear_state(state)
-    init_state(state)
+    init_state(state, initial_partitions)
   end
 
   def clear_state(%S{repo: repo, models: models} = state) do
@@ -130,11 +137,21 @@ defmodule Derive.Ecto.State do
     for model <- models, do: clear_model(model, repo)
   end
 
-  def init_state(%S{repo: repo, models: models, version: version} = state) do
+  @doc """
+  Setup the tables so that a Derive process can properly function
+  to update the current state.
+  """
+  @spec init_state(t(), [Partition.t()]) :: :ok
+  def init_state(
+        %S{repo: repo, models: models, version: version} = state,
+        initial_partitions \\ []
+      ) do
     models = [{PartitionRecord, partition_table(state)} | models]
     for model <- models, do: init_model(model, repo)
 
-    save_partitions(state, [%Partition{id: Partition.version_id(), cursor: version, status: :ok}])
+    save_partitions(state, [
+      %Partition{id: Partition.version_id(), cursor: version, status: :ok} | initial_partitions
+    ])
   end
 
   defp clear_model(model, repo) when is_atom(model) do

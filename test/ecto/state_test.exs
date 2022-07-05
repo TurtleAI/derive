@@ -75,10 +75,17 @@ defmodule Derive.Ecto.StateTest do
 
   describe "get/set partitions" do
     test "can set and get back a partition" do
-      State.init_state(@state)
+      State.init_state(@state, [
+        %Partition{
+          id: "o",
+          cursor: "99"
+        }
+      ])
 
       State.save_partitions(@state, [%Partition{id: "x", status: :ok, cursor: "1"}])
+
       %Partition{id: "x", status: :ok, cursor: "1"} = State.load_partition(@state, "x")
+      %Partition{id: "o", status: :ok, cursor: "99"} = State.load_partition(@state, "o")
 
       State.save_partitions(@state, [
         %Partition{
