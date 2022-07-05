@@ -1,6 +1,15 @@
 defmodule Derive.Ecto.Service do
   @callback commit(Derive.State.MultiOp.t()) :: Derive.State.MultiOp.t()
 
+  @doc """
+  The initial global cursor to start processing events for the first time.
+  In many cases, a service is not intended to process historical events.
+
+  By returning up the initial cursor (for example, MyEventLog.last_cursor()), we can ensure
+  a service starts at the end of the event log rather than from the beginning.
+  """
+  @callback get_initial_cursor(Derive.Options.t()) :: Derive.EventLog.cursor()
+
   defmacro __using__(opts) do
     repo = Keyword.fetch!(opts, :repo)
     namespace = Keyword.fetch!(opts, :namespace)
@@ -18,7 +27,12 @@ defmodule Derive.Ecto.Service do
 
       @impl true
       def setup(%Derive.Options{} = opts) do
-        Derive.Ecto.State.init_state(@state)
+        Derive.Ecto.State.init_state(@state, [
+          %Derive.Partition{
+            id: Derive.Partition.global_id(),
+            cursor: get_initial_cursor(opts)
+          }
+        ])
       end
 
       @impl true

@@ -77,6 +77,10 @@ defmodule Derive.Ecto.ServiceTest do
         Derive.MultiOp.committed(op)
       end
     end
+
+    @impl true
+    def get_initial_cursor(_),
+      do: "0"
   end
 
   setup_all do

@@ -140,7 +140,7 @@ defmodule Derive do
 
   defp await_messages(server, events) do
     partition_supervisor = child_process(server, :supervisor)
-    options = %Options{reducer: reducer} = Agent.get(child_process(server, :options), & &1)
+    options = %Options{reducer: reducer} = get_options(server)
 
     for event <- events, partition = reducer.partition(event), partition != nil do
       dispatcher_process =
@@ -149,6 +149,14 @@ defmodule Derive do
       {{server, event}, dispatcher_process, {:await, event}}
     end
   end
+
+  @doc """
+  Get the options that the Derive process is running with.
+  After booting, these options will never change.
+  """
+  @spec get_options(server()) :: Options.t()
+  def get_options(server),
+    do: Agent.get(child_process(server, :options), & &1)
 
   @doc """
   Rebuilds the state of a reducer.
