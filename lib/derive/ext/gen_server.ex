@@ -51,17 +51,44 @@ defmodule Derive.Ext.GenServer do
   defp process_replies([{key, req_id} | rest], {status, items}, timeout) do
     case :gen_server.receive_response(req_id, timeout) do
       {:reply, reply} ->
-        process_replies(rest, {status, [{key, {:reply, reply}} | items]}, timeout)
+        process_replies(
+          rest,
+          {status, [{key, {:reply, reply}} | items]},
+          next_timeout(status, timeout)
+        )
 
       # The GenServer died before a reply was sent
       {:error, reason} ->
-        process_replies(rest, {status, [{key, {:error, reason}} | items]}, timeout)
+        process_replies(
+          rest,
+          {status, [{key, {:error, reason}} | items]},
+          next_timeout(status, timeout)
+        )
 
-      # We exceeded the overall timeout for this individual call
-      # By dropping the timeout to 0, we can collect the responses that have completed successfully so far
-      # and considered the rest as timed out.
       :timeout ->
-        process_replies(rest, {:overall_timeout, [{key, {:error, :timeout}} | items]}, 0)
+        process_replies(
+          rest,
+          {:overall_timeout, [{key, {:error, :timeout}} | items]},
+          next_timeout(:overall_timeout, timeout)
+        )
+    end
+  end
+
+  # We exceeded the overall timeout for this individual call
+  # By dropping the timeout to 0, we can collect the responses that have completed successfully so far
+  # and considered the rest as timed out.
+  defp next_timeout(:overall_timeout, _timeout),
+    do: 0
+
+  defp next_timeout(_status, timeout) do
+    # Without this check, it could be possible that we wait (num_calls * timeout) rather than timeout.
+    # So if we received this message, it means we're out of time
+    receive do
+      # drop timeout to 0 to force a timeout on all remaining requests
+      :overall_timeout -> 0
+    after
+      # if we didn't immediately receieve a timeout message, we continue as normal
+      0 -> timeout
     end
   end
 end
