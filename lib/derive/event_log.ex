@@ -100,6 +100,6 @@ defmodule Derive.EventLog do
   Return the total number of events in the event log
   """
   @spec count(pid()) :: non_neg_integer()
-  def count(server, timeout \\ 30_000),
+  def count(server, timeout \\ 120_000),
     do: GenServer.call(server, :count, timeout)
 end
