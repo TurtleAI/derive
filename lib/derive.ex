@@ -168,7 +168,7 @@ defmodule Derive do
 
     {:ok, rebuild_progress} =
       case Keyword.get(opts, :show_progress, false) do
-        true -> Derive.Logger.RebuildProgressLogger.start_link()
+        true -> Derive.Logger.RebuildProgressLogger.start_link(replace: false)
         false -> {:ok, nil}
       end
 

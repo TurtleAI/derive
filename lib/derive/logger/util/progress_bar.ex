@@ -24,7 +24,7 @@ defmodule Derive.Logger.Util.ProgressBar do
     prefix =
       case replace do
         true -> IO.ANSI.clear_line() <> "\r"
-        false -> ""
+        false -> "\n"
       end
 
     suffix =

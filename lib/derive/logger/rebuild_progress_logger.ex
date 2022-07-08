@@ -13,18 +13,23 @@ defmodule Derive.Logger.RebuildProgressLogger do
   @type t :: %__MODULE__{
           processed: non_neg_integer(),
           total: non_neg_integer(),
-          timespan: Timespan.t()
+          timespan: Timespan.t(),
+          replace: boolean(),
+          last_logged: Timespan.timestamp()
         }
-  defstruct processed: 0, total: 0, timespan: nil
+  defstruct processed: 0, total: 0, timespan: nil, last_logged: nil, replace: true
 
   alias Derive.Logger.RebuildProgressLogger, as: S
   alias Derive.Logger.Util.ProgressBar
   alias Derive.Options
 
   @bar_width 25
+  @update_interval 1_000_000
 
-  def start_link(opts \\ []),
-    do: GenServer.start_link(__MODULE__, %S{}, opts)
+  def start_link(opts \\ []) do
+    replace = Keyword.get(opts, :replace, true)
+    GenServer.start_link(__MODULE__, %S{replace: replace}, opts)
+  end
 
   ### Server
 
@@ -43,38 +48,30 @@ defmodule Derive.Logger.RebuildProgressLogger do
     |> ProgressBar.render()
     |> IO.write()
 
-    {:noreply, %{state | total: total, timespan: Timespan.start()}}
+    now = :erlang.timestamp()
+
+    {:noreply, %S{state | total: total, timespan: Timespan.start(now), last_logged: now}}
   end
 
   def handle_cast(
         {:log, {:events_processed, count}},
-        %S{processed: processed, total: total, timespan: timespan} = state
+        %S{
+          processed: processed,
+          replace: replace
+        } = state
       ) do
+    now = :erlang.timestamp()
     new_processed = processed + count
 
-    elapsed_timespan = Timespan.stop(timespan)
+    {new_state, progress} = next_progress(state, now, new_processed)
 
-    elapsed_status =
-      elapsed_timespan
-      |> Timespan.elapsed()
-      |> Timespan.format_elapsed()
+    if progress != nil do
+      progress
+      |> ProgressBar.render(replace: replace)
+      |> IO.write()
+    end
 
-    estimated_status =
-      elapsed_timespan
-      |> Timespan.estimate({new_processed, total})
-      |> Timespan.format_elapsed()
-
-    %ProgressBar{
-      value: new_processed,
-      total: total,
-      width: @bar_width,
-      status:
-        " #{new_processed}/#{total} ELAPSED: #{elapsed_status} ESTIMATE: #{estimated_status}"
-    }
-    |> ProgressBar.render(replace: true)
-    |> IO.write()
-
-    {:noreply, %{state | processed: new_processed}}
+    {:noreply, new_state}
   end
 
   def handle_cast(
@@ -95,7 +92,7 @@ defmodule Derive.Logger.RebuildProgressLogger do
     |> ProgressBar.render(replace: true)
     |> IO.write()
 
-    {:noreply, %{state | timespan: Timespan.stop(timespan)}}
+    {:noreply, %S{state | timespan: Timespan.stop(timespan)}}
   end
 
   def handle_cast({:log, message}, state) do
@@ -109,5 +106,47 @@ defmodule Derive.Logger.RebuildProgressLogger do
 
   defp handle_log(_) do
     :ok
+  end
+
+  defp next_progress(
+         %S{timespan: timespan, total: total, last_logged: last_logged, replace: replace} = state,
+         now,
+         new_processed
+       ) do
+    elapsed_timespan = Timespan.stop(timespan, now)
+
+    elapsed_status =
+      elapsed_timespan
+      |> Timespan.elapsed()
+      |> Timespan.format_elapsed()
+
+    estimated_status =
+      elapsed_timespan
+      |> Timespan.estimate({new_processed, total})
+      |> Timespan.format_elapsed()
+
+    elapsed_microseconds = :timer.now_diff(now, last_logged)
+
+    {progress_bar, new_last_logged} =
+      if replace || elapsed_microseconds >= @update_interval do
+        {%ProgressBar{
+           value: new_processed,
+           total: total,
+           width: @bar_width,
+           status:
+             " " <>
+               String.pad_trailing("#{new_processed}/#{total}", 20) <>
+               "~#{elapsed_status}/#{estimated_status}"
+         }, now}
+      else
+        {nil, last_logged}
+      end
+
+    {%S{
+       state
+       | timespan: elapsed_timespan,
+         processed: new_processed,
+         last_logged: new_last_logged
+     }, progress_bar}
   end
 end
