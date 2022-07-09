@@ -136,7 +136,7 @@ defmodule Derive.Logger.RebuildProgressLogger do
            status:
              " " <>
                String.pad_trailing("#{new_processed}/#{total}", 20) <>
-               "~#{elapsed_status}/#{estimated_status}"
+               "ELAPSED: #{elapsed_status} REMAINING: ~#{estimated_status}"
          }, now}
       else
         {nil, last_logged}

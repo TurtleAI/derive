@@ -37,9 +37,9 @@ defmodule Derive do
     {source_spec, source_server} = spec_and_server(name, :source, source)
 
     derive_opts = %Derive.Options{
-      reducer: Keyword.fetch!(opts, :reducer),
+      reducer: reducer,
       name: name,
-      mode: Keyword.get(opts, :mode, :catchup),
+      mode: mode,
       batch_size: Keyword.get(opts, :batch_size, 100),
       source: source_server,
       logger: Keyword.get(opts, :logger)
@@ -162,9 +162,10 @@ defmodule Derive do
   """
   @spec rebuild(Derive.Reducer.t(), [option()]) :: :ok
   def rebuild(reducer, opts \\ []) do
-    name = reducer
+    name = Keyword.get(opts, :name, reducer)
 
     logger = Keyword.get(opts, :logger)
+    mode = Keyword.get(opts, :mode, :rebuild)
 
     {:ok, rebuild_progress} =
       case Keyword.get(opts, :show_progress, false) do
@@ -176,7 +177,7 @@ defmodule Derive do
       Keyword.merge(opts,
         reducer: reducer,
         name: name,
-        mode: :rebuild,
+        mode: mode,
         logger: Derive.Logger.append_logger(logger, rebuild_progress)
       )
 

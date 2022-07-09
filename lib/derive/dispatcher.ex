@@ -86,7 +86,10 @@ defmodule Derive.Dispatcher do
   end
 
   @impl true
-  def handle_continue(:load_partition, %S{options: %Options{reducer: reducer} = options} = state) do
+  def handle_continue(
+        :load_partition,
+        %S{options: %Options{reducer: reducer} = options} = state
+      ) do
     partition = reducer.load_partition(options, Partition.global_id())
 
     GenServer.cast(self(), :catchup)

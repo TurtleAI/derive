@@ -12,6 +12,8 @@ defmodule Derive.Ecto.State do
           version: binary()
         }
 
+  require Logger
+
   alias __MODULE__, as: S
 
   alias Derive.Partition
@@ -46,6 +48,9 @@ defmodule Derive.Ecto.State do
       {:exception, error, stacktrace} ->
         multi_op = MultiOp.commit_failed(multi_op, {error, stacktrace})
         save_partitions(state, [multi_op.partition])
+
+        Logger.error(Exception.format(:error, error, stacktrace))
+
         multi_op
     end
   end
