@@ -10,7 +10,7 @@ defmodule Derive.Reducer do
   - These operations are committed by &Derive.Reducer.commit/1
   """
 
-  alias Derive.{EventLog, Partition}
+  alias Derive.{EventLog, Partition, Options}
   alias Derive.State.MultiOp
 
   @type t :: module()
@@ -62,7 +62,7 @@ defmodule Derive.Reducer do
 
   Returns a new MultiOp that reflects the operation that was committed.
   """
-  @callback process_events([event()], MultiOp.t()) :: MultiOp.t()
+  @callback process_events([event()], MultiOp.t(), Options.t()) :: MultiOp.t()
 
   @doc """
   For a given event, return the cursor for the event.

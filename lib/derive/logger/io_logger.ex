@@ -9,7 +9,7 @@ defmodule Derive.Logger.IOLogger do
 
   import Derive.Formatter, only: [mod_to_string: 1]
 
-  def log({:error, error, stacktrace}),
+  def log({:error, {error, stacktrace}}),
     do: Logger.error(Exception.format(:error, error, stacktrace))
 
   def log({:info, message}),

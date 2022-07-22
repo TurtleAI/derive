@@ -60,6 +60,7 @@ defmodule Derive.PartitionDispatcher do
   @impl true
   def init(%S{} = state) do
     Process.flag(:trap_exit, true)
+
     {:ok, state, {:continue, :load_partition}}
   end
 
@@ -131,7 +132,7 @@ defmodule Derive.PartitionDispatcher do
           timeout: timeout
         } = state
       ) do
-    multi = reducer.process_events(events, MultiOp.new(partition))
+    multi = reducer.process_events(events, MultiOp.new(partition), opts)
 
     Derive.Logger.multi(logger, multi)
     new_partition = multi.partition

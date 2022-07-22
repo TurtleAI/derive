@@ -3,7 +3,6 @@ defmodule Derive.Ecto.ServiceTest do
 
   alias DeriveTestRepo, as: Repo
   alias Derive.Timespan
-  alias Derive.Logger.InMemoryLogger
   alias Derive.EventLog.InMemoryEventLog, as: EventLog
 
   defmodule Event do
@@ -107,14 +106,6 @@ defmodule Derive.Ecto.ServiceTest do
 
   def sequential?(t1, t2),
     do: Timespan.overlaps?(t1, t2) == false
-
-  def failed_multis(logger) do
-    InMemoryLogger.fetch(logger)
-    |> Enum.flat_map(fn
-      {:error, {:multi_op, multi}} -> [multi]
-      _ -> []
-    end)
-  end
 
   test "processes things sequentially " do
     name = :sequential_processing

@@ -34,6 +34,10 @@ defmodule Derive.NotifierTest do
     def partition(%{user_id: user_id}), do: user_id
 
     @impl true
+    def handle_event(%UserCreated{user_id: user_id, name: :error}) do
+      raise "error #{user_id}"
+    end
+
     def handle_event(%UserCreated{user_id: user_id, name: name}) do
       %Email{to: user_id, message: "Hi welcome #{name}"}
     end
@@ -112,6 +116,31 @@ defmodule Derive.NotifierTest do
     assert [
              %Email{message: "Hi you changed your name to Pikachu", to: 99}
            ] = EmailServer.get_emails(email_server)
+
+    Derive.stop(name)
+  end
+
+  test "if a notification has an error in handle_event, the error is logged" do
+    name = :notifier_error
+
+    {:ok, event_log} = EventLog.start_link()
+
+    {:ok, logger} = Derive.Logger.InMemoryLogger.start_link()
+
+    {:ok, _} =
+      Derive.start_link(reducer: UserNotifier, source: event_log, logger: logger, name: name)
+
+    EventLog.append(event_log, [
+      %UserCreated{id: "1", user_id: 99, name: :error}
+    ])
+
+    Derive.await(name, [
+      %UserCreated{id: "1", user_id: 99, name: :error}
+    ])
+
+    [error] = Derive.Logger.InMemoryLogger.messages(logger, :error)
+
+    assert {%RuntimeError{message: "error 99"}, _stack} = error
 
     Derive.stop(name)
   end

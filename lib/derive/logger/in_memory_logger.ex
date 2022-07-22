@@ -18,10 +18,10 @@ defmodule Derive.Logger.InMemoryLogger do
 
   ### Client
   @doc """
-  Fetch all of the multis in the order they were committed
+  Return all of the message of a particular type
   """
-  def fetch(server),
-    do: GenServer.call(server, :fetch)
+  def messages(server, type),
+    do: GenServer.call(server, {:messages, type})
 
   ### Server
 
@@ -31,11 +31,12 @@ defmodule Derive.Logger.InMemoryLogger do
 
   @impl true
   def handle_call(
-        :fetch,
+        {:messages, type},
         _from,
         %S{messages: messages} = state
       ) do
-    {:reply, Enum.reverse(messages), state}
+    messages = for {^type, message} <- Enum.reverse(messages), do: message
+    {:reply, messages, state}
   end
 
   @impl true

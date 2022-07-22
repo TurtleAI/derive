@@ -221,7 +221,7 @@ defmodule Derive do
 
   ### Server
 
-  def init({%Options{name: name} = derive_opts, child_specs}) do
+  def init({%Options{name: name, reducer: reducer} = derive_opts, child_specs}) do
     dispatcher_opts = [
       name: child_process(name, :dispatcher),
       options: derive_opts,
@@ -230,7 +230,7 @@ defmodule Derive do
 
     children =
       child_specs ++
-        derive_opts.reducer.child_specs(derive_opts) ++
+        reducer.child_specs(derive_opts) ++
         [
           # We use an agent to store the options for this derive process
           # We want this to be a dedicated process so we aren't waiting

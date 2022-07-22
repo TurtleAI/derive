@@ -51,7 +51,7 @@ defmodule Derive.Notifier do
       @behaviour Derive.Notifier
 
       @impl true
-      def process_events(events, multi) do
+      def process_events(events, multi, %Derive.Options{logger: logger}) do
         Derive.Reducer.EventProcessor.process_events(
           events,
           multi,
@@ -59,7 +59,8 @@ defmodule Derive.Notifier do
             handle_event: &handle_event/1,
             get_cursor: &get_cursor/1,
             commit: &commit/1,
-            on_error: :halt
+            on_error: :halt,
+            logger: logger
           }
         )
       end

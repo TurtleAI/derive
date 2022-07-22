@@ -77,7 +77,7 @@ defmodule Derive.Reducer.EventProcessor do
         try do
           commit.(multi)
         rescue
-          # Due to a programmer error, commit raised an exception
+          # Due to a programmer error, the commit handler raised an exception
           # We don't want this to bring down the app and instead handle this explicitly
           error ->
             Derive.Logger.error(logger, error, __STACKTRACE__)
@@ -146,6 +146,8 @@ defmodule Derive.Reducer.EventProcessor do
             # Due to a programmer error, the handle_event raised an exception
             # We don't want this to bring down the app and instead handle this explicitly
             error ->
+              Derive.Logger.error(logger, error, __STACKTRACE__)
+
               {:error,
                EventOp.error(
                  event_cursor,

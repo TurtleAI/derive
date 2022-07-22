@@ -26,7 +26,7 @@ defmodule Derive.Logger do
     do: List.wrap(loggers) ++ [l]
 
   def error(logger, error, stacktrace \\ []) do
-    log(logger, {:error, error, stacktrace})
+    log(logger, {:error, {error, stacktrace}})
   end
 
   @spec log(t(), term()) :: :ok

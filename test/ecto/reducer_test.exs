@@ -125,9 +125,10 @@ defmodule Derive.Ecto.ReducerTest do
     do: Timespan.overlaps?(t1, t2) == false
 
   def failed_multis(logger) do
-    InMemoryLogger.fetch(logger)
+    logger
+    |> InMemoryLogger.messages(:multi)
     |> Enum.flat_map(fn
-      {:multi, %MultiOp{status: :error} = multi} -> [multi]
+      %MultiOp{status: :error} = multi -> [multi]
       _ -> []
     end)
   end
@@ -211,9 +212,9 @@ defmodule Derive.Ecto.ReducerTest do
     Derive.await(name, events)
 
     event_ops_by_event =
-      Derive.Logger.InMemoryLogger.fetch(logger)
+      Derive.Logger.InMemoryLogger.messages(logger, :multi)
       |> Enum.flat_map(fn
-        {:multi, %MultiOp{status: :committed, operations: operations}} -> operations
+        %MultiOp{status: :committed, operations: operations} -> operations
         _ -> []
       end)
       |> Enum.group_by(& &1.event)
@@ -257,7 +258,6 @@ defmodule Derive.Ecto.ReducerTest do
       Derive.stop(name)
     end
 
-    @tag :focus
     test "await when a handle_event fails" do
       name = :await_handle_event_fail
 
