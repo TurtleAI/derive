@@ -645,7 +645,7 @@ defmodule Derive.Ecto.ReducerTest do
       Derive.stop(name)
 
       # We move the partition to some earlier value to simulate a shut-down before things are finished
-      UserReducer.save_partition(nil, %Derive.Partition{
+      UserReducer.save_partition([], %Derive.Partition{
         id: Partition.global_id(),
         cursor: "2"
       })
