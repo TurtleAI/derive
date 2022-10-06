@@ -71,23 +71,40 @@ defmodule Derive.Ecto.State do
     end
   end
 
-  def needs_rebuild?(%S{version: target_version} = state) do
-    resp =
-      try do
-        {:ok, load_partition(state, Partition.version_id())}
-      catch
-        # in some cases, the partition table doesn't exist yet
-        # in that case, we want to return true
-        :error, %Postgrex.Error{postgres: %{code: code}}
-        when code in [:undefined_table, :undefined_column] ->
-          {:error, :missing_table}
+  def needs_rebuild?(%S{repo: repo, version: target_version} = state) do
+    # If a table DOES NOT exist, we immediately know a rebuild is needed
+    # we can skip over having to raise and catch a postgres error which can be problematic
+    # in transaction
+    if table_exists?(repo, partition_table(state)) do
+      resp =
+        try do
+          {:ok, load_partition(state, Partition.version_id())}
+        catch
+          # in some cases, the partition table doesn't exist yet
+          # in that case, we want to return true
+          :error, %Postgrex.Error{postgres: %{code: code}}
+          when code in [:undefined_table, :undefined_column] ->
+            {:error, :missing_table}
+        end
+
+      case resp do
+        {:ok, %Partition{cursor: stored_version}} ->
+          target_version != stored_version
+
+        {:error, :missing_table} ->
+          true
       end
+    else
+      true
+    end
+  end
 
-    case resp do
-      {:ok, %Partition{cursor: stored_version}} ->
-        target_version != stored_version
+  defp table_exists?(repo, table_name) do
+    case Ecto.Adapters.SQL.query!(repo, "SELECT to_regclass($1)", [table_name]) do
+      %Postgrex.Result{rows: [[nil]]} ->
+        false
 
-      {:error, :missing_table} ->
+      %Postgrex.Result{rows: [[_oid]]} ->
         true
     end
   end
