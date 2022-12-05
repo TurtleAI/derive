@@ -27,7 +27,8 @@ defimpl Derive.Ecto.DbOp, for: Derive.Ecto.Operation.Insert do
     opts =
       case on_conflict do
         nil -> opts
-        value -> Keyword.put(opts, :on_conflict, value)
+        :raise -> Keyword.merge(opts, on_conflict: :raise)
+        value -> Keyword.merge(opts, on_conflict: value, conflict_target: conflict_target)
       end
 
     Ecto.Multi.insert(Ecto.Multi.new(), name, changeset, opts)

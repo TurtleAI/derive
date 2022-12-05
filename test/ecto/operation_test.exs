@@ -132,6 +132,12 @@ defmodule Derive.Ecto.OperationTest do
     ])
 
     assert %{name: "OOO", email: "oo@oo.com"} = Repo.get(Person, "o")
+
+    # update with no fields is a noop
+    commit([
+      update({Person, "o"}, []),
+      update({Person, "o"}, %{})
+    ])
   end
 
   test "insert_new" do
@@ -141,6 +147,27 @@ defmodule Derive.Ecto.OperationTest do
     ])
 
     assert %{name: "Xavier"} = Repo.get(Person, "x")
+  end
+
+  test "upsert" do
+    commit([
+      insert(%Checkin{
+        user_id: "a",
+        location_id: "x",
+        timestamp: ~U[2022-04-29T15:00:00Z]
+      }),
+      upsert(
+        %Checkin{
+          user_id: "a",
+          location_id: "x",
+          timestamp: ~U[2023-12-12T15:00:00Z]
+        },
+        set: [timestamp: ~U[2099-12-12T15:00:00Z]]
+      )
+    ])
+
+    assert %{user_id: "a", location_id: "x", timestamp: ~U[2099-12-12T15:00:00Z]} =
+             Repo.get_by(Checkin, user_id: "a", location_id: "x")
   end
 
   test "merge" do

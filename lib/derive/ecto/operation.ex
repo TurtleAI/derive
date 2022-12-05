@@ -67,6 +67,7 @@ defmodule Derive.Ecto.Operation do
 
   @doc """
   Replace an entire record in the database based on its primary key.
+  If the record does not exist, it will be created.
   """
   @spec replace(record()) :: operation()
   def replace(record),

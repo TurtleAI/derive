@@ -19,11 +19,13 @@ defimpl Derive.Ecto.DbOp, for: Derive.Ecto.Operation.Update do
   end
 
   def to_multi(%Derive.Ecto.Operation.Update{selector: selector, fields: fields}, index) do
-    Ecto.Multi.update_all(Ecto.Multi.new(), index, selector_query(selector),
-      set: to_keyword_list(fields)
-    )
-  end
+    case Enum.to_list(fields) do
+      # noop when no fields are set
+      [] ->
+        Ecto.Multi.new()
 
-  defp to_keyword_list(list) when is_list(list), do: list
-  defp to_keyword_list(map) when is_map(map), do: Enum.to_list(map)
+      set ->
+        Ecto.Multi.update_all(Ecto.Multi.new(), index, selector_query(selector), set: set)
+    end
+  end
 end
