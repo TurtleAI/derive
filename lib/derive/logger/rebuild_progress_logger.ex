@@ -10,6 +10,9 @@ defmodule Derive.Logger.RebuildProgressLogger do
 
   require Logger
 
+  @type server :: pid() | atom()
+  @type option :: {:replace, boolean()} | GenServer.option()
+
   @type t :: %__MODULE__{
           processed: non_neg_integer(),
           total: non_neg_integer(),
@@ -26,8 +29,9 @@ defmodule Derive.Logger.RebuildProgressLogger do
   @bar_width 25
   @update_interval 1_000_000
 
+  @spec start_link([option()]) :: {:ok, server()} | {:error, term()}
   def start_link(opts) do
-    replace = Keyword.get(opts, :replace, true)
+    {replace, opts} = Keyword.pop(opts, :replace, true)
     GenServer.start_link(__MODULE__, %S{replace: replace}, opts)
   end
 
