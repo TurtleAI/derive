@@ -26,7 +26,7 @@ defmodule Derive.Logger.RebuildProgressLogger do
   @bar_width 25
   @update_interval 1_000_000
 
-  def start_link(opts \\ []) do
+  def start_link(opts) do
     replace = Keyword.get(opts, :replace, true)
     GenServer.start_link(__MODULE__, %S{replace: replace}, opts)
   end

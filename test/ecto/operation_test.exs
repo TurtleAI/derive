@@ -132,6 +132,12 @@ defmodule Derive.Ecto.OperationTest do
     ])
 
     assert %{name: "OOO", email: "oo@oo.com"} = Repo.get(Person, "o")
+
+    # update with no fields is a noop
+    commit([
+      update({Person, "o"}, []),
+      update({Person, "o"}, %{})
+    ])
   end
 
   test "insert_new" do

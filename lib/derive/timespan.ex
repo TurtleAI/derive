@@ -26,8 +26,15 @@ defmodule Derive.Timespan do
   If you don't pass in the start time, it will default to `:erlang.timestamp()`
   """
   @spec start(timestamp()) :: {timestamp(), nil}
-  def start(timestamp \\ nil),
-    do: {timestamp || :erlang.timestamp(), nil}
+  def start(timestamp),
+    do: {timestamp, nil}
+
+  @doc """
+  Start a timespan using the current system time
+  """
+  @spec start() :: {timestamp(), nil}
+  def start,
+    do: start(:erlang.timestamp())
 
   @doc """
   Complete a timespan at an end time
@@ -35,8 +42,15 @@ defmodule Derive.Timespan do
   If you don't pass in the end time, it will default to `:erlang.timestamp()`
   """
   @spec stop({timestamp(), nil}, timestamp()) :: t()
-  def stop({tstart, _tend}, timestamp \\ nil),
+  def stop({tstart, _tend}, timestamp),
     do: {tstart, timestamp || :erlang.timestamp()}
+
+  @doc """
+  Complete a timestamp using the current system timestamp
+  """
+  @spec stop({timestamp(), nil}) :: t()
+  def stop({tstart, tend}),
+    do: stop({tstart, tend}, :erlang.timestamp())
 
   @doc """
   The amount of time in microseconds that has elapsed for a timespan
