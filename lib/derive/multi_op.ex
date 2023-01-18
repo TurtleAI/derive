@@ -169,14 +169,22 @@ defmodule Derive.MultiOp do
   end
 
   @doc """
-  A flat list of the operations that can be committed
-  In the order that they were added
+  A list of `EventOp` operations, each of which corresponds to a
+  single `handle_event` call.
+  Mainly, each `EventOp` contains the event that was passed into `handle_event`
+  and the operations that were emitted from it.
   """
-  @spec operations(MultiOp.t()) :: [EventOp.t()]
-  def operations(%MultiOp{operations: operations}) do
-    operations
-    |> Enum.reverse()
-    |> Enum.flat_map(fn %EventOp{operations: ops} -> ops end)
+  @spec event_operations(MultiOp.t()) :: [EventOp.t()]
+  def event_operations(%MultiOp{operations: operations}),
+    do: Enum.reverse(operations)
+
+  @doc """
+  A flat list of the operations that can be committed
+  Same order as the order that they were added
+  """
+  @spec operations(MultiOp.t()) :: [Derive.Reducer.operation()]
+  def operations(%MultiOp{} = multi) do
+    for %EventOp{operations: operations} <- event_operations(multi), op <- operations, do: op
   end
 
   @doc """
