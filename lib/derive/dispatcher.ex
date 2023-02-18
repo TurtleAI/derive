@@ -200,7 +200,7 @@ defmodule Derive.Dispatcher do
 
         partitions_with_messages =
           for {partition_dispatcher, events} <- events_by_partition_id_dispatcher, e <- events do
-            {partition_dispatcher, {:await, e}}
+            {partition_dispatcher, partition_dispatcher, {:await, e}}
           end
 
         Derive.Ext.GenServer.call_many(partitions_with_messages, 30_000)

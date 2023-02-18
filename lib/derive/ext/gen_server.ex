@@ -1,8 +1,7 @@
 defmodule Derive.Ext.GenServer do
   @type reply :: {:reply, term} | {:error, :timeout}
 
-  @type server_with_message ::
-          {GenServer.server(), term} | {message_key(), GenServer.server(), message()}
+  @type key_server_message :: {message_key(), GenServer.server(), message()}
 
   @type keyed_response :: {message_key(), reply}
 
@@ -18,77 +17,42 @@ defmodule Derive.Ext.GenServer do
   The returned tuples will correspond to the requests.
   So `[{server1, message1}, {server2, message2}]` would come back with [{server1, reply1}, {server2, reply2}]
   """
-  @spec call_many([server_with_message()], timeout) :: [keyed_response()]
-  def call_many(servers_with_messages, timeout \\ 5000) do
-    servers_with_requests =
-      servers_with_messages
-      |> Enum.map(fn
-        {key, server, message} -> {key, server, message}
-        {server, message} -> {server, server, message}
-      end)
-      |> Enum.map(fn {key, server, message} ->
-        {key, :gen_server.send_request(server, message)}
-      end)
+  @spec call_many([key_server_message()], timeout) :: [keyed_response()]
+  def call_many(key_server_messages, timeout \\ 5000) do
+    start_time = :erlang.monotonic_time(:millisecond)
+    deadline = start_time + timeout
 
-    # To avoid waiting (num_calls * timeout) rather than timeout,
-    # we can check the inbox for :overall_timeout after each request
-    # to see if we've exceeded the overall timeout
-    timer_ref = Process.send_after(self(), :overall_timeout, timeout)
+    responses_by_keys =
+      :gen_server.reqids_new()
+      |> send_requests(key_server_messages)
+      |> receive_responses({:abs, deadline})
+      |> Enum.into(%{})
 
-    # the accumulator is of the form:
-    # {:ok | :overall_timeout, [{server1, response1}, {server2, response2}, ...]}
-    # Once the status becomes :overall_timeout, we consider any pending requests as timed out
-    {_status, servers_with_replies} = process_replies(servers_with_requests, {:ok, []}, timeout)
-
-    Process.cancel_timer(timer_ref)
-
-    Enum.reverse(servers_with_replies)
-  end
-
-  defp process_replies([], {status, items}, _timeout),
-    do: {status, items}
-
-  defp process_replies([{key, req_id} | rest], {status, items}, timeout) do
-    case :gen_server.receive_response(req_id, timeout) do
-      {:reply, reply} ->
-        process_replies(
-          rest,
-          {status, [{key, {:reply, reply}} | items]},
-          next_timeout(status, timeout)
-        )
-
-      # The GenServer died before a reply was sent
-      {:error, reason} ->
-        process_replies(
-          rest,
-          {status, [{key, {:error, reason}} | items]},
-          next_timeout(status, timeout)
-        )
-
-      :timeout ->
-        process_replies(
-          rest,
-          {:overall_timeout, [{key, {:error, :timeout}} | items]},
-          next_timeout(:overall_timeout, timeout)
-        )
+    for {key, _server, _message} <- key_server_messages do
+      {key, responses_by_keys[key]}
     end
   end
 
-  # We exceeded the overall timeout for this individual call
-  # By dropping the timeout to 0, we can collect the responses that have completed successfully so far
-  # and considered the rest as timed out.
-  defp next_timeout(:overall_timeout, _timeout),
-    do: 0
+  defp send_requests(request_ids, []),
+    do: request_ids
 
-  defp next_timeout(_status, timeout) do
-    # Without this check, it could be possible that we wait (num_calls * timeout) rather than timeout.
-    # So if we received this message, it means we're out of time
-    receive do
-      # drop timeout to 0 to force a timeout on all remaining requests
-      :overall_timeout -> 0
-    after
-      # if we didn't immediately receieve a timeout message, we continue as normal
-      0 -> timeout
+  defp send_requests(request_ids, [{key, server, message} | rest_calls]) do
+    new_request_ids = :gen_server.send_request(server, message, key, request_ids)
+    send_requests(new_request_ids, rest_calls)
+  end
+
+  defp receive_responses(request_ids, timeout) do
+    case :gen_server.receive_response(request_ids, timeout, true) do
+      :no_request ->
+        []
+
+      :timeout ->
+        for {_req_id, label} <- :gen_server.reqids_to_list(request_ids) do
+          {label, :timeout}
+        end
+
+      {response, label, new_req_ids} ->
+        [{label, response} | receive_responses(new_req_ids, timeout)]
     end
   end
 end
