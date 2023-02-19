@@ -5,12 +5,18 @@ defmodule Derive.Logger.IOLogger do
 
   require Logger
 
+  alias Derive.MultiOp
   alias Derive.Partition
 
   import Derive.Formatter, only: [mod_to_string: 1]
 
-  def log({:error, {error, stacktrace}}),
-    do: Logger.error(Exception.format(:error, error, stacktrace))
+  def log({:error, %MultiOp{error: error}}) do
+    Logger.error(Exception.message(error))
+  end
+
+  def log({:error, error}) do
+    Logger.error(Exception.message(error))
+  end
 
   def log({:info, message}),
     do: Logger.info(inspect(message))

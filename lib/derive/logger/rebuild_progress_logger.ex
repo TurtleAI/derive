@@ -100,15 +100,15 @@ defmodule Derive.Logger.RebuildProgressLogger do
   end
 
   def handle_cast({:log, message}, state) do
-    handle_log(message)
+    log(message)
     {:noreply, state}
   end
 
-  defp handle_log({:error, {:multi_op, multi}}) do
-    Logger.error(multi)
+  defp log({:error, error}) do
+    Derive.Logger.IOLogger.log({:error, error})
   end
 
-  defp handle_log(_) do
+  defp log(_) do
     :ok
   end
 

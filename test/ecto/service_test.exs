@@ -46,6 +46,8 @@ defmodule Derive.Ecto.ServiceTest do
   end
 
   defmodule AccountingService do
+    alias Derive.Error.CommitError
+
     use Derive.Ecto.Service,
       repo: Repo,
       namespace: "accounting_service"
@@ -70,7 +72,10 @@ defmodule Derive.Ecto.ServiceTest do
            %Event{data: %{"amount" => amount}} -> amount < 0
            _ -> false
          end) do
-        Derive.MultiOp.commit_failed(op, {:negative_balance, nil})
+        Derive.MultiOp.failed(op, %CommitError{
+          error: :negative_balance,
+          operations: Derive.MultiOp.event_operations(op)
+        })
       else
         FakeEventLog.persist(events)
         Derive.MultiOp.committed(op)

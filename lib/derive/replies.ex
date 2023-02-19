@@ -14,7 +14,7 @@ defmodule Derive.Replies do
   @type status :: :ok | :error
 
   @type reply_key :: {any(), Derive.EventLog.event()}
-  @type reply_value :: {:ok, any()} | {:error, any()}
+  @type reply_value :: {:ok, any()} | {:error, any()} | :timeout
 
   def new(map) do
     %__MODULE__{status: get_status(map), map: map}

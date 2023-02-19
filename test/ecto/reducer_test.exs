@@ -553,7 +553,18 @@ defmodule Derive.Ecto.ReducerTest do
       assert %MultiOp{
                status: :error,
                error: %CommitError{
-                 operation: %EventOp{cursor: "2", event: %{name: "Mondo Manner"}},
+                 operations: [
+                   %EventOp{
+                     cursor: "1",
+                     status: :ok,
+                     event: %Derive.Ecto.ReducerTest.UserCreated{
+                       name: "Mondo Man",
+                       id: "1",
+                       user_id: "m"
+                     }
+                   },
+                   %EventOp{cursor: "2", status: :ok, event: %{name: "Mondo Manner"}}
+                 ],
                  error: [
                    id:
                      {"has already been taken",

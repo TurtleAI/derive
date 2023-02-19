@@ -19,6 +19,7 @@ defmodule Derive.Ecto.State do
   alias Derive.Partition
   alias Derive.Ecto.PartitionRecord
   alias Derive.MultiOp
+  alias Derive.Error.CommitError
 
   @doc """
   Commit a list of operations to disk within a transaction.
@@ -41,16 +42,28 @@ defmodule Derive.Ecto.State do
 
       {:error, failed_operation_index, %Ecto.Changeset{errors: errors}, _changes_so_far} ->
         failed_event_op = MultiOp.find_event_op_by_index(multi_op, failed_operation_index)
-        multi_op = MultiOp.commit_failed(multi_op, {errors, []}, failed_event_op)
+
+        commit_error = %CommitError{
+          commit: {__MODULE__, :commit},
+          operations: MultiOp.event_operations(multi_op),
+          failed_operation: failed_event_op,
+          error: errors
+        }
+
+        multi_op = MultiOp.failed(multi_op, commit_error)
         save_partitions(state, [multi_op.partition])
         multi_op
 
       {:exception, error, stacktrace} ->
-        multi_op = MultiOp.commit_failed(multi_op, {error, stacktrace})
+        commit_error = %CommitError{
+          commit: {__MODULE__, :commit},
+          operations: MultiOp.event_operations(multi_op),
+          error: error,
+          stacktrace: stacktrace
+        }
+
+        multi_op = MultiOp.failed(multi_op, commit_error)
         save_partitions(state, [multi_op.partition])
-
-        Logger.error(Exception.format(:error, error, stacktrace))
-
         multi_op
     end
   end

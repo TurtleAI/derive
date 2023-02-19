@@ -3,29 +3,45 @@ defmodule Derive.Error.CommitError do
   Error when trying to commit some operations
   """
 
-  defexception [:error, :stacktrace, :operation]
+  defexception [:commit, :operations, :failed_operation, :error, :stacktrace]
 
   @type t :: %__MODULE__{
           stacktrace: System.stacktrace() | nil,
-          operation: Derive.State.EventOp.t() | nil
+          operations: [Derive.State.EventOp.t()]
         }
 
   alias Derive.EventOp
 
-  def message(%__MODULE__{operation: operation, error: error}) do
-    "commit failed [#{operation.cursor}] #{inspect(error)}"
+  def message(%__MODULE__{
+        commit: commit,
+        operations: operations,
+        error: error,
+        stacktrace: stacktrace
+      }) do
+    [
+      "commit failed:\n",
+      inspect(commit),
+      "\noperations:",
+      for(o <- operations, do: inspect(o) <> "\n"),
+      "exception:\n",
+      [Exception.format(:error, error, stacktrace)]
+    ]
+    |> IO.iodata_to_binary()
   end
 
   def to_partition_error(
-        %__MODULE__{operation: operation, error: error, stacktrace: stacktrace},
-        %Derive.MultiOp{
-          operations: operations
-        }
+        %__MODULE__{
+          operations: operations,
+          failed_operation: failed_operation,
+          error: error,
+          stacktrace: stacktrace
+        },
+        _
       ) do
-    batch = for %EventOp{cursor: cursor} <- Enum.reverse(operations), do: cursor
+    batch = for %EventOp{cursor: cursor} <- operations, do: cursor
 
     cursor =
-      case operation do
+      case failed_operation do
         %EventOp{cursor: cursor} -> cursor
         nil -> nil
       end

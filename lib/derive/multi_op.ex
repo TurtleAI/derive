@@ -99,55 +99,35 @@ defmodule Derive.MultiOp do
   def skipped(%MultiOp{status: :skipped} = multi),
     do: %{multi | status: :skipped}
 
-  @doc """
-  This operation failed on a particular handle_event(event)
-  """
-  @spec failed_on_event(MultiOp.t(), EventOp.t()) :: MultiOp.t()
-  def failed_on_event(
-        %MultiOp{partition: partition} = multi,
-        %EventOp{} = op
-      ) do
-    error = %HandleEventError{operation: op}
-    partition_error = HandleEventError.to_partition_error(error, multi)
-
-    %MultiOp{
-      multi
-      | status: :error,
-        partition: %Partition{partition | status: :error, error: partition_error},
-        error: %HandleEventError{operation: op}
-    }
+  @spec failed(MultiOp.t(), any()) :: MultiOp.t()
+  def failed(multi, error) do
+    %MultiOp{multi | status: :error, error: error}
+    |> fail_partition()
   end
 
-  @doc """
-  This operation failed during the commit phase
-  """
-  @spec commit_failed(
-          MultiOp.t(),
-          {commit_error(), Exception.stacktrace() | nil},
-          EventOp.t() | nil
-        ) :: MultiOp.t()
-  def commit_failed(
-        %MultiOp{
-          partition: partition,
-          initial_partition: %Partition{cursor: cursor_before_commit}
-        } = multi,
-        {error, stacktrace},
-        event_op \\ nil
-      ) do
-    error = %CommitError{error: error, operation: event_op, stacktrace: stacktrace}
-    partition_error = CommitError.to_partition_error(error, multi)
+  defp fail_partition(%MultiOp{partition: partition, error: %HandleEventError{} = e} = multi) do
+    partition_error = HandleEventError.to_partition_error(e, multi)
+    %MultiOp{multi | partition: %Partition{partition | status: :error, error: partition_error}}
+  end
+
+  defp fail_partition(
+         %MultiOp{
+           initial_partition: %Partition{cursor: cursor_before_commit},
+           partition: partition,
+           error: %CommitError{} = e
+         } = multi
+       ) do
+    partition_error = CommitError.to_partition_error(e, multi)
 
     %MultiOp{
       multi
-      | status: :error,
-        partition: %Partition{
+      | partition: %Partition{
           partition
           | status: :error,
             error: partition_error,
             # if we ever resume operations, we want the cursor to be reverted to the previous commit
             cursor: cursor_before_commit
-        },
-        error: error
+        }
     }
   end
 
