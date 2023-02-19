@@ -70,14 +70,15 @@ defmodule Derive.Reducer.EventProcessor do
   def process_events(
         events,
         multi,
-        %Options{commit: commit, logger: logger} = options
+        %Options{commit: commit, logger: logger, handle_event: handle_event} = options
       ) do
     case reduce_events(events, multi, options) do
       %MultiOp{status: :processed} = multi ->
         # we only commit a multi if it has successfully been processed
         try do
           case commit.(multi) do
-            %MultiOp{status: :error} = multi ->
+            %MultiOp{status: :error, error: %CommitError{} = error} = multi ->
+              multi = %MultiOp{multi | error: %CommitError{error | handle_event: handle_event}}
               Derive.Logger.error(logger, multi)
               multi
 
@@ -90,6 +91,7 @@ defmodule Derive.Reducer.EventProcessor do
           error ->
             commit_error = %CommitError{
               commit: commit,
+              handle_event: handle_event,
               operations: MultiOp.event_operations(multi),
               error: error,
               stacktrace: __STACKTRACE__

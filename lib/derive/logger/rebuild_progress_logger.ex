@@ -42,6 +42,15 @@ defmodule Derive.Logger.RebuildProgressLogger do
     do: {:ok, state}
 
   @impl true
+  def handle_call(
+        :flush,
+        _from,
+        state
+      ) do
+    {:reply, :ok, state}
+  end
+
+  @impl true
   def handle_cast(
         {:log, {:rebuild_started, %Options{reducer: reducer}, total}},
         state
@@ -108,7 +117,7 @@ defmodule Derive.Logger.RebuildProgressLogger do
     Derive.Logger.IOLogger.log({:error, error})
   end
 
-  defp log(_) do
+  defp log(_message) do
     :ok
   end
 

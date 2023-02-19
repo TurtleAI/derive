@@ -22,8 +22,14 @@ defmodule Derive.Error.HandleEventError do
         error: error,
         stacktrace: stacktrace
       }) do
-    "handle_event #{inspect(handle_event)} failed on:\n#{inspect(event)}\n" <>
+    [
+      "HandleEventError :: " <> inspect(handle_event),
+      "\n",
+      inspect(event),
+      "\n",
       Exception.format(:error, error, stacktrace)
+    ]
+    |> IO.iodata_to_binary()
   end
 
   def to_partition_error(

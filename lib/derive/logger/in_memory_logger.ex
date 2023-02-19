@@ -39,6 +39,14 @@ defmodule Derive.Logger.InMemoryLogger do
     {:reply, messages, state}
   end
 
+  def handle_call(
+        :flush,
+        _from,
+        state
+      ) do
+    {:reply, :ok, state}
+  end
+
   @impl true
   def handle_cast(
         {:log, message},

@@ -27,6 +27,7 @@ defmodule Derive.Logger do
 
   def error(logger, error) do
     log(logger, {:error, error})
+    flush(logger)
   end
 
   @spec log(t(), term()) :: :ok
@@ -36,8 +37,9 @@ defmodule Derive.Logger do
   def log([], _),
     do: :ok
 
-  def log(server, message) when is_pid(server) or is_atom(server),
-    do: GenServer.cast(server, {:log, message})
+  def log(server, message) when is_pid(server) or is_atom(server) do
+    GenServer.cast(server, {:log, message})
+  end
 
   def log(func, message) when is_function(func, 1) do
     func.(message)
@@ -47,4 +49,16 @@ defmodule Derive.Logger do
     log(server, message)
     log(rest, message)
   end
+
+  def flush([logger | rest]) do
+    flush(logger)
+    flush(rest)
+  end
+
+  def flush(nil), do: :ok
+
+  def flush(server) when is_pid(server) or is_atom(server),
+    do: GenServer.call(server, :flush)
+
+  def flush(_), do: :ok
 end
