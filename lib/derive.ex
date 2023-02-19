@@ -126,7 +126,7 @@ defmodule Derive do
       case reply do
         {:reply, :ok} -> {key, :ok}
         {:reply, {:error, error}} -> {key, {:error, error}}
-        {:error, error} -> {key, {:error, error}}
+        :timeout -> {key, :timeout}
       end
     end
     |> Replies.new()

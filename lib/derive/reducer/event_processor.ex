@@ -44,6 +44,7 @@ defmodule Derive.Reducer.EventProcessor do
   @type operation :: Derive.Reducer.operation()
 
   alias Derive.{Partition, Timespan, MultiOp, EventOp}
+  alias Derive.Error.{HandleEventError, CommitError}
 
   @doc """
   Process events for a given list of events. This involves the following steps:
@@ -69,19 +70,38 @@ defmodule Derive.Reducer.EventProcessor do
   def process_events(
         events,
         multi,
-        %Options{commit: commit, logger: logger} = options
+        %Options{commit: commit, logger: logger, handle_event: handle_event} = options
       ) do
     case reduce_events(events, multi, options) do
       %MultiOp{status: :processed} = multi ->
         # we only commit a multi if it has successfully been processed
         try do
-          commit.(multi)
+          case commit.(multi) do
+            %MultiOp{status: :error, error: %CommitError{} = error} = multi ->
+              multi = %MultiOp{multi | error: %CommitError{error | handle_event: handle_event}}
+              Derive.Logger.error(logger, multi)
+              multi
+
+            %MultiOp{} = multi ->
+              multi
+          end
         rescue
           # Due to a programmer error, the commit handler raised an exception
           # We don't want this to bring down the app and instead handle this explicitly
           error ->
-            Derive.Logger.error(logger, error, __STACKTRACE__)
-            MultiOp.commit_failed(multi, {error, __STACKTRACE__})
+            commit_error = %CommitError{
+              commit: commit,
+              handle_event: handle_event,
+              operations: MultiOp.event_operations(multi),
+              error: error,
+              stacktrace: __STACKTRACE__
+            }
+
+            multi = MultiOp.failed(multi, commit_error)
+
+            Derive.Logger.error(logger, multi)
+
+            multi
         end
 
       multi ->
@@ -146,15 +166,23 @@ defmodule Derive.Reducer.EventProcessor do
             # Due to a programmer error, the handle_event raised an exception
             # We don't want this to bring down the app and instead handle this explicitly
             error ->
-              Derive.Logger.error(logger, error, __STACKTRACE__)
+              event_op =
+                EventOp.error(
+                  event_cursor,
+                  event,
+                  {error, __STACKTRACE__},
+                  Timespan.stop(timespan)
+                )
 
-              {:error,
-               EventOp.error(
-                 event_cursor,
-                 event,
-                 {error, __STACKTRACE__},
-                 Timespan.stop(timespan)
-               )}
+              handle_event_error = %HandleEventError{
+                operation: event_op,
+                handle_event: handle_event,
+                event: event,
+                error: error,
+                stacktrace: __STACKTRACE__
+              }
+
+              {:error, handle_event_error}
           end
       end
 
@@ -162,12 +190,10 @@ defmodule Derive.Reducer.EventProcessor do
       {status, event_op} when status in [:ok, :ignore] ->
         reduce_events(rest, MultiOp.add(multi, event_op), options)
 
-      {:error, event_op} ->
-        reduce_events(
-          rest,
-          MultiOp.failed_on_event(multi, event_op),
-          options
-        )
+      {:error, handle_event_error} ->
+        multi = MultiOp.failed(multi, handle_event_error)
+        Derive.Logger.error(logger, multi)
+        reduce_events(rest, multi, options)
     end
   end
 end

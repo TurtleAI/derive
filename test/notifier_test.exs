@@ -140,7 +140,40 @@ defmodule Derive.NotifierTest do
 
     [error] = Derive.Logger.InMemoryLogger.messages(logger, :error)
 
-    assert {%RuntimeError{message: "error 99"}, _stack} = error
+    assert %Derive.MultiOp{
+             error: %Derive.Error.HandleEventError{
+               error: %RuntimeError{message: "error 99"},
+               event: %Derive.NotifierTest.UserCreated{
+                 email: nil,
+                 id: "1",
+                 name: :error,
+                 user_id: 99
+               },
+               operation: %Derive.EventOp{
+                 cursor: "1",
+                 error: {%RuntimeError{message: "error 99"}, [_ | _]},
+                 event: %Derive.NotifierTest.UserCreated{
+                   email: nil,
+                   id: "1",
+                   name: :error,
+                   user_id: 99
+                 },
+                 operations: [],
+                 status: :error,
+                 timespan: {{_, _, _}, {_, _, _}}
+               },
+               stacktrace: [_ | _]
+             },
+             initial_partition: %Derive.Partition{cursor: :start, error: nil, id: 99, status: :ok},
+             partition: %Derive.Partition{
+               cursor: :start,
+               error: %Derive.PartitionError{batch: [], cursor: "1", type: :handle_event},
+               id: 99,
+               status: :error
+             },
+             save_partition: nil,
+             status: :error
+           } = error
 
     Derive.stop(name)
   end
