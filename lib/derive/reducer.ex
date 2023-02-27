@@ -105,7 +105,11 @@ defmodule Derive.Reducer do
   """
   @spec implemented?(atom()) :: boolean()
   def implemented?(module) do
-    behaviours = Keyword.get(module.__info__(:attributes), :behaviour, [])
+    behaviours =
+      module.__info__(:attributes)
+      |> Keyword.get_values(:behaviour)
+      |> List.flatten()
+
     Enum.member?(behaviours, __MODULE__)
   end
 end
