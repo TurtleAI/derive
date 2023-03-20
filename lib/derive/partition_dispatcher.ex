@@ -8,6 +8,8 @@ defmodule Derive.PartitionDispatcher do
 
   use GenServer, restart: :transient
 
+  require Logger
+
   alias __MODULE__, as: S
   alias Derive.{Partition, Reducer, Options, MultiOp}
 
@@ -84,6 +86,16 @@ defmodule Derive.PartitionDispatcher do
 
   def handle_info({:EXIT, _, :normal}, state),
     do: {:stop, :shutdown, state}
+
+  # handles :ok which might be produced for `&Derive.await/2`
+  def handle_info({[:alias | _], :ok}, %S{timeout: timeout} = state) do
+    {:noreply, state, timeout}
+  end
+
+  def handle_info(message, %S{timeout: timeout} = state) do
+    Logger.warn("PartitionDispatcher handle_info unhandled: " <> inspect(message))
+    {:noreply, state, timeout}
+  end
 
   @impl true
   def handle_call(
