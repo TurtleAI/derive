@@ -18,16 +18,18 @@ defmodule Derive.Ecto.Service do
       use Derive.Reducer
       @behaviour Derive.Ecto.Service
 
-      @state %Derive.Ecto.State{
-        repo: unquote(repo),
-        namespace: unquote(namespace),
-        models: [],
-        version: "1"
-      }
+      def __state__ do
+        %Derive.Ecto.State{
+          repo: unquote(repo),
+          namespace: unquote(namespace),
+          models: [],
+          version: "1"
+        }
+      end
 
       @impl true
       def setup(%Derive.Options{} = opts) do
-        Derive.Ecto.State.init_state(@state, [
+        Derive.Ecto.State.init_state(__state__(), [
           %Derive.Partition{
             id: Derive.Partition.global_id(),
             cursor: get_initial_cursor(opts)
@@ -56,11 +58,11 @@ defmodule Derive.Ecto.Service do
 
       @impl true
       def load_partition(_opts, id),
-        do: Derive.Ecto.State.load_partition(@state, id)
+        do: Derive.Ecto.State.load_partition(__state__(), id)
 
       @impl true
       def save_partition(_opts, partition),
-        do: Derive.Ecto.State.save_partitions(@state, [partition])
+        do: Derive.Ecto.State.save_partitions(__state__(), [partition])
     end
   end
 end
