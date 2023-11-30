@@ -5,7 +5,7 @@ defmodule Derive.MixProject do
     [
       app: :derive,
       version: "0.1.0",
-      elixir: "~> 1.14.4",
+      elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -19,9 +19,9 @@ defmodule Derive.MixProject do
 
   defp deps do
     [
-      {:ecto_sql, "~> 3.10.1"},
+      {:ecto_sql, "~> 3.10"},
       {:jason, "~> 1.4"},
-      {:postgrex, "~> 0.17.1"}
+      {:postgrex, ">= 0.0.0"}
     ]
   end
 end
